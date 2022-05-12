@@ -229,6 +229,10 @@ target_link_libraries(Rezonality
         unofficial::nativefiledialog::nfd
     )
 
+if("${CMAKE_SYSTEM_NAME}" STREQUAL "Linux")
+    target_link_libraries(Rezonality PRIVATE x11)
+endif()
+
 if (DEFINED ZEP_LIB)
     target_link_libraries(Rezonality PRIVATE Zep::Zep)
 endif()
