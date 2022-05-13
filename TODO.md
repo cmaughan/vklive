@@ -39,6 +39,7 @@ Bugs
 ## Zep
 - Flicker when too small
 - Tabs can be hard to delete/change to spaces
+- Word wrapping on words in the help docs would be useful.
 
 Fridge
 ------

@@ -29,9 +29,9 @@ void menu_show()
     // Simple menu options for switching mode and splitting
     if (ImGui::BeginMainMenuBar())
     {
-        if (ImGui::BeginMenu("Project"))
+        if (ImGui::BeginMenu("File"))
         {
-            if (ImGui::BeginMenu("New"))
+            if (ImGui::BeginMenu("New Project"))
             {
                 // Opus::MakeDefaultOpus();
                 if (ImGui::BeginMenu("From Template"))
@@ -73,21 +73,17 @@ void menu_show()
                 ImGui::EndMenu();
             }
 
-            if (ImGui::BeginMenu("Open"))
+            if (ImGui::MenuItem("Open Project..."))
             {
-                if (ImGui::MenuItem("Open Project..."))
+                auto newPath = controller_open_project();
+                if (!newPath.empty())
                 {
-                    auto newPath = controller_open_project();
-                    if (!newPath.empty())
+                    auto pProject = project_load(newPath);
+                    if (pProject)
                     {
-                        auto pProject = project_load(newPath);
-                        if (pProject)
-                        {
-                            controller.spProjectQueue->enqueue(pProject);
-                        }
+                        controller.spProjectQueue->enqueue(pProject);
                     }
                 }
-                ImGui::EndMenu();
             }
 
             if (ImGui::MenuItem("Save Project As...", "", nullptr, controller.spCurrentProject != nullptr))
@@ -101,6 +97,14 @@ void menu_show()
                         pProject->modified = false;
                         controller.spProjectQueue->enqueue(pProject);
                     }
+                }
+            }
+            
+            if (ImGui::MenuItem("Close"))
+            {
+                if (zep_get_editor().GetActiveTabWindow())
+                {
+                    zep_get_editor().GetActiveTabWindow()->CloseActiveWindow();
                 }
             }
 
@@ -214,11 +218,10 @@ void menu_show()
             }
             ImGui::EndMenu();
         }
-        /*
         if (ImGui::BeginMenu("Window"))
         {
-            DoLayoutMenu();
-            auto pTabWindow = editor.spZep->GetEditor().GetActiveTabWindow();
+            //DoLayoutMenu();
+            auto pTabWindow = zep_get_editor().GetActiveTabWindow();
             if (ImGui::MenuItem("Horizontal Split"))
             {
                 pTabWindow->AddWindow(&pTabWindow->GetActiveWindow()->GetBuffer(), pTabWindow->GetActiveWindow(), Zep::RegionLayoutType::VBox);
@@ -227,12 +230,13 @@ void menu_show()
             {
                 pTabWindow->AddWindow(&pTabWindow->GetActiveWindow()->GetBuffer(), pTabWindow->GetActiveWindow(), Zep::RegionLayoutType::HBox);
             }
+            /*
             else if (ImGui::MenuItem("Reset Layout"))
             {
             }
+            */
             ImGui::EndMenu();
         }
-        */
 
         // Display FPS on the menu
         float time = timer_get_elapsed_seconds(globalTimer);

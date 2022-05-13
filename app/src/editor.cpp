@@ -180,8 +180,6 @@ void zep_load(const fs::path& file, bool activate, uint32_t flags)
 
 void zep_show(bool focus)
 {
-    bool show = true;
-
     // Required for CTRL+P and flashing cursor.
     spZep->GetEditor().RefreshRequired();
 
@@ -192,23 +190,22 @@ void zep_show(bool focus)
         windowFlags |= ImGuiWindowFlags_NoBackground;
     }
 
-    // TODO: A Better solution for this; I think the audio graph is creating a new window and stealing focus
+
+    ImGui::SetNextWindowSize(ImVec2(800, 600), ImGuiCond_FirstUseEver);
+    ImGui::SetNextWindowPos(ImVec2(10, 50), ImGuiCond_FirstUseEver);
 
     static int focus_count = 0;
     if (focus)
     {
         focus_count = 0; 
     }
-
-    ImGui::SetNextWindowSize(ImVec2(800, 600), ImGuiCond_FirstUseEver);
-    ImGui::SetNextWindowPos(ImVec2(10, 50), ImGuiCond_FirstUseEver);
-
+    
     if (focus_count++ < 4)
     {
         ImGui::SetNextWindowFocus();
     }
 
-    if (!ImGui::Begin("Zep", &show, windowFlags))
+    if (!ImGui::Begin("Zep", nullptr, windowFlags))
     {
         ImGui::End();
         return;
