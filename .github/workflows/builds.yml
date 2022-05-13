@@ -75,5 +75,18 @@ jobs:
       working-directory: ${{github.workspace}}/build
       shell: bash
       # Execute the build.  You can specify a specific target with "--target <NAME>"
-      run: cmake --build . --config ${{ matrix.build_type }}
+      run: |
+        cmake --build . --config ${{ matrix.build_type }}
+        cmake --install . --config ${{ matrix.build_type }} --prefix ${{github.workspace}}/artifacts
+
+    - name: Zip Folder
+      run: zip -r ${{ github.event.repository.name }}.zip ${{github.workspace}}/artifacts
+
+    - name: Release
+      uses: softprops/action-gh-release@v1
+      if: startsWith(github.ref, 'refs/tags/')
+      with:
+        files: ${{ github.event.repository.name }}.zip
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 

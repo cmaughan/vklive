@@ -22,10 +22,31 @@ set(RESOURCE_DEPLOY_FILES ${RESOURCE_DEPLOY_FILES}
     ${RESOURCE_FOLDER}/imgui.ini
     ) 
 
+# Get a list of all of the files in the runtree
+file(GLOB_RECURSE RUN_TREE_RESOURCES "${REZONALITY_ROOT}/run_tree/*")
+
+# Individually set the file's path properties.
+foreach (FILE ${RUN_TREE_RESOURCES})
+
+    # Get the relative path from the data-folder to the particular file.
+    file(RELATIVE_PATH NEW_FILE "${REZONALITY_ROOT}/run_tree" ${FILE})
+
+    # Get the relative path to the file.
+    get_filename_component(NEW_FILE_PATH ${NEW_FILE} DIRECTORY)
+    
+    # Set it's location inside the app package (under Resources).
+    set_property(SOURCE ${FILE} PROPERTY MACOSX_PACKAGE_LOCATION "Resources/${NEW_FILE_PATH}")
+
+    # Optional: Add the file to the 'Resources' folder group in Xcode.
+    #           This also preserves folder structure.
+    source_group("Resources/${FILE}" FILES "${FILE}")
+endforeach ()
+
 if (WIN32)
     configure_file("${APP_ROOT}/cmake/windows_metafile.rc.in"
       "windows_metafile.rc"
     )
+
 set(RES_FILES windows_metafile.rc ${APP_ROOT}/res/app.manifest)
 endif()
 

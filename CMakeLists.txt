@@ -19,6 +19,7 @@ endif()
 set(CMAKE_TOOLCHAIN_FILE ${CMAKE_CURRENT_SOURCE_DIR}/vcpkg/scripts/buildsystems/vcpkg.cmake CACHE STRING "Vcpkg toolchain file")
 
 set(APP_NAME ${PROJECT_NAME})
+set(REZONALITY_ROOT ${CMAKE_CURRENT_LIST_DIR})
 
 project(Rezonality VERSION 0.1.0.0)
 
@@ -239,6 +240,38 @@ endif()
 
 if (WIN32)
     copy_existing_files(Rezonality "${RESOURCE_DEPLOY_FILES}" ${CMAKE_CURRENT_BINARY_DIR}/$(Configuration) )
+endif()
+
+install(
+    FILES 
+        ${RESOURCE_DEPLOY_FILES}
+    TYPE BIN
+)
+
+install(
+    DIRECTORY 
+        ${REZONALITY_ROOT}/run_tree
+    TYPE BIN
+)
+
+if (APPLE)
+    install(TARGETS Rezonality
+        EXPORT rezonality-targets
+        COMPONENT binaries
+        BUNDLE DESTINATION . COMPONENT Runtime
+        RUNTIME DESTINATION bin COMPONENT Runtime
+        ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
+        LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
+        INCLUDES DESTINATION ${LIBLEGACY_INCLUDE_DIRS})
+else()
+    install(TARGETS Rezonality 
+        EXPORT rezonality-targets
+        COMPONENT binaries
+        ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
+        LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
+        RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
+        INCLUDES DESTINATION ${LIBLEGACY_INCLUDE_DIRS}
+        )
 endif()
 
 source_group (vklive//vulkan FILES ${VULKAN_SOURCES})

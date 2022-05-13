@@ -4,6 +4,7 @@
 
 # User-specific files
 1.3*
+package
 *.suo
 *.swp
 *.user
