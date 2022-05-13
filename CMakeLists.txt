@@ -230,7 +230,7 @@ target_link_libraries(Rezonality
     )
 
 if("${CMAKE_SYSTEM_NAME}" STREQUAL "Linux")
-    target_link_libraries(Rezonality PRIVATE x11)
+    target_link_libraries(Rezonality PRIVATE X11 Xext xcb)
 endif()
 
 if (DEFINED ZEP_LIB)

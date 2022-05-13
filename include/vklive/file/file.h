@@ -1,15 +1,9 @@
 #pragma once
 
 #include <functional>
-
-// Unix/Clang is behind
-#ifdef __unix__
-#include <experimental/filesystem>
-namespace fs = std::experimental::filesystem::v1;
-#else
 #include <filesystem>
+
 namespace fs = std::filesystem;
-#endif
 
 std::string file_read(const fs::path& fileName);
 bool file_write(const fs::path& fileName, const void* pData, size_t size);
