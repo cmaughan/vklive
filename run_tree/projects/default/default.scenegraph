@@ -1,0 +1,30 @@
+// Background
+pass: Pass1 {
+    clear: (0.0, 1.0, 0.0, 1.0)
+    geometry: background {
+        path: screen_rect
+        vs: screen.vert
+        fs: screen.frag
+    }
+}
+
+// Shape
+pass: Pass2 {
+    geometry : shape {
+        path: sphere.gltf
+        scale: (1.45, 2.25, 2.25)
+        vs: geom.vert
+        fs: geom.frag
+    }
+}
+
+// Third pass draws the normals using a geometry shader
+!pass: Pass3 {
+    geometry : shape {
+        path: sphere.gltf
+        scale: (1.45, 2.25, 2.25)
+        vs: geom.vert
+        fs: geom.frag
+        gs: geom.geom
+    }
+}

@@ -1,0 +1,6 @@
+[submodule "zep"]
+	path = zep
+	url = https://github.com/Rezonality/zep
+[submodule "vcpkg"]
+	path = vcpkg
+	url = https://github.com/Microsoft/vcpkg.git
