@@ -207,7 +207,7 @@ include(${APP_ROOT}/cmake/demo_common.cmake)
 set(RESOURCE_FOLDER ${CMAKE_CURRENT_LIST_DIR}/app/res)
 add_project_meta(META_FILES_TO_INCLUDE ${CMAKE_CURRENT_LIST_DIR}/app/res/app.manifest)
 
-add_executable(Rezonality ${OS_BUNDLE} ${APP_SOURCES} ${CLIP_SOURCE} ${META_FILES_TO_INCLUDE})
+add_executable(Rezonality ${OS_BUNDLE} ${APP_SOURCES} ${CLIP_SOURCE} ${META_FILES_TO_INCLUDE} ${RESOURCE_DEPLOY_FILES})
 
 target_include_directories(Rezonality
     PRIVATE

@@ -80,7 +80,11 @@ jobs:
         cmake --install . --config ${{ matrix.build_type }} --prefix ${{github.workspace}}/artifacts
 
     - name: Zip Folder
-      run: zip -r ${{ github.event.repository.name }}.zip ${{github.workspace}}/artifacts
+      uses: thedoctor0/zip-release@master
+      with:
+        type: 'zip'
+        directory: ${{github.workspace}}/artifacts
+        filename: ${{ github.event.repository.name }}.zip
 
     - name: Release
       uses: softprops/action-gh-release@v1
