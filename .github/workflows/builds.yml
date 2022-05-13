@@ -82,15 +82,15 @@ jobs:
     - name: Zip Folder
       uses: papeloto/action-zip@v1
       with:
-        files: ${{github.workspace}}/artifacts
-        dest: ${{github.workspace}}/archive/${{matrix.title}}.zip
+        files: artifacts/
+        dest: ${{matrix.title}}.zip
         recursive: false
       if: (matrix.build_type == 'Release') && (matrix.cc != 'gcc')
 
     - name: Release
       uses: softprops/action-gh-release@v1
       with:
-        files: ${{github.workspace}}/archive/${{matrix.title}}.zip
+        files: ${{github.workspace}}/${{matrix.title}}.zip
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       if: startsWith(github.ref, 'refs/tags/') && (matrix.build_type == 'Release') && (matrix.cc != 'gcc')
@@ -99,5 +99,6 @@ jobs:
       uses: actions/upload-artifact@v1
       with:
         name: build-artifacts
-        path: ${{github.workspace}}/archive/${{matrix.title}}.zip
+        path: ${{github.workspace}}/${{matrix.title}}.zip
+      if: (matrix.build_type == 'Release') && (matrix.cc != 'gcc')
 
