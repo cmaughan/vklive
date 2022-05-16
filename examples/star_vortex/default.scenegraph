@@ -1,0 +1,19 @@
+pass: Pass1 {
+    clear: (0.0, 1.0, 0.0, 1.0)
+    geometry: background {
+        path: screen_rect
+        vs: screen.vert
+        fs: screen.frag
+    }
+}
+
+
+
+#pass: Pass2 {
+#    geometry : shape {
+#        path: sphere.gltf
+#        scale: (2.45, 0.25, 1.25)
+#        vs: geom.vert
+#        fs: geom.frag
+#    }
+#}
