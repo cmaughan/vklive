@@ -437,7 +437,9 @@ void vulkan_scene_prepare(VulkanContext& ctx, RenderContext& renderContext, Scen
                 pVulkanPass->pDepthImage = &renderContext.depthBuffer;
             }
 
-            auto checkSize = [&](auto img, auto& size) {
+            auto pPass = pVulkanPass->pPass;
+            auto pScene = pVulkanScene->pScene;
+            auto checkSize = [&,pPass, pScene](auto img, auto& size) {
                 if (!img)
                 {
                     return true;
@@ -453,8 +455,8 @@ void vulkan_scene_prepare(VulkanContext& ctx, RenderContext& renderContext, Scen
                     {
                         Message msg;
                         msg.text = "Target sizes don't match";
-                        msg.path = pVulkanScene->pScene->sceneGraphPath;
-                        msg.line = pVulkanPass->pPass->scriptTargetsLine;
+                        msg.path = pScene->sceneGraphPath;
+                        msg.line = pPass->scriptTargetsLine;
                         msg.severity = MessageSeverity::Error;
 
                         // Any error invalidates the scene
