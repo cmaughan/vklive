@@ -1,0 +1,11 @@
+pass: Pass1 {
+    clear: (0.0, 1.0, 0.0, 1.0)
+    geometry: background {
+        path: screen_rect
+        vs: screen.vert
+        fs: screen.frag
+    }
+}
+
+
+

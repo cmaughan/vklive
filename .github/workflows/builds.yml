@@ -1,0 +1,112 @@
+name: Builds
+
+on: [push]
+
+jobs:
+  build:
+    name: "${{matrix.title}} (${{matrix.cc}}, ${{matrix.arch}}, ${{matrix.build_type}})"
+    runs-on: ${{matrix.os}}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # We can build Windows/Mac
+          - { title: "Linux", os: "ubuntu-latest", cc: "clang", arch: "x64", build_type: "Release" }
+          - { title: "Linux", os: "ubuntu-latest", cc: "clang", arch: "x64", build_type: "Debug" }
+          - { title: "Linux", os: "ubuntu-latest", cc: "gcc", arch: "x64", build_type: "Release" }
+          - { title: "Linux", os: "ubuntu-latest", cc: "gcc", arch: "x64", build_type: "Debug" }
+          - { title: "Windows", os: "windows-latest", cc: "vs2022", arch: "x64", build_type: "Release", package_type: "x64-windows-static-md", script: "bat" }
+          - { title: "Windows", os: "windows-latest", cc: "vs2022", arch: "x64", build_type: "Debug", package_type: "x64-windows-static-md", script: "bat" }
+          - { title: "Mac", os: "macos-latest", cc: "clang", arch: "x64", build_type: "Release" }
+          - { title: "Mac", os: "macos-latest", cc: "clang", arch: "x64", build_type: "Debug" }
+
+    steps:
+
+    - uses: actions/checkout@v2
+
+    - name: Install Vulkan SDK
+      uses: humbletim/setup-vulkan-sdk@v1.2.0
+      with:
+        vulkan-query-version: latest
+        vulkan-components: Vulkan-Headers, Vulkan-Loader
+        vulkan-use-cache: true
+
+     # TODO: Do we really need all this junk on linux?
+    - name: Install Libraries
+      env:
+        CC: ${{ matrix.cc}}
+      run: |
+        sudo apt-get install xserver-xorg-dev x11proto-xf86vidmode-dev libxxf86vm-dev mesa-common-dev libgl1-mesa-dev libglu1-mesa-dev libxext-dev
+      if: matrix.os == 'ubuntu-latest'
+
+    - name: Prebuild
+      working-directory: ${{github.workspace}}
+      shell: bash
+      run: |
+        git submodule update --init
+        ./prebuild.bat
+      if: matrix.os == 'windows-latest'
+    
+    - name: Prebuild Linux_Mac
+      working-directory: ${{github.workspace}}
+      env:
+        CC: ${{ matrix.cc }}  
+      run: |
+        git submodule update --init
+        ./prebuild.sh
+      if: matrix.os == 'ubuntu-latest' || matrix.os == 'macos-latest'
+
+    - name: Create Build Environment
+      # Some projects don't allow in-source building, so create a separate build directory
+      # We'll use this as our working directory for all subsequent commands
+      run: cmake -E make_directory ${{github.workspace}}/build
+
+    - name: Configure CMake
+      # Use a bash shell so we can use the same syntax for environment variable
+      # access regardless of the host operating system
+      shell: bash
+      working-directory: ${{github.workspace}}/build
+      # Note the current convention is to use the -S and -B options here to specify source 
+      # and build directories, but this is only available with CMake 3.13 and higher.  
+      # The CMake binaries on the Github Actions machines are (as of this writing) 3.12
+      run: cmake $GITHUB_WORKSPACE -DCMAKE_BUILD_TYPE=${{ matrix.build_type }}
+
+    - name: Build
+      working-directory: ${{github.workspace}}/build
+      shell: bash
+      # Execute the build.  You can specify a specific target with "--target <NAME>"
+      run: |
+        cmake --build . --config ${{ matrix.build_type }}
+        cmake --install . --config ${{ matrix.build_type }} --prefix ../artifacts
+
+    - name: Zip Folder (Win/Linux)
+      uses: papeloto/action-zip@v1
+      with:
+        files: artifacts/bin/
+        dest: ${{matrix.title}}.zip
+        recursive: false
+      if: (matrix.build_type == 'Release') && (matrix.cc != 'gcc') && (matrix.os != 'macos-latest')
+
+    - name: Zip Folder (Mac)
+      uses: papeloto/action-zip@v1
+      with:
+        files: artifacts/Rezonality.app
+        dest: ${{matrix.title}}.zip
+        recursive: true
+      if: (matrix.build_type == 'Release') && (matrix.os == 'macos-latest')
+
+    - name: Release
+      uses: softprops/action-gh-release@v1
+      with:
+        files: ${{github.workspace}}/${{matrix.title}}.zip
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      if: startsWith(github.ref, 'refs/tags/') && (matrix.build_type == 'Release') && (matrix.title != 'Linux')
+
+    - name: Build Artifact Upload
+      uses: actions/upload-artifact@v1
+      with:
+        name: build-artifacts
+        path: ${{github.workspace}}/${{matrix.title}}.zip
+      if: (matrix.build_type == 'Release') && (matrix.title != 'Linux')
+
