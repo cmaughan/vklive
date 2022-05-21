@@ -141,13 +141,10 @@ void image_create_depth(VulkanContext& ctx, VulkanImage& vulkanImage, const glm:
 void image_set_sampling(VulkanContext& ctx, VulkanImage& image)
 {
     image.sampler = ctx.device.createSampler(vk::SamplerCreateInfo({}, vk::Filter::eLinear, vk::Filter::eLinear, vk::SamplerMipmapMode::eLinear));
-    debug_set_sampler_name(ctx.device, image.sampler, "Image::Sampling");
 
     auto binding = vk::DescriptorSetLayoutBinding(0, vk::DescriptorType::eCombinedImageSampler, 1, vk::ShaderStageFlagBits::eFragment, &image.sampler);
     image.samplerDescriptorSetLayout = ctx.device.createDescriptorSetLayout(vk::DescriptorSetLayoutCreateInfo(vk::DescriptorSetLayoutCreateFlags(), binding));
     image.samplerDescriptorSet = ctx.device.allocateDescriptorSets(vk::DescriptorSetAllocateInfo(ctx.descriptorPool, image.samplerDescriptorSetLayout))[0];
-    debug_set_descriptorsetlayout_name(ctx.device, image.samplerDescriptorSetLayout, "Image::DescriptorSetLayout");
-    debug_set_descriptorset_name(ctx.device, image.samplerDescriptorSet, "Image::DescriptorSet");
 
     // Update the Descriptor Set:
     {

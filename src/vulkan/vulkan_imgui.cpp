@@ -299,7 +299,6 @@ void imgui_upload_font(VulkanContext& ctx)
         debug_set_imageview_name(ctx.device, imgui->fontView, "ImGui::FontView");
 
         // Create the Descriptor Set:
-        // image_set_sampling(ctx, imgui->FontImage);
         imgui->fontDescriptorSet = imgui_add_texture(ctx, imgui->fontSampler, imgui->fontView, vk::ImageLayout::eShaderReadOnlyOptimal, imgui->descriptorSetLayout);
         debug_set_descriptorset_name(ctx.device, imgui->fontDescriptorSet, "ImGui::FontDescriptorSet");
 

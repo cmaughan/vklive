@@ -5,7 +5,7 @@ struct Channel
  };
 
 // For now this has to match the source
-layout ( binding = 0) uniform UBO
+layout(set = 0, binding = 0) uniform UBO
 {
     float iTime;            // Elapsed 
     float iGlobalTime;      // Elapsed (same as iTime)

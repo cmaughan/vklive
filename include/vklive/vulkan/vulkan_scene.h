@@ -66,8 +66,8 @@ struct VulkanPass
     vk::Pipeline geometryPipeline;
     vk::PipelineLayout geometryPipelineLayout;
 
-    vk::DescriptorSetLayout descriptorSetLayout;
-    vk::DescriptorSet descriptorSet;
+    std::vector<vk::DescriptorSet> descriptorSets;
+    std::vector<vk::DescriptorSetLayout> descriptorSetLayouts;
 
     VulkanBuffer vsUniform;
 

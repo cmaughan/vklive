@@ -5,7 +5,7 @@
  
 layout (location = 0) in vec4 inPos;
 layout (location = 1) in vec2 inUV;
-layout (location = 2) in vec3 inColor;
+layout (location = 2) in vec3 inColor; 
 layout (location = 3) in vec3 inNormal;
 
 layout (location = 0) out vec3 outNormal;
@@ -14,7 +14,7 @@ layout (location = 2) out vec3 outEyePos;
 layout (location = 3) out vec3 outLightVec;
 layout (location = 4) out vec2 outUV;
 
-layout (binding = 1) uniform sampler2D samplerA;
+layout (set = 1, binding = 1) uniform sampler2D samplerA;
 
 void main() 
 {

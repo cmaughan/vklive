@@ -3,6 +3,7 @@
 #include <map>
 #include <vector>
 #include <mutex>
+#include <memory>
 
 #pragma warning(disable : 26812)
 #include <vulkan/vulkan.hpp>
@@ -11,6 +12,7 @@
 #include <vklive/vulkan/vulkan_window.h>
 #include <vklive/vulkan/vulkan_debug.h>
 #include <vklive/vulkan/vulkan_scene.h>
+#include <vklive/vulkan/vulkan_descriptor.h>
 #include <vklive/IDevice.h>
 
 namespace vulkan
@@ -49,6 +51,9 @@ struct VulkanContext : DeviceContext
     static thread_local vk::CommandPool commandPool;
 #endif
     std::map<Scene*, std::shared_ptr<VulkanScene>> mapVulkanScene;
+
+	std::shared_ptr<DescriptorAllocator> spDescriptorAllocator;
+	std::shared_ptr<DescriptorLayoutCache> spDescriptorLayoutCache;
 };
 
 bool context_init(VulkanContext& ctx);

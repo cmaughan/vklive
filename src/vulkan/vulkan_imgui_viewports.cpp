@@ -77,6 +77,7 @@ void imgui_viewport_create(ImGuiViewport* viewport)
     // Select Present Mode
     // FIXME-VULKAN: Even thought mailbox seems to get us maximum framerate with a single window, it halves framerate with a second window etc. (w/ Nvidia and SDK 1.82.1)
     auto present_modes = std::vector<vk::PresentModeKHR>{ vk::PresentModeKHR::eMailbox, vk::PresentModeKHR::eImmediate, vk::PresentModeKHR::eFifo };
+    //auto present_modes = std::vector<vk::PresentModeKHR>{ vk::PresentModeKHR::eImmediate, vk::PresentModeKHR::eImmediate, vk::PresentModeKHR::eFifo };
     wd->presentMode = utils_select_present_mode(ctx, wd->surface, present_modes);
     // printf("[vulkan] Secondary window selected PresentMode = %d\n", wd->PresentMode);
 

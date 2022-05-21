@@ -85,6 +85,9 @@ void render_check_framebuffer(VulkanContext& ctx, const glm::uvec2& size)
     render_create_images(ctx, *spRender, glm::uvec2(size), vk::Format::eR8G8B8A8Unorm, vk::Format::eD32Sfloat);
 
     image_set_sampling(ctx, spRender->colorBuffers[0]);
+    debug_set_descriptorsetlayout_name(ctx.device, spRender->colorBuffers[0].samplerDescriptorSetLayout, "RenderColorBuffer::DescriptorSetLayout");
+    debug_set_descriptorset_name(ctx.device, spRender->colorBuffers[0].samplerDescriptorSet, "RenderColorBuffer::DescriptorSet");
+    debug_set_sampler_name(ctx.device, spRender->colorBuffers[0].sampler, "RenderColorBuffer::Sampler");
 }
 
 void render(VulkanContext& ctx, const glm::vec4& rect, Scene& scene)

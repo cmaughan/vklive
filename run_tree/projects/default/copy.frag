@@ -7,11 +7,11 @@ layout (location = 0) in vec2 inUV;
 
 layout (location = 0) out vec4 outFragColor;
 
-layout (binding = 1) uniform sampler2D samplerA;
+layout (set = 1, binding = 0) uniform sampler2D samplerA;
 
 void main() 
 {
     vec2 texCoord= inUV * 4.0;
-    outFragColor = vec4(1.0, 1.0, 1.0, 1.0) - texture(samplerA, texCoord);
+    outFragColor = vec4(0.0, 1.0, 1.0, 1.0) - texture(samplerA, texCoord);
     outFragColor.w = 1.0;
 }

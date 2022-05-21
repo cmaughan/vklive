@@ -351,13 +351,17 @@ void vulkan_scene_prepare(VulkanContext& ctx, RenderContext& renderContext, Scen
                     else
                     {
                         image_create(ctx, pVulkanSurface->image, size, vulkan_scene_format_to_vulkan(pSurface->format), true, pSurface->name);
-                        //image_set_sampling(ctx, pVulkanSurface->image);
                         pVulkanSurface->image.sampler = ctx.device.createSampler(vk::SamplerCreateInfo({}, vk::Filter::eLinear, vk::Filter::eLinear, vk::SamplerMipmapMode::eLinear));
-                        debug_set_sampler_name(ctx.device, pVulkanSurface->image.sampler, pSurface->name + "Image::Sampling");
+                        debug_set_sampler_name(ctx.device, pVulkanSurface->image.sampler, pSurface->name + "::Sampler");
                     }
                 }
             }
         }
+    }
+
+    if (targetsChanged)
+    {
+        ctx.spDescriptorAllocator->reset_pools();
     }
 
     for (auto& [name, pVulkanPass] : pVulkanScene->passes)
@@ -492,35 +496,18 @@ void vulkan_scene_prepare(VulkanContext& ctx, RenderContext& renderContext, Scen
                     */
                 }
 
-                std::vector<vk::DescriptorSetLayoutBinding> setLayoutBindings{
-                    // Binding 0 : Vertex shader uniform buffer
-                    { 0, vk::DescriptorType::eUniformBuffer, 1, vk::ShaderStageFlagBits::eVertex | vk::ShaderStageFlagBits::eFragment | vk::ShaderStageFlagBits::eGeometry } //,
-                };
+                VkDescriptorSet GlobalSet;
+                VkDescriptorSetLayout GlobalLayout;
+                DescriptorBuilder::begin(ctx.spDescriptorLayoutCache.get(), ctx.spDescriptorAllocator.get())
+                    .bind_buffer(0, &(VkDescriptorBufferInfo)pVulkanPass->vsUniform.descriptor, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT | VK_SHADER_STAGE_GEOMETRY_BIT)
+                    .build(GlobalSet, GlobalLayout);
+                debug_set_descriptorsetlayout_name(ctx.device, GlobalLayout, debug_pass_name(*pVulkanPass, "Global:DescriptorSetLayout"));
+                debug_set_descriptorset_name(ctx.device, GlobalSet, debug_pass_name(*pVulkanPass, "Global:DescriptorSet"));
 
-                uint32_t index = 1;
-                for (auto& sampler : samplers)
-                {
-                    setLayoutBindings.push_back({ index++, vk::DescriptorType::eCombinedImageSampler, 1, vk::ShaderStageFlagBits::eVertex | vk::ShaderStageFlagBits::eFragment | vk::ShaderStageFlagBits::eGeometry });
-                }
-
-                pVulkanPass->descriptorSetLayout = ctx.device.createDescriptorSetLayout({ {}, (uint32_t)setLayoutBindings.size(), setLayoutBindings.data() });
-                pVulkanPass->geometryPipelineLayout = ctx.device.createPipelineLayout({ {}, 1, &pVulkanPass->descriptorSetLayout });
-
-                debug_set_descriptorsetlayout_name(ctx.device, pVulkanPass->descriptorSetLayout, debug_pass_name(*pVulkanPass, "DescriptorSetLayout"));
-                debug_set_pipelinelayout_name(ctx.device, pVulkanPass->geometryPipelineLayout, debug_pass_name(*pVulkanPass, "PipelineLayout"));
-
-                vk::DescriptorSetAllocateInfo allocInfo{ ctx.descriptorPool, 1, &pVulkanPass->descriptorSetLayout };
-                pVulkanPass->descriptorSet = ctx.device.allocateDescriptorSets(allocInfo)[0];
-                debug_set_descriptorset_name(ctx.device, pVulkanPass->descriptorSet, debug_pass_name(*pVulkanPass, "DescriptorSet"));
-
-                // DecriptorSet
-                // UNIFORM: vsUniform.descriptor
-                std::vector<vk::WriteDescriptorSet> offscreenWriteDescriptorSets{
-                    // Binding 0 : Vertex shader uniform buffer
-                    { pVulkanPass->descriptorSet, 0, 0, 1, vk::DescriptorType::eUniformBuffer, nullptr, &pVulkanPass->vsUniform.descriptor },
-                };
-
-                index = 1;
+                VkDescriptorSet SamplerSet;
+                VkDescriptorSetLayout SamplerLayout;
+                auto builder = DescriptorBuilder::begin(ctx.spDescriptorLayoutCache.get(), ctx.spDescriptorAllocator.get());
+                uint32_t index = 0;
                 for (auto& sampler : samplers)
                 {
                     vk::DescriptorImageInfo desc_image;
@@ -528,21 +515,36 @@ void vulkan_scene_prepare(VulkanContext& ctx, RenderContext& renderContext, Scen
                     desc_image.imageView = sampler->image.view;
                     desc_image.imageLayout = vk::ImageLayout::eShaderReadOnlyOptimal;
 
-                    vk::WriteDescriptorSet write_desc;
-                    write_desc.dstSet = pVulkanPass->descriptorSet;
-                    write_desc.dstBinding = index++;
-                    write_desc.descriptorCount = 1;
-                    write_desc.descriptorType = vk::DescriptorType::eCombinedImageSampler;
-                    write_desc.setImageInfo(desc_image);
-                    offscreenWriteDescriptorSets.push_back(write_desc);
+                    builder.bind_image(index++, &(VkDescriptorImageInfo)desc_image, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT | VK_SHADER_STAGE_GEOMETRY_BIT);
                 }
-                ctx.device.updateDescriptorSets(offscreenWriteDescriptorSets, {});
-                // Create it
-                pVulkanPass->geometryPipeline = pipeline_create(ctx, g_vertexLayout, pVulkanPass->geometryPipelineLayout, pVulkanPass->renderPass, shaderStages);
-                debug_set_pipeline_name(ctx.device, pVulkanPass->geometryPipeline, debug_pass_name(*pVulkanPass, "Pipeline"));
+                builder.build(SamplerSet, SamplerLayout);
+                debug_set_descriptorsetlayout_name(ctx.device, SamplerLayout, debug_pass_name(*pVulkanPass, "Sampler:DescriptorSetLayout"));
+                debug_set_descriptorset_name(ctx.device, SamplerSet, debug_pass_name(*pVulkanPass, "Sampler:DescriptorSet"));
+
+                pVulkanPass->descriptorSetLayouts = { GlobalLayout, SamplerLayout };
+                pVulkanPass->descriptorSets = { GlobalSet, SamplerSet };
+
+                if (pVulkanPass->geometryPipelineLayout)
+                {
+                    ctx.device.destroyPipelineLayout(pVulkanPass->geometryPipelineLayout);
+                    pVulkanPass->geometryPipelineLayout = nullptr;
+                }
+                pVulkanPass->geometryPipelineLayout = ctx.device.createPipelineLayout({ {}, pVulkanPass->descriptorSetLayouts });
+                debug_set_pipelinelayout_name(ctx.device, pVulkanPass->geometryPipelineLayout, debug_pass_name(*pVulkanPass, "PipelineLayout"));
             }
 
             validation_set_shaders({});
+
+            // Create it
+            /* Why does this break stuff?
+            if (pVulkanPass->geometryPipeline)
+            {
+                ctx.device.destroyPipeline(pVulkanPass->geometryPipeline);
+                pVulkanPass->geometryPipeline = nullptr;
+            }
+            */
+            pVulkanPass->geometryPipeline = pipeline_create(ctx, g_vertexLayout, pVulkanPass->geometryPipelineLayout, pVulkanPass->renderPass, shaderStages);
+            debug_set_pipeline_name(ctx.device, pVulkanPass->geometryPipeline, debug_pass_name(*pVulkanPass, "Pipeline"));
         }
     }
 
@@ -595,8 +597,8 @@ void vulkan_scene_destroy(VulkanContext& ctx, Scene& scene)
         buffer_destroy(ctx, pVulkanPass->vsUniform);
 
         ctx.device.destroyRenderPass(pVulkanPass->renderPass);
-        ctx.device.destroyDescriptorSetLayout(pVulkanPass->descriptorSetLayout);
-        ctx.device.freeDescriptorSets(ctx.descriptorPool, pVulkanPass->descriptorSet);
+        // ctx.device.destroyDescriptorSetLayout(pVulkanPass->descriptorSetLayout);
+        // ctx.device.freeDescriptorSets(ctx.descriptorPool, pVulkanPass->descriptorSet);
         ctx.device.destroyPipeline(pVulkanPass->geometryPipeline);
         ctx.device.destroyPipelineLayout(pVulkanPass->geometryPipelineLayout);
     }
@@ -691,7 +693,7 @@ void vulkan_scene_render(VulkanContext& ctx, RenderContext& renderContext, Scene
                 cmd.beginRenderPass(renderPassBeginInfo, vk::SubpassContents::eInline);
                 cmd.setViewport(0, viewport(glm::uvec2(rect.x, rect.y)));
                 cmd.setScissor(0, rect2d(glm::uvec2(rect.x, rect.y)));
-                cmd.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, pVulkanPassPtr->geometryPipelineLayout, 0, pVulkanPassPtr->descriptorSet, nullptr);
+                cmd.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, pVulkanPassPtr->geometryPipelineLayout, 0, pVulkanPassPtr->descriptorSets, {});
                 cmd.bindPipeline(vk::PipelineBindPoint::eGraphics, pVulkanPassPtr->geometryPipeline);
 
                 for (auto& geom : pVulkanPassPtr->pPass->geometries)
