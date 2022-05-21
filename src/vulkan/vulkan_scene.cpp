@@ -710,14 +710,14 @@ void vulkan_scene_render(VulkanContext& ctx, RenderContext& renderContext, Scene
                 cmd.endRenderPass();
                 debug_end_region(cmd);
 
-                for (auto& col : pVulkanPass->colorImages)
+                for (auto& col : pVulkanPassPtr->colorImages)
                 {
                     col->rendered = true;
                 }
 
-                if (pVulkanPass->pDepthImage)
+                if (pVulkanPassPtr->pDepthImage)
                 {
-                    pVulkanPass->pDepthImage->rendered = true;
+                    pVulkanPassPtr->pDepthImage->rendered = true;
                 }
             });
         }
