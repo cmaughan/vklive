@@ -70,6 +70,7 @@ set(VULKAN_SOURCES
     src/vulkan/vulkan_context.cpp
     src/vulkan/vulkan_debug.cpp
     src/vulkan/vulkan_device.cpp
+    src/vulkan/vulkan_descriptor.cpp
     src/vulkan/vulkan_framebuffer.cpp
     src/vulkan/vulkan_image.cpp
     src/vulkan/vulkan_imgui.cpp
@@ -86,6 +87,7 @@ set(VULKAN_SOURCES
     include/vklive/vulkan/vulkan_command.h
     include/vklive/vulkan/vulkan_context.h
     include/vklive/vulkan/vulkan_debug.h
+    include/vklive/vulkan/vulkan_descriptor.h
     include/vklive/vulkan/vulkan_device.h
     include/vklive/vulkan/vulkan_framebuffer.h
     include/vklive/vulkan/vulkan_image.h

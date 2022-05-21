@@ -284,11 +284,6 @@ void vulkan_scene_init(VulkanContext& ctx, Scene& scene)
     {
         auto spVulkanPass = std::make_shared<VulkanPass>(spPass.get());
 
-        // TODO
-        for (auto& colorTarget : spPass->targets)
-        {
-        }
-
         // Renderpass for where this pass draws (the targets)
         vulkan_scene_create_renderpass(ctx, *spVulkanScene, *spVulkanPass);
 
@@ -300,37 +295,6 @@ void vulkan_scene_init(VulkanContext& ctx, Scene& scene)
         spVulkanPass->vsUniform = uniform_create(ctx, spVulkanPass->vsUBO);
         debug_set_buffer_name(ctx.device, spVulkanPass->vsUniform.buffer, debug_pass_name(*spVulkanPass, "Uniforms"));
         debug_set_devicememory_name(ctx.device, spVulkanPass->vsUniform.memory, debug_pass_name(*spVulkanPass, "UniformMemory"));
-
-        // Descriptor
-        // Textured quad pipeline layout
-        // DescriptorSet:
-        // UNIFORM
-        std::vector<vk::DescriptorSetLayoutBinding> setLayoutBindings{
-            // Binding 0 : Vertex shader uniform buffer
-            { 0, vk::DescriptorType::eUniformBuffer, 1, vk::ShaderStageFlagBits::eVertex | vk::ShaderStageFlagBits::eFragment | vk::ShaderStageFlagBits::eGeometry } //,
-            // Binding 1 : Fragment shader image sampler
-            //{ 1, vk::DescriptorType::eCombinedImageSampler, 1, vk::ShaderStageFlagBits::eFragment },
-            // Binding 2 : Fragment shader image sampler
-            //{ 2, vk::DescriptorType::eCombinedImageSampler, 1, vk::ShaderStageFlagBits::eFragment },
-        };
-
-        spVulkanPass->descriptorSetLayout = ctx.device.createDescriptorSetLayout({ {}, (uint32_t)setLayoutBindings.size(), setLayoutBindings.data() });
-        spVulkanPass->geometryPipelineLayout = ctx.device.createPipelineLayout({ {}, 1, &spVulkanPass->descriptorSetLayout });
-
-        debug_set_descriptorsetlayout_name(ctx.device, spVulkanPass->descriptorSetLayout, debug_pass_name(*spVulkanPass, "DescriptorSetLayout"));
-        debug_set_pipelinelayout_name(ctx.device, spVulkanPass->geometryPipelineLayout, debug_pass_name(*spVulkanPass, "PipelineLayout"));
-
-        vk::DescriptorSetAllocateInfo allocInfo{ ctx.descriptorPool, 1, &spVulkanPass->descriptorSetLayout };
-        spVulkanPass->descriptorSet = ctx.device.allocateDescriptorSets(allocInfo)[0];
-        debug_set_descriptorset_name(ctx.device, spVulkanPass->descriptorSet, debug_pass_name(*spVulkanPass, "DescriptorSet"));
-
-        // DecriptorSet
-        // UNIFORM: vsUniform.descriptor
-        std::vector<vk::WriteDescriptorSet> offscreenWriteDescriptorSets{
-            // Binding 0 : Vertex shader uniform buffer
-            { spVulkanPass->descriptorSet, 0, 0, 1, vk::DescriptorType::eUniformBuffer, nullptr, &spVulkanPass->vsUniform.descriptor },
-        };
-        ctx.device.updateDescriptorSets(offscreenWriteDescriptorSets, {});
 
         spVulkanScene->passes[name] = spVulkanPass;
     }
@@ -387,6 +351,9 @@ void vulkan_scene_prepare(VulkanContext& ctx, RenderContext& renderContext, Scen
                     else
                     {
                         image_create(ctx, pVulkanSurface->image, size, vulkan_scene_format_to_vulkan(pSurface->format), true, pSurface->name);
+                        //image_set_sampling(ctx, pVulkanSurface->image);
+                        pVulkanSurface->image.sampler = ctx.device.createSampler(vk::SamplerCreateInfo({}, vk::Filter::eLinear, vk::Filter::eLinear, vk::SamplerMipmapMode::eLinear));
+                        debug_set_sampler_name(ctx.device, pVulkanSurface->image.sampler, pSurface->name + "Image::Sampling");
                     }
                 }
             }
@@ -439,7 +406,7 @@ void vulkan_scene_prepare(VulkanContext& ctx, RenderContext& renderContext, Scen
 
             auto pPass = pVulkanPass->pPass;
             auto pScene = pVulkanScene->pScene;
-            auto checkSize = [&,pPass, pScene](auto img, auto& size) {
+            auto checkSize = [&, pPass, pScene](auto img, auto& size) {
                 if (!img)
                 {
                     return true;
@@ -509,6 +476,67 @@ void vulkan_scene_prepare(VulkanContext& ctx, RenderContext& renderContext, Scen
 
             if (!shaderStages.empty())
             {
+                std::vector<VulkanSurface*> samplers;
+                for (auto& sampler : pVulkanPass->pPass->samplers)
+                {
+                    auto itrSurface = pVulkanScene->surfaces.find(sampler);
+                    if (itrSurface != pVulkanScene->surfaces.end())
+                    {
+                        samplers.push_back(itrSurface->second.get());
+                    }
+                    /*
+                    else
+                    {
+                        reportError(fmt::format("Sampler not found: {}", sampler));
+                    }
+                    */
+                }
+
+                std::vector<vk::DescriptorSetLayoutBinding> setLayoutBindings{
+                    // Binding 0 : Vertex shader uniform buffer
+                    { 0, vk::DescriptorType::eUniformBuffer, 1, vk::ShaderStageFlagBits::eVertex | vk::ShaderStageFlagBits::eFragment | vk::ShaderStageFlagBits::eGeometry } //,
+                };
+
+                uint32_t index = 1;
+                for (auto& sampler : samplers)
+                {
+                    setLayoutBindings.push_back({ index++, vk::DescriptorType::eCombinedImageSampler, 1, vk::ShaderStageFlagBits::eVertex | vk::ShaderStageFlagBits::eFragment | vk::ShaderStageFlagBits::eGeometry });
+                }
+
+                pVulkanPass->descriptorSetLayout = ctx.device.createDescriptorSetLayout({ {}, (uint32_t)setLayoutBindings.size(), setLayoutBindings.data() });
+                pVulkanPass->geometryPipelineLayout = ctx.device.createPipelineLayout({ {}, 1, &pVulkanPass->descriptorSetLayout });
+
+                debug_set_descriptorsetlayout_name(ctx.device, pVulkanPass->descriptorSetLayout, debug_pass_name(*pVulkanPass, "DescriptorSetLayout"));
+                debug_set_pipelinelayout_name(ctx.device, pVulkanPass->geometryPipelineLayout, debug_pass_name(*pVulkanPass, "PipelineLayout"));
+
+                vk::DescriptorSetAllocateInfo allocInfo{ ctx.descriptorPool, 1, &pVulkanPass->descriptorSetLayout };
+                pVulkanPass->descriptorSet = ctx.device.allocateDescriptorSets(allocInfo)[0];
+                debug_set_descriptorset_name(ctx.device, pVulkanPass->descriptorSet, debug_pass_name(*pVulkanPass, "DescriptorSet"));
+
+                // DecriptorSet
+                // UNIFORM: vsUniform.descriptor
+                std::vector<vk::WriteDescriptorSet> offscreenWriteDescriptorSets{
+                    // Binding 0 : Vertex shader uniform buffer
+                    { pVulkanPass->descriptorSet, 0, 0, 1, vk::DescriptorType::eUniformBuffer, nullptr, &pVulkanPass->vsUniform.descriptor },
+                };
+
+                index = 1;
+                for (auto& sampler : samplers)
+                {
+                    vk::DescriptorImageInfo desc_image;
+                    desc_image.sampler = sampler->image.sampler;
+                    desc_image.imageView = sampler->image.view;
+                    desc_image.imageLayout = vk::ImageLayout::eShaderReadOnlyOptimal;
+
+                    vk::WriteDescriptorSet write_desc;
+                    write_desc.dstSet = pVulkanPass->descriptorSet;
+                    write_desc.dstBinding = index++;
+                    write_desc.descriptorCount = 1;
+                    write_desc.descriptorType = vk::DescriptorType::eCombinedImageSampler;
+                    write_desc.setImageInfo(desc_image);
+                    offscreenWriteDescriptorSets.push_back(write_desc);
+                }
+                ctx.device.updateDescriptorSets(offscreenWriteDescriptorSets, {});
                 // Create it
                 pVulkanPass->geometryPipeline = pipeline_create(ctx, g_vertexLayout, pVulkanPass->geometryPipelineLayout, pVulkanPass->renderPass, shaderStages);
                 debug_set_pipeline_name(ctx.device, pVulkanPass->geometryPipeline, debug_pass_name(*pVulkanPass, "Pipeline"));

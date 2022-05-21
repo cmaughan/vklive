@@ -23,10 +23,12 @@ void image_destroy(VulkanContext& ctx, VulkanImage& img)
     {
         ctx.device.destroyDescriptorSetLayout(img.samplerDescriptorSetLayout);
     }
+    /*
     if (img.samplerDescriptorSet)
     {
         ctx.device.freeDescriptorSets(ctx.descriptorPool, img.samplerDescriptorSet);
     }
+    */
     if (img.mapped)
     {
         image_unmap(ctx, img);

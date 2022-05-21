@@ -15,7 +15,7 @@ layout (location = 3) out vec3 outLightVec;
 void main() 
 {
     vec4 p = inPos;
-    p.xyz = p.xyz + (inNormal * sin(inPos.x * ubo.iTime * 3.5) * .96);
+    p.xyz = p.xyz + (inNormal * sin(inPos.x * ubo.iTime * 3.5) * .16);
     gl_Position = ubo.modelViewProjection * p;
     outEyePos = vec3(ubo.view * p);
     outNormal = inNormal;
