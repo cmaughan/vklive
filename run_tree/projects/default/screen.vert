@@ -14,8 +14,6 @@ layout (location = 2) out vec3 outEyePos;
 layout (location = 3) out vec3 outLightVec;
 layout (location = 4) out vec2 outUV;
 
-layout (set = 3, binding = 0) uniform sampler2D samplerA;
-
 void main() 
 {
     outNormal = inNormal;

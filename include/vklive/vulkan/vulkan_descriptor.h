@@ -87,6 +87,8 @@ struct DescriptorBuilder
     std::vector<vk::DescriptorSetLayoutBinding> bindings;
     vk::DescriptorSet set;
     vk::DescriptorSetLayout layout;
+    std::vector<vk::DescriptorImageInfo> imageInfos;
+    std::vector<vk::DescriptorBufferInfo> bufferInfos;
 };
 
 void descriptor_reset_pools(VulkanContext& ctx, DescriptorCache& cache);

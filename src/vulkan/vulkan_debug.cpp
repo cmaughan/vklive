@@ -95,7 +95,7 @@ VKAPI_ATTR VkBool32 VKAPI_CALL debugMessageFunc(VkDebugUtilsMessageSeverityFlagB
 
     }
 
-    LOG(DBG, message.str().c_str());
+    LOG(INFO, message.str().c_str());
 
     return false;
 }

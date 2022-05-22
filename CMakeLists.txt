@@ -194,6 +194,12 @@ target_precompile_headers(vklive
     include/vklive/vulkan/vulkan_context.h
 )
 
+# Symbols
+target_compile_options(vklive PRIVATE "$<$<CONFIG:Release>:/Zi>")
+target_link_options(vklive PRIVATE "$<$<CONFIG:Release>:/DEBUG>")
+target_link_options(vklive PRIVATE "$<$<CONFIG:Release>:/OPT:REF>")
+target_link_options(vklive PRIVATE "$<$<CONFIG:Release>:/OPT:ICF>")
+
 target_include_directories(vklive
     PUBLIC
         ${CMAKE_CURRENT_LIST_DIR}/include
@@ -231,6 +237,12 @@ target_link_libraries(Rezonality
         clipp::clipp
         unofficial::nativefiledialog::nfd
     )
+
+# Symbols
+target_compile_options(Rezonality PRIVATE "$<$<CONFIG:Release>:/Zi>")
+target_link_options(Rezonality PRIVATE "$<$<CONFIG:Release>:/DEBUG>")
+target_link_options(Rezonality PRIVATE "$<$<CONFIG:Release>:/OPT:REF>")
+target_link_options(Rezonality PRIVATE "$<$<CONFIG:Release>:/OPT:ICF>")
 
 if("${CMAKE_SYSTEM_NAME}" STREQUAL "Linux")
     target_link_libraries(Rezonality PRIVATE X11 Xext xcb)

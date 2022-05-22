@@ -210,12 +210,14 @@ void descriptor_bind_buffer(VulkanContext& ctx, DescriptorCache& cache, Descript
 
     builder.bindings.push_back(newBinding);
 
+    builder.bufferInfos.push_back(*bufferInfo);
+
     vk::WriteDescriptorSet newWrite{};
     newWrite.pNext = nullptr;
 
     newWrite.descriptorCount = 1;
     newWrite.descriptorType = type;
-    newWrite.pBufferInfo = bufferInfo;
+    newWrite.pBufferInfo = &builder.bufferInfos.back();
     newWrite.dstBinding = binding;
 
     builder.writes.push_back(newWrite);
@@ -233,12 +235,19 @@ void descriptor_bind_image(VulkanContext& ctx, DescriptorCache& cache, Descripto
 
     builder.bindings.push_back(newBinding);
 
+    builder.imageInfos.push_back(*imageInfo);
+
     vk::WriteDescriptorSet newWrite{};
     newWrite.pNext = nullptr;
     newWrite.descriptorCount = 1;
     newWrite.descriptorType = type;
-    newWrite.pImageInfo = imageInfo;
+    newWrite.pImageInfo = &builder.imageInfos.back();
     newWrite.dstBinding = binding;
+    newWrite.dstSet = nullptr;
+    newWrite.dstBinding = 0;
+    newWrite.dstArrayElement = 0;
+    newWrite.pBufferInfo = nullptr;
+    newWrite.pTexelBufferView = nullptr;
 
     builder.writes.push_back(newWrite);
 }

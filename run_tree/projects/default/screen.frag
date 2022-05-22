@@ -11,8 +11,6 @@ layout (location = 4) in vec2 inUV;
 
 layout (location = 0) out vec4 outFragColor;
 
-layout (binding = 1) uniform sampler2D samplerA;
-
 void main() 
 {
     // Temp

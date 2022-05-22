@@ -392,7 +392,6 @@ void vulkan_scene_prepare(VulkanContext& ctx, RenderContext& renderContext, Scen
        
         // Can't reset the pool here because it will invalide the descriptor on the actively running scene!!
         //ctx.queue.waitIdle();
-        //ctx.device.waitIdle();
         descriptor_reset_pools(ctx, pVulkanScene->descriptorCache);
     }
 
