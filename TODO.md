@@ -2,18 +2,18 @@ TODO
 ----
 
 ## General
-- Create targets in scene file, read targets in passes.  Ping-Pong option (10)
-- Supply texture targets and textures to scene files (10)
+- Ping-Pong option (10)
+- Supply textures to scene files (10)
 - Icon (1)
-- Test various error scenarios; especially scene build failures (ongoing)
 - Detect device issues, handle fallbacks, etc.
 - Check low DPI (5)
+- Restart menu option to restart clocks, frame count, and do default clear once
+- Blend operations/Alpha
 
 - Fix Fixed Parameters:
     iMouse (x,y screen)
     iDate (year, month, day, seconds since EPOCH)
     fragOffset (audio)
-    iChannel (input channels)
 
 ## Project Support
 - [Need to think about this stuff some more]
@@ -37,10 +37,15 @@ TODO
 
 Bugs
 ----
+## General
+Very occasional shutdown exception in scenegraph parser when closing app.
+
 ## Zep
 - Flicker when too small
 - Tabs can be hard to delete/change to spaces
 - Word wrapping on words in the help docs would be useful.
+- Normal mode; Shift+ doesn't work for swapping tabs
+- Normal mode; insertion of <> when shift/arrow, etc.
 
 Fridge
 ------

@@ -121,12 +121,7 @@ bool context_init(VulkanContext& ctx)
         ctx.descriptorPool = ctx.device.createDescriptorPool(pool_info);
         debug_set_descriptorpool_name(ctx.device, ctx.descriptorPool, "Context::DescriptorPool");
 
-        // TODO: make these more simple data structs like the rest of this engine
-        ctx.spDescriptorAllocator = std::make_shared<DescriptorAllocator>();
-        ctx.spDescriptorAllocator->init(ctx.device);
-
-        ctx.spDescriptorLayoutCache = std::make_shared<DescriptorLayoutCache>();
-        ctx.spDescriptorLayoutCache->init(ctx.device);
+        descriptor_init(ctx);
     }
 
 
@@ -135,10 +130,7 @@ bool context_init(VulkanContext& ctx)
 
 void context_destroy(VulkanContext& ctx)
 {
-    ctx.spDescriptorAllocator->cleanup();
-    ctx.spDescriptorLayoutCache->cleanup();
-    ctx.spDescriptorAllocator = nullptr;
-    ctx.spDescriptorLayoutCache = nullptr;
+    descriptor_cleanup(ctx);
 
     ctx.device.destroyDescriptorPool(ctx.descriptorPool);
     ctx.descriptorPool = nullptr;

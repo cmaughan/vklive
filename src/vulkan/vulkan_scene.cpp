@@ -361,7 +361,7 @@ void vulkan_scene_prepare(VulkanContext& ctx, RenderContext& renderContext, Scen
 
     if (targetsChanged)
     {
-        ctx.spDescriptorAllocator->reset_pools();
+        descriptor_reset_pools(ctx);
     }
 
     for (auto& [name, pVulkanPass] : pVulkanScene->passes)
@@ -496,17 +496,17 @@ void vulkan_scene_prepare(VulkanContext& ctx, RenderContext& renderContext, Scen
                     */
                 }
 
-                VkDescriptorSet GlobalSet;
-                VkDescriptorSetLayout GlobalLayout;
-                DescriptorBuilder::begin(ctx.spDescriptorLayoutCache.get(), ctx.spDescriptorAllocator.get())
-                    .bind_buffer(0, &(VkDescriptorBufferInfo)pVulkanPass->vsUniform.descriptor, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT | VK_SHADER_STAGE_GEOMETRY_BIT)
-                    .build(GlobalSet, GlobalLayout);
-                debug_set_descriptorsetlayout_name(ctx.device, GlobalLayout, debug_pass_name(*pVulkanPass, "Global:DescriptorSetLayout"));
-                debug_set_descriptorset_name(ctx.device, GlobalSet, debug_pass_name(*pVulkanPass, "Global:DescriptorSet"));
+                DescriptorBuilder globalBuilder;
+                descriptor_bind_buffer(ctx,
+                    globalBuilder,
+                    0,
+                    &pVulkanPass->vsUniform.descriptor,
+                    vk::DescriptorType::eUniformBuffer,
+                    vk::ShaderStageFlagBits::eVertex | vk::ShaderStageFlagBits::eFragment | vk::ShaderStageFlagBits::eGeometry);
+                descriptor_build(ctx, globalBuilder, debug_pass_name(*pVulkanPass, "UBO"));
 
-                VkDescriptorSet SamplerSet;
-                VkDescriptorSetLayout SamplerLayout;
-                auto builder = DescriptorBuilder::begin(ctx.spDescriptorLayoutCache.get(), ctx.spDescriptorAllocator.get());
+
+                DescriptorBuilder samplerBuilder;
                 uint32_t index = 0;
                 for (auto& sampler : samplers)
                 {
@@ -515,14 +515,20 @@ void vulkan_scene_prepare(VulkanContext& ctx, RenderContext& renderContext, Scen
                     desc_image.imageView = sampler->image.view;
                     desc_image.imageLayout = vk::ImageLayout::eShaderReadOnlyOptimal;
 
-                    builder.bind_image(index++, &(VkDescriptorImageInfo)desc_image, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT | VK_SHADER_STAGE_GEOMETRY_BIT);
+                    descriptor_bind_image(ctx,
+                        samplerBuilder,
+                        index++,
+                        &desc_image,
+                        vk::DescriptorType::eCombinedImageSampler,
+                        vk::ShaderStageFlagBits::eVertex | vk::ShaderStageFlagBits::eFragment | vk::ShaderStageFlagBits::eGeometry);
                 }
-                builder.build(SamplerSet, SamplerLayout);
-                debug_set_descriptorsetlayout_name(ctx.device, SamplerLayout, debug_pass_name(*pVulkanPass, "Sampler:DescriptorSetLayout"));
-                debug_set_descriptorset_name(ctx.device, SamplerSet, debug_pass_name(*pVulkanPass, "Sampler:DescriptorSet"));
+                descriptor_build(ctx, samplerBuilder, debug_pass_name(*pVulkanPass, "Sampler:DescriptorSet"));
 
-                pVulkanPass->descriptorSetLayouts = { GlobalLayout, SamplerLayout };
-                pVulkanPass->descriptorSets = { GlobalSet, SamplerSet };
+                debug_set_descriptorsetlayout_name(ctx.device, samplerBuilder.layout, debug_pass_name(*pVulkanPass, "Sampler:DescriptorSetLayout"));
+                debug_set_descriptorset_name(ctx.device, samplerBuilder.set, debug_pass_name(*pVulkanPass, "Sampler:DescriptorSet"));
+
+                pVulkanPass->descriptorSetLayouts = { globalBuilder.layout, samplerBuilder.layout };
+                pVulkanPass->descriptorSets = { globalBuilder.set, samplerBuilder.set };
 
                 if (pVulkanPass->geometryPipelineLayout)
                 {

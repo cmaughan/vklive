@@ -51,9 +51,6 @@ struct VulkanContext : DeviceContext
     static thread_local vk::CommandPool commandPool;
 #endif
     std::map<Scene*, std::shared_ptr<VulkanScene>> mapVulkanScene;
-
-	std::shared_ptr<DescriptorAllocator> spDescriptorAllocator;
-	std::shared_ptr<DescriptorLayoutCache> spDescriptorLayoutCache;
 };
 
 bool context_init(VulkanContext& ctx);
