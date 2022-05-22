@@ -14,13 +14,13 @@ layout (location = 2) out vec3 outEyePos;
 layout (location = 3) out vec3 outLightVec;
 layout (location = 4) out vec2 outUV;
 
-layout (set = 1, binding = 1) uniform sampler2D samplerA;
+layout (set = 3, binding = 0) uniform sampler2D samplerA;
 
 void main() 
 {
     outNormal = inNormal;
     outColor = inColor;
-    outUV = inUV;
+    outUV = inUV; 
     gl_Position = inPos;
     outEyePos = vec3(ubo.model * inPos);
     vec3 lightPos = vec3(0.0, 0.0, .0);

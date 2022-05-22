@@ -120,18 +120,13 @@ bool context_init(VulkanContext& ctx)
         vk::DescriptorPoolCreateInfo pool_info(vk::DescriptorPoolCreateFlagBits::eFreeDescriptorSet, 1000 * pool_sizes.size(), pool_sizes);
         ctx.descriptorPool = ctx.device.createDescriptorPool(pool_info);
         debug_set_descriptorpool_name(ctx.device, ctx.descriptorPool, "Context::DescriptorPool");
-
-        descriptor_init(ctx);
     }
-
 
     return true;
 }
 
 void context_destroy(VulkanContext& ctx)
 {
-    descriptor_cleanup(ctx);
-
     ctx.device.destroyDescriptorPool(ctx.descriptorPool);
     ctx.descriptorPool = nullptr;
     

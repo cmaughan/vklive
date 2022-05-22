@@ -195,6 +195,8 @@ void vulkan_scene_init(VulkanContext& ctx, Scene& scene)
         scene.valid = false;
     };
 
+    descriptor_init(ctx, spVulkanScene->descriptorCache);
+
     // First, load the models
     for (auto& [path, pGeom] : scene.geometries)
     {
@@ -306,6 +308,19 @@ void vulkan_scene_init(VulkanContext& ctx, Scene& scene)
     }
 }
 
+void vulkan_scene_wait(VulkanContext& ctx, VulkanScene* pVulkanScene)
+{
+    if (pVulkanScene->inFlight)
+    {
+        const uint64_t FenceTimeout = 100000000;
+        while (vk::Result::eTimeout == ctx.device.waitForFences(pVulkanScene->fence, VK_TRUE, FenceTimeout))
+            ;
+        pVulkanScene->commandBuffer.reset();
+        pVulkanScene->inFlight = false;
+        ctx.device.resetFences(pVulkanScene->fence);
+    }
+}
+
 void vulkan_scene_prepare(VulkanContext& ctx, RenderContext& renderContext, Scene& scene)
 {
     auto pVulkanScene = vulkan_scene_get(ctx, scene);
@@ -319,6 +334,17 @@ void vulkan_scene_prepare(VulkanContext& ctx, RenderContext& renderContext, Scen
         col.rendered = false;
     }
     renderContext.depthBuffer.rendered = false;
+
+    if (!pVulkanScene->commandBuffer)
+    {
+        pVulkanScene->fence = ctx.device.createFence(vk::FenceCreateInfo());
+        pVulkanScene->commandPool = ctx.device.createCommandPool(vk::CommandPoolCreateInfo(vk::CommandPoolCreateFlagBits::eResetCommandBuffer, ctx.graphicsQueue));
+        pVulkanScene->commandBuffer = ctx.device.allocateCommandBuffers(vk::CommandBufferAllocateInfo(pVulkanScene->commandPool, vk::CommandBufferLevel::ePrimary, 1))[0];
+
+        debug_set_commandpool_name(ctx.device, pVulkanScene->commandPool, "Scene:CommandPool");
+        debug_set_commandbuffer_name(ctx.device, pVulkanScene->commandBuffer, "Scene:CommandBuffer");
+        debug_set_fence_name(ctx.device, pVulkanScene->fence, "Scene:Fence");
+    }
 
     bool targetsChanged = false;
     // Resize/create rendertargets
@@ -337,6 +363,7 @@ void vulkan_scene_prepare(VulkanContext& ctx, RenderContext& renderContext, Scen
             {
                 targetsChanged = true;
 
+                vulkan_scene_wait(ctx, pVulkanScene);
                 image_destroy(ctx, pVulkanSurface->image);
 
                 // Update to latest, even if we fail
@@ -361,7 +388,12 @@ void vulkan_scene_prepare(VulkanContext& ctx, RenderContext& renderContext, Scen
 
     if (targetsChanged)
     {
-        descriptor_reset_pools(ctx);
+        vulkan_scene_wait(ctx, pVulkanScene);
+       
+        // Can't reset the pool here because it will invalide the descriptor on the actively running scene!!
+        //ctx.queue.waitIdle();
+        //ctx.device.waitIdle();
+        descriptor_reset_pools(ctx, pVulkanScene->descriptorCache);
     }
 
     for (auto& [name, pVulkanPass] : pVulkanScene->passes)
@@ -372,6 +404,9 @@ void vulkan_scene_prepare(VulkanContext& ctx, RenderContext& renderContext, Scen
 
             pVulkanPass->colorImages.clear();
             pVulkanPass->pDepthImage = nullptr;
+
+            pVulkanPass->descriptorSets.clear();
+            pVulkanPass->descriptorSetLayouts.clear();
 
             std::vector<glm::uvec2> sizes;
             // Figure out which surfaces we are using
@@ -498,13 +533,13 @@ void vulkan_scene_prepare(VulkanContext& ctx, RenderContext& renderContext, Scen
 
                 DescriptorBuilder globalBuilder;
                 descriptor_bind_buffer(ctx,
+                    pVulkanScene->descriptorCache,
                     globalBuilder,
                     0,
                     &pVulkanPass->vsUniform.descriptor,
                     vk::DescriptorType::eUniformBuffer,
                     vk::ShaderStageFlagBits::eVertex | vk::ShaderStageFlagBits::eFragment | vk::ShaderStageFlagBits::eGeometry);
-                descriptor_build(ctx, globalBuilder, debug_pass_name(*pVulkanPass, "UBO"));
-
+                descriptor_build(ctx, pVulkanScene->descriptorCache, globalBuilder, debug_pass_name(*pVulkanPass, "UBO"));
 
                 DescriptorBuilder samplerBuilder;
                 uint32_t index = 0;
@@ -516,13 +551,14 @@ void vulkan_scene_prepare(VulkanContext& ctx, RenderContext& renderContext, Scen
                     desc_image.imageLayout = vk::ImageLayout::eShaderReadOnlyOptimal;
 
                     descriptor_bind_image(ctx,
+                        pVulkanScene->descriptorCache,
                         samplerBuilder,
                         index++,
                         &desc_image,
                         vk::DescriptorType::eCombinedImageSampler,
                         vk::ShaderStageFlagBits::eVertex | vk::ShaderStageFlagBits::eFragment | vk::ShaderStageFlagBits::eGeometry);
                 }
-                descriptor_build(ctx, samplerBuilder, debug_pass_name(*pVulkanPass, "Sampler:DescriptorSet"));
+                descriptor_build(ctx, pVulkanScene->descriptorCache, samplerBuilder, debug_pass_name(*pVulkanPass, "Sampler:DescriptorSet"));
 
                 debug_set_descriptorsetlayout_name(ctx.device, samplerBuilder.layout, debug_pass_name(*pVulkanPass, "Sampler:DescriptorSetLayout"));
                 debug_set_descriptorset_name(ctx.device, samplerBuilder.set, debug_pass_name(*pVulkanPass, "Sampler:DescriptorSet"));
@@ -574,6 +610,17 @@ void vulkan_scene_destroy(VulkanContext& ctx, Scene& scene)
     if (!pVulkanScene)
     {
         return;
+    }
+
+    vulkan_scene_wait(ctx, pVulkanScene);
+
+    descriptor_cleanup(ctx, pVulkanScene->descriptorCache);
+
+    if (pVulkanScene->commandPool)
+    {
+        ctx.device.destroyFence(pVulkanScene->fence);
+        ctx.device.destroyCommandPool(pVulkanScene->commandPool);
+        pVulkanScene->commandPool = nullptr;
     }
 
     for (auto& [name, pVulkanSurface] : pVulkanScene->surfaces)
@@ -631,6 +678,10 @@ void vulkan_scene_render(VulkanContext& ctx, RenderContext& renderContext, Scene
     {
         return;
     }
+
+    vulkan_scene_wait(ctx, pVulkanScene);
+
+    pVulkanScene->commandBuffer.begin(vk::CommandBufferBeginInfo{ vk::CommandBufferUsageFlagBits::eOneTimeSubmit });
 
     for (auto& [name, pVulkanPass] : pVulkanScene->passes)
     {
@@ -693,39 +744,37 @@ void vulkan_scene_render(VulkanContext& ctx, RenderContext& renderContext, Scene
 
         try
         {
-            utils_with_command_buffer(ctx, [&, pVulkanPassPtr](auto cmd) -> void {
-                debug_set_commandbuffer_name(ctx.device, cmd, debug_pass_name(*pVulkanPassPtr, "RenderBuffer"));
-                debug_begin_region(cmd, debug_pass_name(*pVulkanPassPtr, "Draw"), glm::vec4(1.0f, 0.0f, 0.0f, 1.0f));
-                cmd.beginRenderPass(renderPassBeginInfo, vk::SubpassContents::eInline);
-                cmd.setViewport(0, viewport(glm::uvec2(rect.x, rect.y)));
-                cmd.setScissor(0, rect2d(glm::uvec2(rect.x, rect.y)));
-                cmd.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, pVulkanPassPtr->geometryPipelineLayout, 0, pVulkanPassPtr->descriptorSets, {});
-                cmd.bindPipeline(vk::PipelineBindPoint::eGraphics, pVulkanPassPtr->geometryPipeline);
+            auto& cmd = pVulkanScene->commandBuffer;
+            debug_begin_region(cmd, debug_pass_name(*pVulkanPassPtr, "Draw"), glm::vec4(1.0f, 0.0f, 0.0f, 1.0f));
+            cmd.beginRenderPass(renderPassBeginInfo, vk::SubpassContents::eInline);
+            cmd.setViewport(0, viewport(glm::uvec2(rect.x, rect.y)));
+            cmd.setScissor(0, rect2d(glm::uvec2(rect.x, rect.y)));
+            cmd.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, pVulkanPassPtr->geometryPipelineLayout, 0, pVulkanPassPtr->descriptorSets, {});
+            cmd.bindPipeline(vk::PipelineBindPoint::eGraphics, pVulkanPassPtr->geometryPipeline);
 
-                for (auto& geom : pVulkanPassPtr->pPass->geometries)
+            for (auto& geom : pVulkanPassPtr->pPass->geometries)
+            {
+                auto itrGeom = pVulkanScene->geometries.find(geom);
+                if (itrGeom != pVulkanScene->geometries.end())
                 {
-                    auto itrGeom = pVulkanScene->geometries.find(geom);
-                    if (itrGeom != pVulkanScene->geometries.end())
-                    {
-                        auto pVulkanGeom = itrGeom->second;
-                        cmd.bindVertexBuffers(0, pVulkanGeom->model.vertices.buffer, { 0 });
-                        cmd.bindIndexBuffer(pVulkanGeom->model.indices.buffer, 0, vk::IndexType::eUint32);
-                        cmd.drawIndexed(pVulkanGeom->model.indexCount, 1, 0, 0, 0);
-                    }
+                    auto pVulkanGeom = itrGeom->second;
+                    cmd.bindVertexBuffers(0, pVulkanGeom->model.vertices.buffer, { 0 });
+                    cmd.bindIndexBuffer(pVulkanGeom->model.indices.buffer, 0, vk::IndexType::eUint32);
+                    cmd.drawIndexed(pVulkanGeom->model.indexCount, 1, 0, 0, 0);
                 }
-                cmd.endRenderPass();
-                debug_end_region(cmd);
+            }
+            cmd.endRenderPass();
+            debug_end_region(cmd);
 
-                for (auto& col : pVulkanPassPtr->colorImages)
-                {
-                    col->rendered = true;
-                }
+            for (auto& col : pVulkanPassPtr->colorImages)
+            {
+                col->rendered = true;
+            }
 
-                if (pVulkanPassPtr->pDepthImage)
-                {
-                    pVulkanPassPtr->pDepthImage->rendered = true;
-                }
-            });
+            if (pVulkanPassPtr->pDepthImage)
+            {
+                pVulkanPassPtr->pDepthImage->rendered = true;
+            }
         }
         catch (std::exception& ex)
         {
@@ -737,6 +786,10 @@ void vulkan_scene_render(VulkanContext& ctx, RenderContext& renderContext, Scene
             return;
         }
     }
+    
+    pVulkanScene->commandBuffer.end();
+    pVulkanScene->inFlight = true;
+    ctx.queue.submit(vk::SubmitInfo{ 0, nullptr, nullptr, 1, &pVulkanScene->commandBuffer }, pVulkanScene->fence);
 }
 
 vk::Format vulkan_scene_format_to_vulkan(const Format& format)

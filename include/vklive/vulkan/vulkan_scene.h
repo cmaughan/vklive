@@ -4,6 +4,7 @@
 #include <vklive/vulkan/vulkan_context.h>
 #include <vklive/vulkan/vulkan_framebuffer.h>
 #include <vklive/vulkan/vulkan_model.h>
+#include <vklive/vulkan/vulkan_descriptor.h>
 
 #include <vklive/camera.h>
 namespace vulkan
@@ -121,8 +122,14 @@ struct VulkanScene
     std::map<std::string, std::shared_ptr<VulkanSurface>> surfaces;
     std::map<fs::path, std::shared_ptr<VulkanGeometry>> geometries;
     std::map<fs::path, std::shared_ptr<VulkanShader>> shaderStages;
-    
     std::map<std::string, std::shared_ptr<VulkanPass>> passes;
+  
+    DescriptorCache descriptorCache;
+
+    bool inFlight = false;
+    vk::CommandBuffer commandBuffer;
+    vk::CommandPool commandPool;
+    vk::Fence fence;
 };
 
 void vulkan_scene_init(VulkanContext& ctx, Scene& scene);
