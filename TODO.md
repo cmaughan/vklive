@@ -4,9 +4,8 @@ TODO
 ## General
 - Ping-Pong option (10)
 - Supply textures to scene files (10)
+- Create UBO for each frame
 - Icon (1)
-- Detect device issues, handle fallbacks, etc.
-- Check low DPI (5)
 - Restart menu option to restart clocks, frame count, and do default clear once
 - Blend operations/Alpha
 
@@ -14,6 +13,8 @@ TODO
     iMouse (x,y screen)
     iDate (year, month, day, seconds since EPOCH)
     fragOffset (audio)
+
+- Check low DPI (5)
 
 ## Project Support
 - [Need to think about this stuff some more]

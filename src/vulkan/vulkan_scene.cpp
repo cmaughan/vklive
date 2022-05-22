@@ -153,6 +153,11 @@ void vulkan_scene_create_renderpass(VulkanContext& ctx, VulkanScene& scene, Vulk
         subpassDependencies.push_back(dependency);
     }
 
+    // TODO: 
+    // Performance improvement/fix the dependencies here based on the scene graph.
+    // We don't always need to read, for example.
+    // This code is almost certainly setting up the dependencies here badly; I just haven't looked into how to do it properly based on
+    // the targets and samplers of each pass...
     vk::RenderPassCreateInfo renderPassInfo;
     renderPassInfo.attachmentCount = (uint32_t)attachments.size();
     renderPassInfo.pAttachments = attachments.data();
@@ -577,7 +582,7 @@ void vulkan_scene_prepare(VulkanContext& ctx, RenderContext& renderContext, Scen
             validation_set_shaders({});
 
             // Create it
-            /* Why does this break stuff?
+            /* TODO: Why does this break stuff?
             if (pVulkanPass->geometryPipeline)
             {
                 ctx.device.destroyPipeline(pVulkanPass->geometryPipeline);
@@ -649,8 +654,6 @@ void vulkan_scene_destroy(VulkanContext& ctx, Scene& scene)
         buffer_destroy(ctx, pVulkanPass->vsUniform);
 
         ctx.device.destroyRenderPass(pVulkanPass->renderPass);
-        // ctx.device.destroyDescriptorSetLayout(pVulkanPass->descriptorSetLayout);
-        // ctx.device.freeDescriptorSets(ctx.descriptorPool, pVulkanPass->descriptorSet);
         ctx.device.destroyPipeline(pVulkanPass->geometryPipeline);
         ctx.device.destroyPipelineLayout(pVulkanPass->geometryPipelineLayout);
     }
