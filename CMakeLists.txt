@@ -194,11 +194,13 @@ target_precompile_headers(vklive
     include/vklive/vulkan/vulkan_context.h
 )
 
-# Symbols
+if(WIN32)
+# Symbols for release builds on windows
 target_compile_options(vklive PRIVATE "$<$<CONFIG:Release>:/Zi>")
 target_link_options(vklive PRIVATE "$<$<CONFIG:Release>:/DEBUG>")
 target_link_options(vklive PRIVATE "$<$<CONFIG:Release>:/OPT:REF>")
 target_link_options(vklive PRIVATE "$<$<CONFIG:Release>:/OPT:ICF>")
+endif()
 
 target_include_directories(vklive
     PUBLIC

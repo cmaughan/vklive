@@ -594,6 +594,7 @@ void vulkan_scene_prepare(VulkanContext& ctx, RenderContext& renderContext, Scen
         }
     }
 
+    // Copy the actual vertices to the GPU, if necessary.
     for (auto& [name, pVulkanGeom] : pVulkanScene->geometries)
     {
         model_stage(ctx, pVulkanGeom->model);
