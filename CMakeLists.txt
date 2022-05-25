@@ -240,11 +240,13 @@ target_link_libraries(Rezonality
         unofficial::nativefiledialog::nfd
     )
 
+if(WIN32)
 # Symbols
 target_compile_options(Rezonality PRIVATE "$<$<CONFIG:Release>:/Zi>")
 target_link_options(Rezonality PRIVATE "$<$<CONFIG:Release>:/DEBUG>")
 target_link_options(Rezonality PRIVATE "$<$<CONFIG:Release>:/OPT:REF>")
 target_link_options(Rezonality PRIVATE "$<$<CONFIG:Release>:/OPT:ICF>")
+endif()
 
 if("${CMAKE_SYSTEM_NAME}" STREQUAL "Linux")
     target_link_libraries(Rezonality PRIVATE X11 Xext xcb)
