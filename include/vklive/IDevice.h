@@ -22,7 +22,7 @@ enum class DeviceState
     WasLost
 };
 
-struct Scene;
+struct SceneGraph;
 
 struct DeviceContext
 {
@@ -46,10 +46,10 @@ struct IDevice
     IDevice(const IDevice&) = delete;
    
     // Device Methods
-    virtual void InitScene(Scene& scene) = 0;
-    virtual void DestroyScene(Scene& scene) = 0;
+    virtual void InitScene(SceneGraph& scene) = 0;
+    virtual void DestroyScene(SceneGraph& scene) = 0;
     virtual void ImGui_Render(ImDrawData* pDrawData) = 0;
-    virtual void ImGui_Render_3D(Scene& scene, bool backgroundRender) = 0;
+    virtual void ImGui_Render_3D(SceneGraph& scene, bool backgroundRender) = 0;
     virtual void WaitIdle() = 0;
     
     virtual void ValidateSwapChain() = 0;

@@ -50,7 +50,7 @@ struct VulkanContext : DeviceContext
 #else
     static thread_local vk::CommandPool commandPool;
 #endif
-    std::map<Scene*, std::shared_ptr<VulkanScene>> mapVulkanScene;
+    std::map<SceneGraph*, std::shared_ptr<VulkanScene>> mapVulkanScene;
 };
 
 bool context_init(VulkanContext& ctx);

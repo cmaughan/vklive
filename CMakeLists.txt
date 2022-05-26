@@ -126,6 +126,7 @@ endif() # UNIX
 set(VK_SOURCES
     src/model.cpp
     src/scene.cpp
+    src/scene_graph.cpp
     src/pass.cpp
     src/camera.cpp
     src/file/file.cpp

@@ -689,7 +689,7 @@ void imgui_destroy_font_upload_objects(VulkanContext& ctx)
     imgui->uploadBufferMemory = nullptr;
 }
 
-void imgui_render_3d(VulkanContext& ctx, Scene& scene, bool background)
+void imgui_render_3d(VulkanContext& ctx, SceneGraph& scene, bool background)
 {
     auto imgui = imgui_context(ctx);
 

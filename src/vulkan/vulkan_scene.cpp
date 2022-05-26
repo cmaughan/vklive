@@ -28,7 +28,7 @@ std::string debug_pass_name(VulkanPass& pass, const std::string& str)
     return fmt::format("Pass::{}::{}", pass.pPass->name, str);
 }
 
-VulkanScene* vulkan_scene_get(VulkanContext& ctx, Scene& scene)
+VulkanScene* vulkan_scene_get(VulkanContext& ctx, SceneGraph& scene)
 {
     if (!scene.valid)
     {
@@ -169,7 +169,7 @@ void vulkan_scene_create_renderpass(VulkanContext& ctx, VulkanScene& scene, Vulk
     debug_set_renderpass_name(ctx.device, pass.renderPass, debug_pass_name(pass, "RenderPass"));
 }
 
-void vulkan_scene_init(VulkanContext& ctx, Scene& scene)
+void vulkan_scene_init(VulkanContext& ctx, SceneGraph& scene)
 {
     // Already has errors, we can't build vulkan info from it.
     if (!scene.errors.empty() || !fs::exists(scene.root) || !scene.valid)
@@ -326,7 +326,7 @@ void vulkan_scene_wait(VulkanContext& ctx, VulkanScene* pVulkanScene)
     }
 }
 
-void vulkan_scene_prepare(VulkanContext& ctx, RenderContext& renderContext, Scene& scene)
+void vulkan_scene_prepare(VulkanContext& ctx, RenderContext& renderContext, SceneGraph& scene)
 {
     auto pVulkanScene = vulkan_scene_get(ctx, scene);
     if (!pVulkanScene)
@@ -609,7 +609,7 @@ void vulkan_scene_prepare(VulkanContext& ctx, RenderContext& renderContext, Scen
     }
 }
 
-void vulkan_scene_destroy(VulkanContext& ctx, Scene& scene)
+void vulkan_scene_destroy(VulkanContext& ctx, SceneGraph& scene)
 {
     auto pVulkanScene = vulkan_scene_get(ctx, scene);
     if (!pVulkanScene)
@@ -666,7 +666,7 @@ void vulkan_scene_destroy(VulkanContext& ctx, Scene& scene)
     scene.valid = false;
 }
 
-void vulkan_scene_render(VulkanContext& ctx, RenderContext& renderContext, Scene& scene)
+void vulkan_scene_render(VulkanContext& ctx, RenderContext& renderContext, SceneGraph& scene)
 {
     auto pVulkanScene = vulkan_scene_get(ctx, scene);
     if (!pVulkanScene)

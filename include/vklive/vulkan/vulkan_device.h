@@ -16,13 +16,13 @@ struct VulkanDevice : public IDevice
     ~VulkanDevice();
    
     // Interface
-    virtual void InitScene(Scene& scene) override;
-    virtual void DestroyScene(Scene& scene) override;
+    virtual void InitScene(SceneGraph& scene) override;
+    virtual void DestroyScene(SceneGraph& scene) override;
 
     virtual void WaitIdle() override;
 
     virtual void ImGui_Render(ImDrawData* pDrawData) override;
-    virtual void ImGui_Render_3D(Scene& scene, bool backgroundRender) override;
+    virtual void ImGui_Render_3D(SceneGraph& scene, bool backgroundRender) override;
     
     virtual void ValidateSwapChain() override;
     virtual void Present() override;

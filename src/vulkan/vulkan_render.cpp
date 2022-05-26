@@ -90,7 +90,7 @@ void render_check_framebuffer(VulkanContext& ctx, const glm::uvec2& size)
     debug_set_sampler_name(ctx.device, spRender->colorBuffers[0].sampler, "RenderColorBuffer::Sampler");
 }
 
-void render(VulkanContext& ctx, const glm::vec4& rect, Scene& scene)
+void render(VulkanContext& ctx, const glm::vec4& rect, SceneGraph& scene)
 {
     auto spRender = render_context(ctx);
 

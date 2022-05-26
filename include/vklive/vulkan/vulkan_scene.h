@@ -113,12 +113,12 @@ struct VulkanPass
 
 struct VulkanScene
 {
-    VulkanScene(Scene* pS)
+    VulkanScene(SceneGraph* pS)
         : pScene(pS)
     {
     }
 
-    Scene* pScene = nullptr;
+    SceneGraph* pScene = nullptr;
     std::map<std::string, std::shared_ptr<VulkanSurface>> surfaces;
     std::map<fs::path, std::shared_ptr<VulkanGeometry>> geometries;
     std::map<fs::path, std::shared_ptr<VulkanShader>> shaderStages;
@@ -132,10 +132,10 @@ struct VulkanScene
     vk::Fence fence;
 };
 
-void vulkan_scene_init(VulkanContext& ctx, Scene& scene);
-void vulkan_scene_destroy(VulkanContext& ctx, Scene& scene);
-void vulkan_scene_render(VulkanContext& ctx, RenderContext& renderContext, Scene& scene);
-void vulkan_scene_prepare(VulkanContext& ctx, RenderContext& renderContext, Scene& scene);
+void vulkan_scene_init(VulkanContext& ctx, SceneGraph& scene);
+void vulkan_scene_destroy(VulkanContext& ctx, SceneGraph& scene);
+void vulkan_scene_render(VulkanContext& ctx, RenderContext& renderContext, SceneGraph& scene);
+void vulkan_scene_prepare(VulkanContext& ctx, RenderContext& renderContext, SceneGraph& scene);
 vk::Format vulkan_scene_format_to_vulkan(const Format& format);
 
 } // namespace vulkan

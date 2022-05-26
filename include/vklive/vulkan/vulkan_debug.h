@@ -8,7 +8,7 @@
 #pragma warning(default : 26812)
 
 #include <vklive/file/file.h>
-struct Scene;
+struct SceneGraph;
 
 namespace vulkan
 {

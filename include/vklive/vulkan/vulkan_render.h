@@ -21,7 +21,7 @@ struct RenderContext : IContextData
 
 void render_init(VulkanContext& ctx);
 void render_destroy(VulkanContext& ctx);
-void render(VulkanContext& ctx, const glm::vec4& rect, Scene& scene);
+void render(VulkanContext& ctx, const glm::vec4& rect, SceneGraph& scene);
 std::shared_ptr<RenderContext> render_context(VulkanContext& ctx);
 
 } // namespace vulkan

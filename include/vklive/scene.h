@@ -99,14 +99,16 @@ struct Pass
     int scriptSamplersLine = 0;
 };
 
-struct Scene
+struct SceneGraph
 {
-    Scene(const fs::path& p)
+    SceneGraph(const fs::path& p)
         : root(p)
     {
     }
 
     fs::path root;
+
+    // The source file for this graph
     fs::path sceneGraphPath;
 
     // Global objects
@@ -114,18 +116,26 @@ struct Scene
     std::map<fs::path, std::shared_ptr<Geometry>> geometries;
     std::map<fs::path, std::shared_ptr<Shader>> shaders;
     std::map<std::string, std::shared_ptr<Pass>> passes;
-    std::vector<std::string> passOrder;
+
+    // Initial create order of the passes
+    std::vector<Pass*> passOrder;
+    std::vector<Pass*> sortedPasses;
+
+    // Generated errors for this graph
     std::vector<Message> errors; 
     std::vector<Message> warnings; 
     std::vector<fs::path> headers;
 
-    
-
     bool valid = true;
 };
 
-std::shared_ptr<Scene> scene_build(const fs::path& root);
-void scene_destroy_parser();
+std::shared_ptr<SceneGraph> scenegraph_build(const fs::path& root);
+void scenegraph_destroy_parser();
+
+// TODO: Move this
 bool format_is_depth(const Format& fmt);
 
+// Graph
+void scenegraph_build(SceneGraph& scene);
+void scenegraph_render(SceneGraph& scene);
 

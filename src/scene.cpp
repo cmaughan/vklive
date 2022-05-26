@@ -158,7 +158,7 @@ scenegraph       : /^/ (<comment> | <surface>)* (<comment> | <pass> )* /$/ ;
         samplers, targets, vs, gs, fs, surface, geometry, disable, pass, parser.pSceneGraph, nullptr);
 }
 
-void scene_destroy_parser()
+void scenegraph_destroy_parser()
 {
     if (parser.pError)
     {
@@ -239,9 +239,9 @@ std::vector<fs::path> scene_get_headers(const std::vector<fs::path>& files)
     return headers;
 }
 
-std::shared_ptr<Scene> scene_build(const fs::path& root)
+std::shared_ptr<SceneGraph> scenegraph_build(const fs::path& root)
 {
-    std::shared_ptr<Scene> spScene = std::make_shared<Scene>(root);
+    std::shared_ptr<SceneGraph> spScene = std::make_shared<SceneGraph>(root);
 
     auto files = file_gather_files(root);
 
@@ -538,6 +538,8 @@ std::shared_ptr<Scene> scene_build(const fs::path& root)
                 {
                     spScene->passes[spPass->name] = spPass;
                 }
+
+                spScene->passOrder.push_back(spPass.get());
             }
 
             mpc_ast_delete((mpc_ast_t*)r.output);
@@ -570,6 +572,10 @@ std::shared_ptr<Scene> scene_build(const fs::path& root)
         addError(fmt::format("Exception processing scenegraph: {}", ex.what()));
     }
 
+    if (spScene->valid)
+    {
+        scenegraph_build(*spScene); 
+    }
     return spScene;
 }
 

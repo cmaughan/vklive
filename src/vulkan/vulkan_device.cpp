@@ -64,12 +64,12 @@ VulkanDevice::~VulkanDevice()
     ImGui::DestroyContext();
 }
 
-void VulkanDevice::InitScene(Scene& scene)
+void VulkanDevice::InitScene(SceneGraph& scene)
 {
     vulkan::vulkan_scene_init(ctx, scene);
 }
 
-void VulkanDevice::DestroyScene(Scene& scene)
+void VulkanDevice::DestroyScene(SceneGraph& scene)
 {
     vulkan::vulkan_scene_destroy(ctx, scene);
 }
@@ -84,7 +84,7 @@ void VulkanDevice::ValidateSwapChain()
     vulkan::main_window_validate_swapchain(ctx);
 }
     
-void VulkanDevice::ImGui_Render_3D(Scene& scene, bool backgroundRender)
+void VulkanDevice::ImGui_Render_3D(SceneGraph& scene, bool backgroundRender)
 {
     vulkan::imgui_render_3d(ctx, scene, backgroundRender);
 }

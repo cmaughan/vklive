@@ -5,12 +5,12 @@
 #include <vklive/file/file.h>
 #include <vklive/message.h>
 
-struct Scene;
+struct SceneGraph;
 
 struct Project
 {
     fs::path rootPath;
-    std::shared_ptr<Scene> spScene;
+    std::shared_ptr<SceneGraph> spScene;
     std::vector<Message> projectMessages;
     bool temporary = false;
     bool modified = false;

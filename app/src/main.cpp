@@ -153,7 +153,7 @@ int main(int argc, char** argv)
 
             LOG(INFO, "Scene initing");
 
-            spProject->spScene = scene_build(spProject->rootPath);
+            spProject->spScene = scenegraph_build(spProject->rootPath);
 
             // May not be valid, but sent anyway
             g_pDevice->InitScene(*spProject->spScene);
@@ -460,7 +460,7 @@ int main(int argc, char** argv)
     }
     g_pDevice.reset();
 
-    scene_destroy_parser();
+    scenegraph_destroy_parser();
 
     SDL_Quit();
 

@@ -3,7 +3,7 @@
 #include <vklive/vulkan/vulkan_context.h>
 #include <imgui.h>
 
-struct Scene;
+struct SceneGraph;
 struct ImDrawData;
 
 namespace vulkan
@@ -73,6 +73,6 @@ void imgui_viewport_swap_buffers(ImGuiViewport* viewport, void*);
 
 void imgui_viewport_destroy_all(VulkanContext& ctx);
 
-void imgui_render_3d(VulkanContext& ctx, Scene& scene, bool background);
+void imgui_render_3d(VulkanContext& ctx, SceneGraph& scene, bool background);
 
 } // namespace vulkan
