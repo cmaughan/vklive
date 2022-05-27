@@ -721,12 +721,15 @@ void imgui_render_3d(VulkanContext& ctx, SceneGraph& scene, bool background)
 
     if (scene.valid)
     {
-        vulkan::render(ctx, glm::vec4(canvas_pos.x, canvas_pos.y, canvas_size.x, canvas_size.y), scene);
+        // Redundant for now
+        scenegraph_render(scene, glm::vec2(canvas_size.x, canvas_size.y));
+
+        //vulkan::render(ctx, glm::vec4(canvas_pos.x, canvas_pos.y, canvas_size.x, canvas_size.y), scene);
 
         if (ctx.deviceState == DeviceState::Normal)
         {
             auto spRender = render_context(ctx);
-            if (spRender->colorBuffers[0].rendered)
+            if (!spRender->colorBuffers.empty() && spRender->colorBuffers[0].rendered)
             {
                 pDrawList->AddImage((ImTextureID)spRender->colorBuffers[0].samplerDescriptorSet,
                     ImVec2(canvas_pos.x, canvas_pos.y),

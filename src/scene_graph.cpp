@@ -1,4 +1,7 @@
 #include <vklive/scene.h>
+#include <vklive/IDevice.h>
+
+extern IDevice* GetDevice();
 
 void scenegraph_build(SceneGraph& scene)
 {
@@ -11,7 +14,7 @@ void scenegraph_build(SceneGraph& scene)
     }
 }
 
-void scenegraph_render(SceneGraph& scene)
+void scenegraph_render(SceneGraph& scene, const glm::vec2& size)
 {
-
+    auto device = GetDevice();
 }

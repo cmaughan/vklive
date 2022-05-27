@@ -137,5 +137,5 @@ bool format_is_depth(const Format& fmt);
 
 // Graph
 void scenegraph_build(SceneGraph& scene);
-void scenegraph_render(SceneGraph& scene);
+void scenegraph_render(SceneGraph& scene, const glm::vec2& size);
 
