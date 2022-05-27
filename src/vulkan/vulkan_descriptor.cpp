@@ -44,7 +44,9 @@ vk::DescriptorPool create_pool(VulkanContext& ctx, DescriptorCache& cache, const
     pool_info.poolSizeCount = (uint32_t)sizes.size();
     pool_info.pPoolSizes = sizes.data();
 
-    return ctx.device.createDescriptorPool(pool_info);
+    auto pool = ctx.device.createDescriptorPool(pool_info);
+    debug_set_descriptorpool_name(ctx.device, pool, "Scene::DescriptorPool");
+    return pool;
 }
 
 vk::DescriptorPool grab_pool(VulkanContext& ctx, DescriptorCache& cache)
