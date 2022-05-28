@@ -1,6 +1,7 @@
 #pragma once
 
 #include <vklive/scene.h>
+#include <vklive/IDevice.h>
 #include <vklive/vulkan/vulkan_context.h>
 #include <vklive/vulkan/vulkan_framebuffer.h>
 #include <vklive/vulkan/vulkan_model.h>
@@ -11,15 +12,15 @@ namespace vulkan
 {
 
 struct RenderContext;
+
 // These structures mirror the scene structures and add the vulkan specific bits
 // The vulkan objects should not live longer than the scene!
-struct VulkanSurface
+struct VulkanSurface : IDeviceSurface
 {
-    VulkanSurface(Surface* pS)
-        : pSurface(pS)
+    VulkanSurface(const Surface* pS)
+        : IDeviceSurface(pS)
     {
     }
-    Surface* pSurface;
     VulkanImage image;
     std::string debugName;
     glm::uvec2 currentSize;

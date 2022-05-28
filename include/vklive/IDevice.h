@@ -4,6 +4,7 @@
 #include <map>
 #include <vector>
 #include <mutex>
+#include <functional>
 
 #include <glm/glm.hpp>
 
@@ -24,6 +25,15 @@ enum class DeviceState
 
 struct SceneGraph;
 
+struct IDeviceSurface
+{
+    IDeviceSurface(const Surface* pS)
+        : pSurface(pS)
+    {
+    }
+    const Surface* pSurface;
+};
+
 struct DeviceContext
 {
     SDL_Window* window = nullptr;
@@ -36,6 +46,8 @@ struct DeviceContext
     
     float hdpi = 1.0;
     float vdpi = 1.0;
+
+    std::map<std::string, std::shared_ptr<IDeviceSurface>> mapDeviceSurfaces;
 };
 
 struct IDevice
@@ -46,10 +58,12 @@ struct IDevice
     IDevice(const IDevice&) = delete;
    
     // Device Methods
-    virtual void InitScene(SceneGraph& scene) = 0;
-    virtual void DestroyScene(SceneGraph& scene) = 0;
+    virtual IDeviceSurface* FindSurface(const std::string& surface) const = 0;
+    virtual IDeviceSurface* AddOrUpdateSurface(const Surface& surface) = 0;
+    virtual void DestroySurface(const Surface& surface) = 0;
+
     virtual void ImGui_Render(ImDrawData* pDrawData) = 0;
-    virtual void ImGui_Render_3D(SceneGraph& scene, bool backgroundRender) = 0;
+    virtual void ImGui_Render_3D(SceneGraph& scene, bool backgroundRender, const std::function<IDeviceSurface*(const glm::vec2&)>& fnDrawScene) = 0;
     virtual void WaitIdle() = 0;
     
     virtual void ValidateSwapChain() = 0;
@@ -58,6 +72,7 @@ struct IDevice
     virtual std::set<std::string> ShaderFileExtensions() = 0;
 
     virtual DeviceContext& Context() = 0;
-    
 };
 
+    //virtual void InitScene(SceneGraph& scene) = 0;
+    //virtual void DestroyScene(SceneGraph& scene) = 0;

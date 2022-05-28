@@ -5,6 +5,8 @@
 #include <memory>
 #include <map>
 
+#include <glm/gtx/hash.hpp>
+
 #include "file/file.h"
 #include <vklive/camera.h>
 #include <vklive/message.h>
@@ -12,6 +14,7 @@
 #include "pass.h"
 
 struct Project;
+struct IDeviceSurface;
 
 enum class Format
 {
@@ -23,7 +26,7 @@ enum class Format
 
 struct Surface
 {
-    Surface(const std::string& n)
+    explicit Surface(const std::string& n)
         : name(n)
     {
     }
@@ -41,6 +44,19 @@ struct Surface
 
     // Format if a target
     Format format = Format::Default;
+
+    glm::uvec2 currentSize = glm::uvec2(0);
+    uint32_t renderCount = 0;
+};
+
+template<>
+struct std::hash<Surface>
+{
+    std::size_t operator()(const Surface& surface) const noexcept
+    {
+        std::size_t h = std::hash<glm::vec2>()(surface.scale) ^ std::hash<glm::uvec2>()(surface.size);
+        return h;
+    }
 };
 
 enum class GeometryType
@@ -137,5 +153,5 @@ bool format_is_depth(const Format& fmt);
 
 // Graph
 void scenegraph_build(SceneGraph& scene);
-void scenegraph_render(SceneGraph& scene, const glm::vec2& size);
+IDeviceSurface* scenegraph_render(SceneGraph& scene, const glm::vec2& size);
 

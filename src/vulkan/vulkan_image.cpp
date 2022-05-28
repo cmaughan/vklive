@@ -22,6 +22,7 @@ void image_destroy(VulkanContext& ctx, VulkanImage& img)
     if (img.samplerDescriptorSetLayout)
     {
         ctx.device.destroyDescriptorSetLayout(img.samplerDescriptorSetLayout);
+        img.samplerDescriptorSetLayout = nullptr;
     }
     /*
     if (img.samplerDescriptorSet)

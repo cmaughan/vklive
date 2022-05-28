@@ -156,7 +156,7 @@ int main(int argc, char** argv)
             spProject->spScene = scenegraph_build(spProject->rootPath);
 
             // May not be valid, but sent anyway
-            g_pDevice->InitScene(*spProject->spScene);
+            //g_pDevice->InitScene(*spProject->spScene);
 
             spQueue->enqueue(spProject);
         }
@@ -199,10 +199,12 @@ int main(int argc, char** argv)
         if (g_pDevice->Context().deviceState == DeviceState::Lost)
         {
             // Try to restart
+            /*
             if (project_has_scene(controller.spCurrentProject.get()))
             {
                 g_pDevice->DestroyScene(*controller.spCurrentProject->spScene.get());
             }
+            */
             g_pDevice = vulkan::create_vulkan_device(init_sdl_window(), imSettingsPath, appConfig.viewports);
 
             // Remember we were lost
@@ -276,7 +278,9 @@ int main(int argc, char** argv)
             // Do a 'pre-render'.  If this fails, then we will catch errors that might only happen during scene prepare
             if (project_scene_valid(spNewProject.get()))
             {
-                g_pDevice->ImGui_Render_3D(*spNewProject->spScene, appConfig.draw_on_background);
+                g_pDevice->ImGui_Render_3D(*spNewProject->spScene, appConfig.draw_on_background, [&](const glm::vec2& size) {
+                    return scenegraph_render(*spNewProject->spScene, size);
+                });
             }
 
             // If the new project is still valid and has a working scene, swap
@@ -287,7 +291,7 @@ int main(int argc, char** argv)
 
                 if (project_scene_valid(controller.spCurrentProject.get()))
                 {
-                    g_pDevice->DestroyScene(*controller.spCurrentProject->spScene);
+                    //g_pDevice->DestroyScene(*controller.spCurrentProject->spScene);
 
                     // Copy over the old info, if appropriate - this is temporary fix for cleaner solution later.
                     auto spNewScene = spNewProject->spScene;
@@ -374,7 +378,10 @@ int main(int argc, char** argv)
         if (g_pDevice->Context().deviceState == DeviceState::Normal && project_has_scene(controller.spCurrentProject.get()))
         {
             // Scene may not be valid, but we want to draw the window
-            g_pDevice->ImGui_Render_3D(*controller.spCurrentProject->spScene, appConfig.draw_on_background);
+            g_pDevice->ImGui_Render_3D(*controller.spCurrentProject->spScene, appConfig.draw_on_background, [&](const glm::vec2& size) {
+                return scenegraph_render(*controller.spCurrentProject->spScene, size);
+            });
+
             if (g_pDevice->Context().deviceState == DeviceState::Lost)
             {
                 // Device lost, reset.
@@ -454,10 +461,12 @@ int main(int argc, char** argv)
 
     config_save(settings_path);
 
+    /*
     if (project_has_scene(controller.spCurrentProject.get()))
     {
         g_pDevice->DestroyScene(*controller.spCurrentProject->spScene.get());
     }
+    */
     g_pDevice.reset();
 
     scenegraph_destroy_parser();

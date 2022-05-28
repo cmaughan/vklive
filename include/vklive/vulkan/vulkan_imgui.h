@@ -73,6 +73,6 @@ void imgui_viewport_swap_buffers(ImGuiViewport* viewport, void*);
 
 void imgui_viewport_destroy_all(VulkanContext& ctx);
 
-void imgui_render_3d(VulkanContext& ctx, SceneGraph& scene, bool background);
+void imgui_render_3d(VulkanContext& ctx, SceneGraph& scene, bool background, const std::function<IDeviceSurface*(const glm::vec2&)>& fnDrawScene);
 
 } // namespace vulkan

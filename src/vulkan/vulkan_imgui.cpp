@@ -689,7 +689,7 @@ void imgui_destroy_font_upload_objects(VulkanContext& ctx)
     imgui->uploadBufferMemory = nullptr;
 }
 
-void imgui_render_3d(VulkanContext& ctx, SceneGraph& scene, bool background)
+void imgui_render_3d(VulkanContext& ctx, SceneGraph& scene, bool background, const std::function<IDeviceSurface*(const glm::vec2&)>& fnDrawScene)
 {
     auto imgui = imgui_context(ctx);
 
@@ -721,27 +721,19 @@ void imgui_render_3d(VulkanContext& ctx, SceneGraph& scene, bool background)
 
     if (scene.valid)
     {
-        // Redundant for now
-        scenegraph_render(scene, glm::vec2(canvas_size.x, canvas_size.y));
-
-        //vulkan::render(ctx, glm::vec4(canvas_pos.x, canvas_pos.y, canvas_size.x, canvas_size.y), scene);
+        auto pDeviceSurface = fnDrawScene(glm::vec2(canvas_size.x, canvas_size.y));
 
         if (ctx.deviceState == DeviceState::Normal)
         {
-            auto spRender = render_context(ctx);
-            if (!spRender->colorBuffers.empty() && spRender->colorBuffers[0].rendered)
+            if (pDeviceSurface && pDeviceSurface->pSurface->renderCount != 0)
             {
-                pDrawList->AddImage((ImTextureID)spRender->colorBuffers[0].samplerDescriptorSet,
+                pDrawList->AddImage((ImTextureID)((VulkanSurface*)pDeviceSurface)->image.samplerDescriptorSet,
                     ImVec2(canvas_pos.x, canvas_pos.y),
                     ImVec2(canvas_pos.x + canvas_size.x, canvas_pos.y + canvas_size.y));
             }
             else
             {
                 pDrawList->AddText(ImVec2(canvas_pos.x, canvas_pos.y), 0xFFFFFFFF, "No passes draw to the this buffer...");
-                /*pDrawList->AddRectFilled(
-                    ImVec2(canvas_pos.x, canvas_pos.y),
-                    ImVec2(canvas_pos.x + canvas_size.x, canvas_pos.y + canvas_size.y),0xFF0000FF, 10.0f);
-                    */
             }
         }
     }
