@@ -189,15 +189,7 @@ void vulkan_scene_init(VulkanContext& ctx, SceneGraph& scene)
     ctx.mapVulkanScene[&scene] = spVulkanScene;
 
     auto reportError = [&](auto txt) {
-        Message msg;
-        msg.text = txt;
-        msg.path = spVulkanScene->pScene->sceneGraphPath;
-        msg.line = -1;
-        msg.severity = MessageSeverity::Error;
-
-        // Any error invalidates the scene
-        scene.errors.push_back(msg);
-        scene.valid = false;
+        scene_report_error(scene, txt);
     };
 
     descriptor_init(ctx, spVulkanScene->descriptorCache);
@@ -245,32 +237,13 @@ void vulkan_scene_init(VulkanContext& ctx, SceneGraph& scene)
     std::vector<vk::PipelineShaderStageCreateInfo> shaderStages;
     for (auto& [path, pShader] : scene.shaders)
     {
-        auto pVulkanShader = std::make_shared<VulkanShader>(pShader.get());
+        auto pVulkanShader = shader_create(ctx, scene, *pShader);
+        
 
-        if (pShader->path.extension().string() == ".vert")
-        {
-            pVulkanShader->shaderCreateInfo.stage = vk::ShaderStageFlagBits::eVertex;
-        }
-        else if (pShader->path.extension().string() == ".frag")
-        {
-            pVulkanShader->shaderCreateInfo.stage = vk::ShaderStageFlagBits::eFragment;
-        }
-        else if (pShader->path.extension().string() == ".geom")
-        {
-            pVulkanShader->shaderCreateInfo.stage = vk::ShaderStageFlagBits::eGeometry;
-        }
-        else
-        {
-            reportError(fmt::format("Unknown shader type: {}", path.filename().string()));
-            continue;
-        }
-
-        pVulkanShader->shaderCreateInfo.module = shader_create(ctx, pShader->path, scene.errors);
-        pVulkanShader->shaderCreateInfo.pName = "main";
-
-        if (pVulkanShader->shaderCreateInfo.module)
+        if (pVulkanShader && pVulkanShader->shaderCreateInfo.module)
         {
             spVulkanScene->shaderStages[path] = pVulkanShader;
+            pVulkanShader->shaderCreateInfo.pName = "main";
         }
         else
         {

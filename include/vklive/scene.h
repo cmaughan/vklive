@@ -150,6 +150,7 @@ void scenegraph_destroy_parser();
 
 // TODO: Move this
 bool format_is_depth(const Format& fmt);
+void scene_report_error(Scene& scene, const std::string& txt);
 
 // Graph
 void scenegraph_build(SceneGraph& scene);

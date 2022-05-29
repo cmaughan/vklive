@@ -40,7 +40,8 @@ find_package(tomlplusplus CONFIG REQUIRED) # Toml file format parser for reading
 find_package(unofficial-concurrentqueue REQUIRED) # Concurrent lock/free queue for thread interactions
 find_package(tinyfiledialogs CONFIG REQUIRED) # File dialogs that look OS specific and more standard
 find_package(unofficial-nativefiledialog CONFIG REQUIRED) # File dialogs that look OS specific and more standard
-
+find_package(unofficial-spirv-reflect CONFIG REQUIRED)
+find_package(unofficial-vulkan-memory-allocator CONFIG REQUIRED)
 # Set this if we are sitting on SDL
 add_definitions(-DZEP_USE_SDL)
 
@@ -239,6 +240,8 @@ target_link_libraries(Rezonality
         unofficial::concurrentqueue::concurrentqueue
         clipp::clipp
         unofficial::nativefiledialog::nfd
+        unofficial::spirv-reflect::spirv-reflect
+        unofficial::vulkan-memory-allocator::vulkan-memory-allocator
     )
 
 if(WIN32)

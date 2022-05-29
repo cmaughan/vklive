@@ -13,7 +13,7 @@ If you like live coding, shaders, shadertoy, or are learning how to use Vulkan t
 Built for fun, and to update my GPU graphics knowledge.
 
 ## Video Overview
-[![VkLive Overview](screenshots/fullscreen.png)](https://www.youtube.com/watch?v=SCLOAnh7eX0 "VkLive Demo")
+[![VkLive Overview](screenshots/video.png)](https://youtu.be/mebNIQt8pKE "VkLive Demo")
 
 ## Features
 - CTRL+ENTER to evaluate the project/shader you are viewing.
