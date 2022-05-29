@@ -35,15 +35,22 @@ void imgui_create_shaders(VulkanContext& ctx)
 {
     auto imgui = imgui_context(ctx);
 
-    std::vector<Message> messages;
+    VulkanShader data(nullptr);
+
+    Scene scene(runtree_path() / "shaders");
+    Shader vertShader(runtree_find_path("shaders/imgui.vert"));
+    Shader fragShader(runtree_find_path("shaders/imgui.frag"));
+
     // Create the shader modules
     if (!imgui->shaderModuleVert)
     {
-        imgui->shaderModuleVert = shader_create(ctx, runtree_find_path("shaders/imgui.vert"), messages);
+        auto spShader = shader_create(ctx, scene, vertShader);
+        imgui->shaderModuleVert = spShader->shaderCreateInfo.module;
     }
     if (!imgui->shaderModuleFrag)
     {
-        imgui->shaderModuleFrag = shader_create(ctx, runtree_find_path("shaders/imgui.frag"), messages);
+        auto spShader = shader_create(ctx, scene, fragShader);
+        imgui->shaderModuleFrag = spShader->shaderCreateInfo.module;
     }
 }
 

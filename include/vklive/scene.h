@@ -119,13 +119,12 @@ struct Scene
     std::vector<Message> warnings; 
     std::vector<fs::path> headers;
 
-    
-
     bool valid = true;
 };
 
 std::shared_ptr<Scene> scene_build(const fs::path& root);
 void scene_destroy_parser();
 bool format_is_depth(const Format& fmt);
+void scene_report_error(Scene& scene, const std::string& txt);
 
 

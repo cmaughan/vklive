@@ -6,5 +6,7 @@
 
 namespace vulkan
 {
-vk::ShaderModule shader_create(VulkanContext& ctx, const fs::path& strPath, std::vector<Message>& messages);
+
+std::shared_ptr<VulkanShader> shader_create(VulkanContext& ctx, Scene& scene, Shader& shader);
+
 } // namespace vulkan

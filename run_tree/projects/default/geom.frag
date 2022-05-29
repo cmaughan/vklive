@@ -15,7 +15,7 @@ void main()
     vec3 Color = inColor;
     vec3 Eye = normalize(-inEyePos);
     vec3 Reflected = normalize(reflect(-inLightVec, inNormal)); 
-    vec4 IAmbient = vec4(0.1, 0.3, 0.1, 1.0);
+    vec4 IAmbient = vec4(0.2, 0.3, 0.1, 1.0);
     vec4 IDiffuse = vec4(max(dot(inNormal, inLightVec), 0.0)) * .9;
     float specular = 2.0;
     vec4 ISpecular = vec4(0.4, 0.4, 0.4, 1.0);

@@ -424,7 +424,7 @@ int main(int argc, char** argv)
     zep_destroy();
 
     // If not temporary, remember what we last looked at
-    if (!controller.spCurrentProject->temporary)
+    if (controller.spCurrentProject && !controller.spCurrentProject->temporary)
     {
         appConfig.project_root = controller.spCurrentProject->rootPath;
     }

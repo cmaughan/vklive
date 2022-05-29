@@ -8,6 +8,7 @@ layout (location = 1) in vec2 inUV;
 
 layout (location = 0) out vec2 outUV;
 
+layout (set = 1, binding = 0) uniform sampler2D samplerA;
 void main() 
 {
     outUV = inUV;

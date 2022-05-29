@@ -37,6 +37,11 @@ struct VulkanGeometry
     std::string debugIndexName;
 };
 
+struct VulkanBindingSet
+{
+    std::map<uint32_t, VkDescriptorSetLayoutBinding> bindings;
+};
+
 struct VulkanShader
 {
     VulkanShader(Shader* pS)
@@ -45,6 +50,7 @@ struct VulkanShader
     }
     Shader* pShader;
 
+    std::map<uint32_t, VulkanBindingSet> bindingSets;
     vk::PipelineShaderStageCreateInfo shaderCreateInfo;
 };
 

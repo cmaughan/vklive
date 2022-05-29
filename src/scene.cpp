@@ -2,7 +2,6 @@
 #include <fmt/format.h>
 #include <iostream>
 #include <sstream>
-#include <algorithm>
 
 #include "toml++/toml.h"
 
@@ -74,8 +73,8 @@ bool format_is_depth(const Format& fmt)
 {
     switch (fmt)
     {
-    case Format::Default_Depth: 
-    case Format::D32: 
+    case Format::Default_Depth:
+    case Format::D32:
         return true;
     default:
         return false;
@@ -102,7 +101,7 @@ void scene_init_parser()
     // We have a very simple .scenegraph file format.
     // As always, when I have something like this, orangeduck/mpc
     // is the easy way to parse it, if I don't want to use lisp or LLVM.
-    
+
 #define ADD_PARSER(var, tag)          \
     mpc_parser_t* var = mpc_new(tag); \
     parser.parsers.push_back(var)
@@ -154,7 +153,8 @@ geometry         : "geometry" ':' <ident> '{' (<path> | <scale> | <vs> | <fs> | 
 disable          : '!' ;
 pass             : <disable>? "pass" ':' <ident> '{' (<geometry> | <targets> | <samplers> | <comment> | <clear>)* '}'; 
 scenegraph       : /^/ (<comment> | <surface>)* (<comment> | <pass> )* /$/ ;
-    )", path_name, path_id, comment, ident, flt, vector, ident_array, scale, size, clear, format, 
+    )",
+        path_name, path_id, comment, ident, flt, vector, ident_array, scale, size, clear, format,
         samplers, targets, vs, gs, fs, surface, geometry, disable, pass, parser.pSceneGraph, nullptr);
 }
 
@@ -195,7 +195,7 @@ fs::path scene_get_scenegraph(const fs::path& root, const std::vector<fs::path>&
                     return fs::canonical(p);
                 }
             }
-            catch(std::exception& ex)
+            catch (std::exception& ex)
             {
                 LOG(DBG, "No valid project file");
             }
@@ -210,7 +210,7 @@ fs::path scene_get_scenegraph(const fs::path& root, const std::vector<fs::path>&
             sceneGraphPath = file;
         }
     }
-    
+
     // If there is no scenegraph, make an empty one
     if (!fs::exists(sceneGraphPath) && fs::is_directory(root))
     {
@@ -322,15 +322,15 @@ std::shared_ptr<Scene> scene_build(const fs::path& root)
                 {
                     tags << val << " ";
                 }
-                            
+
                 addError(std::string("Not found: " + val), entry->state.row);
                 throw std::domain_error(fmt::format("tag not found {}", tags.str()).c_str());
             };
-           
+
             auto getVector = [&](auto entry, auto& ret, int min, int max) {
                 auto pChild = getChild(entry, T_VECTOR);
                 auto vals = childrenOf(pChild, T_FLOAT);
-                
+
                 if (vals.size() < min || vals.size() > max)
                 {
                     addError(fmt::format("Wrong size vector: {}", entry->tag), entry->state.row);
@@ -342,11 +342,11 @@ std::shared_ptr<Scene> scene_build(const fs::path& root)
                 }
                 return vals.size();
             };
-            
+
             auto getVectorIdent = [&](auto entry, int min, int max) -> std::vector<std::string> {
                 auto pChild = getChild(entry, T_IDENT_ARRAY);
                 auto vals = childrenOf(pChild, T_IDENT);
-                
+
                 if (vals.size() < min || vals.size() > max)
                 {
                     addError(fmt::format("Wrong size vector: {}", entry->tag), entry->state.row);
@@ -360,7 +360,6 @@ std::shared_ptr<Scene> scene_build(const fs::path& root)
                 return ret;
             };
 
-
             auto getPath = [&](auto entry) {
                 auto pPathNameNode = getChild(getChild(entry, T_PATH), T_PATH_NAME);
                 return pPathNameNode->contents;
@@ -372,7 +371,7 @@ std::shared_ptr<Scene> scene_build(const fs::path& root)
             for (auto& pSurfaceNode : surfaces)
             {
                 auto pSurfaceNameNode = getChild(pSurfaceNode, T_IDENT);
-                
+
                 auto spSurface = std::make_shared<Surface>(pSurfaceNameNode->contents);
                 auto pSurfaceFormat = getChild(pSurfaceNode, T_FORMAT);
 
@@ -388,7 +387,7 @@ std::shared_ptr<Scene> scene_build(const fs::path& root)
                 {
                     getVector(getChild(pSurfaceNode, T_SCALE), spSurface->scale, 1, 3);
                 }
-                
+
                 if (hasChild(pSurfaceNode, T_FORMAT))
                 {
                     auto pFormatNode = getChild(pSurfaceNode, T_FORMAT);
@@ -477,7 +476,7 @@ std::shared_ptr<Scene> scene_build(const fs::path& root)
                     spScene->geometries[geomPath] = spGeom;
                     spPass->geometries.push_back(geomPath);
                 }
-                    
+
                 // Clears
                 auto clearEntries = childrenOf(pPassNode, T_CLEAR);
                 for (auto& pClearNode : clearEntries)
@@ -506,7 +505,7 @@ std::shared_ptr<Scene> scene_build(const fs::path& root)
                     }
                     spPass->scriptTargetsLine = int(pTargetNode->state.row);
                 }
-                
+
                 if (hasChild(pPassNode, T_SAMPLERS))
                 {
                     auto pTargetNode = getChild(pPassNode, T_SAMPLERS);
@@ -521,7 +520,7 @@ std::shared_ptr<Scene> scene_build(const fs::path& root)
                     }
                     spPass->scriptSamplersLine = int(pTargetNode->state.row);
                 }
-                
+
                 if (hasChild(pPassNode, T_CLEAR))
                 {
                     auto pTargetNode = getChild(pPassNode, T_CLEAR);
@@ -572,4 +571,18 @@ std::shared_ptr<Scene> scene_build(const fs::path& root)
 
     return spScene;
 }
+
+void scene_report_error(Scene& scene, const std::string& txt)
+{
+    Message msg;
+    msg.text = txt;
+    msg.path = scene.sceneGraphPath;
+    msg.line = -1;
+    msg.severity = MessageSeverity::Error;
+
+    // Any error invalidates the scene
+    scene.errors.push_back(msg);
+    scene.valid = false;
+};
+
 
