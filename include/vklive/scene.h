@@ -5,6 +5,7 @@
 #include <memory>
 #include <map>
 
+#define GLM_ENABLE_EXPERIMENTAL
 #include <glm/gtx/hash.hpp>
 
 #include "file/file.h"
@@ -147,12 +148,13 @@ struct SceneGraph
 
 std::shared_ptr<SceneGraph> scenegraph_build(const fs::path& root);
 void scenegraph_destroy_parser();
-
-// TODO: Move this
-bool format_is_depth(const Format& fmt);
-void scene_report_error(Scene& scene, const std::string& txt);
+void scenegraph_report_error(SceneGraph& scene, const std::string& txt);
 
 // Graph
 void scenegraph_build(SceneGraph& scene);
 IDeviceSurface* scenegraph_render(SceneGraph& scene, const glm::vec2& size);
+
+
+// TODO: Move this
+bool format_is_depth(const Format& fmt);
 

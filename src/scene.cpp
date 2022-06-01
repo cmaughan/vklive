@@ -595,7 +595,7 @@ std::shared_ptr<SceneGraph> scenegraph_build(const fs::path& root)
     return spScene;
 }
 
-void scene_report_error(Scene& scene, const std::string& txt)
+void scenegraph_report_error(SceneGraph& scene, const std::string& txt)
 {
     Message msg;
     msg.text = txt;

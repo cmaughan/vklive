@@ -17,7 +17,7 @@ struct RenderContext;
 // The vulkan objects should not live longer than the scene!
 struct VulkanSurface : IDeviceSurface
 {
-    VulkanSurface(const Surface* pS)
+    VulkanSurface(Surface* pS)
         : IDeviceSurface(pS)
     {
     }
@@ -55,14 +55,12 @@ struct VulkanShader
     vk::PipelineShaderStageCreateInfo shaderCreateInfo;
 };
 
-struct VulkanPass
+struct VulkanPass : IDeviceRenderPass
 {
     VulkanPass(Pass* pP)
-        : pPass(pP)
+        : IDeviceRenderPass(pP)
     {
     }
-
-    Pass* pPass;
 
     VulkanFrameBuffer frameBuffer;
 
@@ -143,6 +141,7 @@ void vulkan_scene_init(VulkanContext& ctx, SceneGraph& scene);
 void vulkan_scene_destroy(VulkanContext& ctx, SceneGraph& scene);
 void vulkan_scene_render(VulkanContext& ctx, RenderContext& renderContext, SceneGraph& scene);
 void vulkan_scene_prepare(VulkanContext& ctx, RenderContext& renderContext, SceneGraph& scene);
+IDeviceRenderPass* vulkan_scene_create_renderpass(VulkanContext& ctx, SceneGraph& scene, Pass& pass, const std::vector<IDeviceSurface*>& targets, IDeviceSurface* pDepth);
 vk::Format vulkan_scene_format_to_vulkan(const Format& format);
 
 } // namespace vulkan

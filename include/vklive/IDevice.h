@@ -27,11 +27,20 @@ struct SceneGraph;
 
 struct IDeviceSurface
 {
-    IDeviceSurface(const Surface* pS)
+    IDeviceSurface(Surface* pS)
         : pSurface(pS)
     {
     }
-    const Surface* pSurface;
+    Surface* pSurface;
+};
+
+struct IDeviceRenderPass
+{
+    IDeviceRenderPass(Pass* pass)
+        : pPass(pass)
+    {
+    }
+    Pass* pPass;
 };
 
 struct DeviceContext
@@ -58,8 +67,11 @@ struct IDevice
     IDevice(const IDevice&) = delete;
    
     // Device Methods
+    virtual void InitScene(SceneGraph& scene) = 0;
+    virtual void DestroyScene(SceneGraph& scene) = 0;
     virtual IDeviceSurface* FindSurface(const std::string& surface) const = 0;
-    virtual IDeviceSurface* AddOrUpdateSurface(const Surface& surface) = 0;
+    virtual IDeviceSurface* AddOrUpdateSurface(Surface& surface) = 0;
+    virtual IDeviceRenderPass* AddOrUpdateRenderPass(SceneGraph& scene, Pass& pass, const std::vector<IDeviceSurface*>& targets, IDeviceSurface* pDepth = nullptr) = 0;
     virtual void DestroySurface(const Surface& surface) = 0;
 
     virtual void ImGui_Render(ImDrawData* pDrawData) = 0;
@@ -74,5 +86,3 @@ struct IDevice
     virtual DeviceContext& Context() = 0;
 };
 
-    //virtual void InitScene(SceneGraph& scene) = 0;
-    //virtual void DestroyScene(SceneGraph& scene) = 0;

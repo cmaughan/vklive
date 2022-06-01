@@ -64,7 +64,7 @@ VulkanDevice::~VulkanDevice()
     ImGui::DestroyContext();
 }
 
-/* void VulkanDevice::InitScene(SceneGraph& scene)
+void VulkanDevice::InitScene(SceneGraph& scene)
 {
     vulkan::vulkan_scene_init(ctx, scene);
 }
@@ -73,7 +73,6 @@ void VulkanDevice::DestroyScene(SceneGraph& scene)
 {
     vulkan::vulkan_scene_destroy(ctx, scene);
 }
-*/
 
 void VulkanDevice::ImGui_Render(ImDrawData* pDrawData)
 {
@@ -130,7 +129,7 @@ IDeviceSurface* VulkanDevice::FindSurface(const std::string& name) const
     return itr->second.get();
 }
                 
-IDeviceSurface* VulkanDevice::AddOrUpdateSurface(const Surface& surface)
+IDeviceSurface* VulkanDevice::AddOrUpdateSurface(Surface& surface)
 {
     VulkanSurface* pVulkanSurface = nullptr;
 
@@ -180,6 +179,11 @@ IDeviceSurface* VulkanDevice::AddOrUpdateSurface(const Surface& surface)
     return pVulkanSurface;
 }
 
+IDeviceRenderPass* VulkanDevice::AddOrUpdateRenderPass(SceneGraph& scene, Pass& pass, const std::vector<IDeviceSurface*>& targets, IDeviceSurface* pDepth)
+{
+    return vulkan_scene_create_renderpass(ctx, scene, pass, targets, pDepth);
+}
+
 void VulkanDevice::DestroySurface(const Surface& surface)
 {
     auto pDeviceSurface = static_cast<VulkanSurface*>(FindSurface(surface.name));
@@ -188,5 +192,6 @@ void VulkanDevice::DestroySurface(const Surface& surface)
         image_destroy(ctx, pDeviceSurface->image);
     }
 }
+    
 
 } // namespace vulkan

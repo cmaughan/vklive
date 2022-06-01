@@ -37,7 +37,7 @@ void imgui_create_shaders(VulkanContext& ctx)
 
     VulkanShader data(nullptr);
 
-    Scene scene(runtree_path() / "shaders");
+    SceneGraph scene(runtree_path() / "shaders");
     Shader vertShader(runtree_find_path("shaders/imgui.vert"));
     Shader fragShader(runtree_find_path("shaders/imgui.frag"));
 

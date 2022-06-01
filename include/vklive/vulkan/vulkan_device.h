@@ -16,11 +16,12 @@ struct VulkanDevice : public IDevice
     ~VulkanDevice();
    
     // Interface
-    //virtual void InitScene(SceneGraph& scene) override;
-    //virtual void DestroyScene(SceneGraph& scene) override;
+    virtual void InitScene(SceneGraph& scene) override;
+    virtual void DestroyScene(SceneGraph& scene) override;
 
     IDeviceSurface* FindSurface(const std::string& name) const;
-    virtual IDeviceSurface* AddOrUpdateSurface(const Surface& surface);
+    virtual IDeviceSurface* AddOrUpdateSurface(Surface& surface);
+    virtual IDeviceRenderPass* AddOrUpdateRenderPass(SceneGraph& scene, Pass& pass, const std::vector<IDeviceSurface*>& targets, IDeviceSurface* pDepth = nullptr);
     void DestroySurface(const Surface& surface);
 
     virtual void WaitIdle() override;

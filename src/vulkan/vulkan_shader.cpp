@@ -19,7 +19,7 @@ namespace vulkan
 // EX1, HLSL "(9): error at column 2, HLSL parsing failed."
 // Here I use several regex to pull out the bits I need.
 // But sometimes Vulkan isn't really pointing at the right column; and the text output varies depending on the error.
-bool shader_parse_output(const std::string& strOutput, const fs::path& shaderPath, Scene& scene)
+bool shader_parse_output(const std::string& strOutput, const fs::path& shaderPath, SceneGraph& scene)
 {
     bool errors = false;
     if (strOutput.empty())
@@ -179,7 +179,7 @@ void shader_reflect(const std::string& spirv, VulkanShader& vulkanShader)
     spvReflectDestroyShaderModule(&module);
 }
 
-std::shared_ptr<VulkanShader> shader_create(VulkanContext& ctx, Scene& scene, Shader& shader)
+std::shared_ptr<VulkanShader> shader_create(VulkanContext& ctx, SceneGraph& scene, Shader& shader)
 {
     std::shared_ptr<VulkanShader> spShader = std::make_shared<VulkanShader>(&shader);
 
@@ -199,7 +199,7 @@ std::shared_ptr<VulkanShader> shader_create(VulkanContext& ctx, Scene& scene, Sh
     }
     else
     {
-        scene_report_error(scene, fmt::format("Unknown shader type: {}", shader.path.filename().string()));
+        scenegraph_report_error(scene, fmt::format("Unknown shader type: {}", shader.path.filename().string()));
         return nullptr;
     }
 

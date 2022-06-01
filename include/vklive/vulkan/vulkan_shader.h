@@ -7,6 +7,6 @@
 namespace vulkan
 {
 
-std::shared_ptr<VulkanShader> shader_create(VulkanContext& ctx, Scene& scene, Shader& shader);
+std::shared_ptr<VulkanShader> shader_create(VulkanContext& ctx, SceneGraph& scene, Shader& shader);
 
 } // namespace vulkan

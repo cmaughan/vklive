@@ -156,7 +156,7 @@ int main(int argc, char** argv)
             spProject->spScene = scenegraph_build(spProject->rootPath);
 
             // May not be valid, but sent anyway
-            //g_pDevice->InitScene(*spProject->spScene);
+            g_pDevice->InitScene(*spProject->spScene);
 
             spQueue->enqueue(spProject);
         }
@@ -199,12 +199,10 @@ int main(int argc, char** argv)
         if (g_pDevice->Context().deviceState == DeviceState::Lost)
         {
             // Try to restart
-            /*
             if (project_has_scene(controller.spCurrentProject.get()))
             {
                 g_pDevice->DestroyScene(*controller.spCurrentProject->spScene.get());
             }
-            */
             g_pDevice = vulkan::create_vulkan_device(init_sdl_window(), imSettingsPath, appConfig.viewports);
 
             // Remember we were lost
@@ -291,7 +289,7 @@ int main(int argc, char** argv)
 
                 if (project_scene_valid(controller.spCurrentProject.get()))
                 {
-                    //g_pDevice->DestroyScene(*controller.spCurrentProject->spScene);
+                    g_pDevice->DestroyScene(*controller.spCurrentProject->spScene);
 
                     // Copy over the old info, if appropriate - this is temporary fix for cleaner solution later.
                     auto spNewScene = spNewProject->spScene;
@@ -461,12 +459,10 @@ int main(int argc, char** argv)
 
     config_save(settings_path);
 
-    /*
     if (project_has_scene(controller.spCurrentProject.get()))
     {
         g_pDevice->DestroyScene(*controller.spCurrentProject->spScene.get());
     }
-    */
     g_pDevice.reset();
 
     scenegraph_destroy_parser();

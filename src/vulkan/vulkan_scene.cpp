@@ -42,31 +42,39 @@ VulkanScene* vulkan_scene_get(VulkanContext& ctx, SceneGraph& scene)
     return itr->second.get();
 }
 
-void vulkan_scene_create_renderpass(VulkanContext& ctx, VulkanScene& scene, VulkanPass& pass)
+IDeviceRenderPass* vulkan_scene_create_renderpass(VulkanContext& ctx, SceneGraph& scene, Pass& pass, const std::vector<IDeviceSurface*>& targets, IDeviceSurface* pDepth)
 {
+    auto pVulkanScene = vulkan_scene_get(ctx, scene);
+    VulkanPass* pVulkanPass = nullptr;
+
+    auto itr = pVulkanScene->passes.find(pass.name);
+    if (itr != pVulkanScene->passes.end())
+    {
+        return static_cast<VulkanPass*>(itr->second.get()); 
+
+    }
+    else
+    {
+        auto spPass = std::make_shared<VulkanPass>(&pass);
+        pVulkanScene->passes[pass.name] = spPass;
+        pVulkanPass = spPass.get();
+    }
+
     std::vector<vk::Format> colorFormats;
     vk::Format depthFormat = vk::Format::eUndefined;
 
-    /*
-    for (auto& target : pass.pPass->targets)
+    vk::ImageLayout colorFinalLayout{ vk::ImageLayout::eShaderReadOnlyOptimal };
+    vk::ImageLayout depthFinalLayout{ vk::ImageLayout::eDepthStencilAttachmentOptimal };
+
+    for (auto& target : targets)
     {
-        auto itrSurface = scene.surfaces.find(target);
-        if (itrSurface != scene.surfaces.end())
-        {
-            colorFormats.push_back(itrSurface->second->image.format);
-        }
-        else
-        {
-            assert(!"TODO");
-        }
+        colorFormats.push_back(vulkan_scene_format_to_vulkan(target->pSurface->format));
     }
 
-    auto itrDepth = scene.surfaces.find(pass.pPass->depth);
-    if (itrDepth != scene.surfaces.end())
+    if (pDepth)
     {
-        depthFormat = itrDepth->second->image.format;
+        depthFormat = (vulkan_scene_format_to_vulkan(pDepth->pSurface->format));
     }
-    */
 
     if (depthFormat == vk::Format::eUndefined && colorFormats.empty())
     {
@@ -85,11 +93,11 @@ void vulkan_scene_create_renderpass(VulkanContext& ctx, VulkanScene& scene, Vulk
 
     // We can read the shader in the pixel shader
     vk::ImageUsageFlags attachmentUsage{ vk::ImageUsageFlagBits::eSampled };
-    vk::ImageLayout colorFinalLayout{ vk::ImageLayout::eShaderReadOnlyOptimal };
+
     for (uint32_t i = 0; i < attachments.size(); ++i)
     {
         attachments[i].format = colorFormats[i];
-        attachments[i].loadOp = pass.pPass->hasClear ? vk::AttachmentLoadOp::eClear : vk::AttachmentLoadOp::eDontCare;
+        attachments[i].loadOp = pass.hasClear ? vk::AttachmentLoadOp::eClear : vk::AttachmentLoadOp::eDontCare;
         attachments[i].storeOp = colorFinalLayout == vk::ImageLayout::eColorAttachmentOptimal ? vk::AttachmentStoreOp::eDontCare : vk::AttachmentStoreOp::eStore;
         attachments[i].initialLayout = vk::ImageLayout::eUndefined;
         attachments[i].finalLayout = colorFinalLayout; // We want a color buffer to read
@@ -103,9 +111,7 @@ void vulkan_scene_create_renderpass(VulkanContext& ctx, VulkanScene& scene, Vulk
     }
 
     // Depth
-    vk::AttachmentReference depthAttachmentReference;
-    vk::ImageLayout depthFinalLayout{ vk::ImageLayout::eDepthStencilAttachmentOptimal };
-    if (depthFormat != vk::Format::eUndefined)
+    vk::AttachmentReference depthAttachmentReference; if (depthFormat != vk::Format::eUndefined)
     {
         vk::AttachmentDescription depthAttachment;
         depthAttachment.format = depthFormat;
@@ -165,8 +171,10 @@ void vulkan_scene_create_renderpass(VulkanContext& ctx, VulkanScene& scene, Vulk
     renderPassInfo.pSubpasses = &subpass;
     renderPassInfo.dependencyCount = (uint32_t)subpassDependencies.size();
     renderPassInfo.pDependencies = subpassDependencies.data();
-    pass.renderPass = ctx.device.createRenderPass(renderPassInfo);
-    debug_set_renderpass_name(ctx.device, pass.renderPass, debug_pass_name(pass, "RenderPass"));
+    pVulkanPass->renderPass = ctx.device.createRenderPass(renderPassInfo);
+    debug_set_renderpass_name(ctx.device, pVulkanPass->renderPass, debug_pass_name(*pVulkanPass, "RenderPass"));
+
+    return pVulkanPass;
 }
 
 void vulkan_scene_init(VulkanContext& ctx, SceneGraph& scene)
@@ -189,7 +197,7 @@ void vulkan_scene_init(VulkanContext& ctx, SceneGraph& scene)
     ctx.mapVulkanScene[&scene] = spVulkanScene;
 
     auto reportError = [&](auto txt) {
-        scene_report_error(scene, txt);
+        scenegraph_report_error(scene, txt);
     };
 
     descriptor_init(ctx, spVulkanScene->descriptorCache);
@@ -249,34 +257,6 @@ void vulkan_scene_init(VulkanContext& ctx, SceneGraph& scene)
         {
             reportError(fmt::format("Could not create shader: {}", path.filename().string()));
         }
-    }
-
-    // Walk the surfaces
-    for (auto& [name, spSurface] : scene.surfaces)
-    {
-        // TODO: Fixed sized surfaces/reload
-        auto spVulkanSurface = std::make_shared<VulkanSurface>(spSurface.get());
-        spVulkanScene->surfaces[name] = spVulkanSurface;
-    }
-
-    // Walk the passes
-    for (auto& [name, spPass] : scene.passes)
-    {
-        auto spVulkanPass = std::make_shared<VulkanPass>(spPass.get());
-
-        // Renderpass for where this pass draws (the targets)
-        vulkan_scene_create_renderpass(ctx, *spVulkanScene, *spVulkanPass);
-
-        // Camera setup
-        spPass->camera.nearFar = glm::vec2(0.1f, 256.0f);
-        camera_set_pos_lookat(spPass->camera, glm::vec3(0.0f, 0.0f, 6.0f), glm::vec3(0.0f, 0.0f, 0.0f));
-
-        // Uniform Buffer setup
-        spVulkanPass->vsUniform = uniform_create(ctx, spVulkanPass->vsUBO);
-        debug_set_buffer_name(ctx.device, spVulkanPass->vsUniform.buffer, debug_pass_name(*spVulkanPass, "Uniforms"));
-        debug_set_devicememory_name(ctx.device, spVulkanPass->vsUniform.memory, debug_pass_name(*spVulkanPass, "UniformMemory"));
-
-        spVulkanScene->passes[name] = spVulkanPass;
     }
 
     // Cleanup
