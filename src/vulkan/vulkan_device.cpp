@@ -183,6 +183,11 @@ IDeviceRenderPass* VulkanDevice::AddOrUpdateRenderPass(SceneGraph& scene, Pass& 
 {
     return vulkan_scene_create_renderpass(ctx, scene, pass, targets, pDepth);
 }
+    
+IDeviceFrameBuffer* VulkanDevice::AddOrUpdateFrameBuffer(SceneGraph& scene, IDeviceRenderPass* pRenderPass)
+{
+    return vulkan_framebuffer_create(ctx, scene, *static_cast<VulkanRenderPass*>(pRenderPass));
+}
 
 void VulkanDevice::DestroySurface(const Surface& surface)
 {

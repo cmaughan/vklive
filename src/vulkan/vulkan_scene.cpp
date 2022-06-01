@@ -23,7 +23,7 @@ VertexLayout g_vertexLayout{ {
     Component::VERTEX_COMPONENT_NORMAL,
 } };
 
-std::string debug_pass_name(VulkanPass& pass, const std::string& str)
+std::string debug_pass_name(VulkanRenderPass& pass, const std::string& str)
 {
     return fmt::format("Pass::{}::{}", pass.pPass->name, str);
 }
@@ -45,17 +45,16 @@ VulkanScene* vulkan_scene_get(VulkanContext& ctx, SceneGraph& scene)
 IDeviceRenderPass* vulkan_scene_create_renderpass(VulkanContext& ctx, SceneGraph& scene, Pass& pass, const std::vector<IDeviceSurface*>& targets, IDeviceSurface* pDepth)
 {
     auto pVulkanScene = vulkan_scene_get(ctx, scene);
-    VulkanPass* pVulkanPass = nullptr;
+    VulkanRenderPass* pVulkanPass = nullptr;
 
     auto itr = pVulkanScene->passes.find(pass.name);
     if (itr != pVulkanScene->passes.end())
     {
-        return static_cast<VulkanPass*>(itr->second.get()); 
-
+        return static_cast<VulkanRenderPass*>(itr->second.get());
     }
     else
     {
-        auto spPass = std::make_shared<VulkanPass>(&pass);
+        auto spPass = std::make_shared<VulkanRenderPass>(&pass);
         pVulkanScene->passes[pass.name] = spPass;
         pVulkanPass = spPass.get();
     }
@@ -66,15 +65,33 @@ IDeviceRenderPass* vulkan_scene_create_renderpass(VulkanContext& ctx, SceneGraph
     vk::ImageLayout colorFinalLayout{ vk::ImageLayout::eShaderReadOnlyOptimal };
     vk::ImageLayout depthFinalLayout{ vk::ImageLayout::eDepthStencilAttachmentOptimal };
 
+    auto targetSize = glm::uvec2(0);
+    auto updateTargetSize = [&](IDeviceSurface* pSurface) {
+        // TODO: Validation error?
+        assert(targetSize.x == 0 || targetSize.x == pSurface->currentSize.x);
+        assert(targetSize.y == 0 || targetSize.y == pSurface->currentSize.y);
+
+        targetSize.x = pSurface->currentSize.x;
+        targetSize.y = pSurface->currentSize.y;
+    };
+
     for (auto& target : targets)
     {
+        auto pVulkanSurface = static_cast<VulkanSurface*>(target);
         colorFormats.push_back(vulkan_scene_format_to_vulkan(target->pSurface->format));
+        pVulkanPass->colorImages.push_back(&pVulkanSurface->image);
+        updateTargetSize(target);
     }
 
     if (pDepth)
     {
+        auto pVulkanSurface = static_cast<VulkanSurface*>(pDepth);
         depthFormat = (vulkan_scene_format_to_vulkan(pDepth->pSurface->format));
+        pVulkanPass->pDepthImage = &pVulkanSurface->image;
+        updateTargetSize(pDepth);
     }
+    
+    pVulkanPass->targetSize = targetSize;
 
     if (depthFormat == vk::Format::eUndefined && colorFormats.empty())
     {
@@ -111,7 +128,8 @@ IDeviceRenderPass* vulkan_scene_create_renderpass(VulkanContext& ctx, SceneGraph
     }
 
     // Depth
-    vk::AttachmentReference depthAttachmentReference; if (depthFormat != vk::Format::eUndefined)
+    vk::AttachmentReference depthAttachmentReference;
+    if (depthFormat != vk::Format::eUndefined)
     {
         vk::AttachmentDescription depthAttachment;
         depthAttachment.format = depthFormat;
@@ -159,7 +177,7 @@ IDeviceRenderPass* vulkan_scene_create_renderpass(VulkanContext& ctx, SceneGraph
         subpassDependencies.push_back(dependency);
     }
 
-    // TODO: 
+    // TODO:
     // Performance improvement/fix the dependencies here based on the scene graph.
     // We don't always need to read, for example.
     // This code is almost certainly setting up the dependencies here badly; I just haven't looked into how to do it properly based on
@@ -246,7 +264,6 @@ void vulkan_scene_init(VulkanContext& ctx, SceneGraph& scene)
     for (auto& [path, pShader] : scene.shaders)
     {
         auto pVulkanShader = shader_create(ctx, scene, *pShader);
-        
 
         if (pVulkanShader && pVulkanShader->shaderCreateInfo.module)
         {
@@ -281,6 +298,7 @@ void vulkan_scene_wait(VulkanContext& ctx, VulkanScene* pVulkanScene)
 
 void vulkan_scene_prepare(VulkanContext& ctx, RenderContext& renderContext, SceneGraph& scene)
 {
+    /*
     auto pVulkanScene = vulkan_scene_get(ctx, scene);
     if (!pVulkanScene)
     {
@@ -347,7 +365,7 @@ void vulkan_scene_prepare(VulkanContext& ctx, RenderContext& renderContext, Scen
     if (targetsChanged)
     {
         vulkan_scene_wait(ctx, pVulkanScene);
-       
+
         // Can't reset the pool here because it will invalide the descriptor on the actively running scene!!
         //ctx.queue.waitIdle();
         descriptor_reset_pools(ctx, pVulkanScene->descriptorCache);
@@ -448,7 +466,7 @@ void vulkan_scene_prepare(VulkanContext& ctx, RenderContext& renderContext, Scen
             pVulkanPass->targetSize = size;
 
             // Use render framebuffers for now
-            vulkan::framebuffer_create(ctx, pVulkanPass->frameBuffer, pVulkanPass->colorImages, pVulkanPass->pDepthImage, pVulkanPass->renderPass);
+            vulkan_framebuffer_create(ctx, pVulkanPass->frameBuffer, pVulkanPass->colorImages, pVulkanPass->pDepthImage, pVulkanPass->renderPass);
             debug_set_framebuffer_name(ctx.device, pVulkanPass->frameBuffer.framebuffer, debug_pass_name(*pVulkanPass, "Framebuffer"));
 
             // Need to recreate the geometry pipeline
@@ -480,12 +498,10 @@ void vulkan_scene_prepare(VulkanContext& ctx, RenderContext& renderContext, Scen
                     {
                         samplers.push_back(itrSurface->second.get());
                     }
-                    /*
                     else
                     {
                         reportError(fmt::format("Sampler not found: {}", sampler));
                     }
-                    */
                 }
 
                 DescriptorBuilder globalBuilder;
@@ -536,22 +552,17 @@ void vulkan_scene_prepare(VulkanContext& ctx, RenderContext& renderContext, Scen
 
             // Create it
             /* TODO: Why does this break stuff?
-            if (pVulkanPass->geometryPipeline)
+            //if (pVulkanPass->geometryPipeline)
             {
-                ctx.device.destroyPipeline(pVulkanPass->geometryPipeline);
-                pVulkanPass->geometryPipeline = nullptr;
+           //     ctx.device.destroyPipeline(pVulkanPass->geometryPipeline);
+            //j    pVulkanPass->geometryPipeline = nullptr;
             }
-            */
             pVulkanPass->geometryPipeline = pipeline_create(ctx, g_vertexLayout, pVulkanPass->geometryPipelineLayout, pVulkanPass->renderPass, shaderStages);
             debug_set_pipeline_name(ctx.device, pVulkanPass->geometryPipeline, debug_pass_name(*pVulkanPass, "Pipeline"));
         }
     }
 
-    // Copy the actual vertices to the GPU, if necessary.
-    for (auto& [name, pVulkanGeom] : pVulkanScene->geometries)
-    {
-        model_stage(ctx, pVulkanGeom->model);
-    }
+    */
 
     // Validation layer may set an error, meaning this scene is not valid!
     // Destroy it, and reset the error trigger
@@ -602,9 +613,13 @@ void vulkan_scene_destroy(VulkanContext& ctx, SceneGraph& scene)
     }
     pVulkanScene->geometries.clear();
 
+    for (auto& [name, pVulkanFrameBuffer] : pVulkanScene->frameBuffers)
+    {
+        vulkan_framebuffer_destroy(ctx, pVulkanFrameBuffer.get());
+    }
+
     for (auto& [name, pVulkanPass] : pVulkanScene->passes)
     {
-        framebuffer_destroy(ctx, pVulkanPass->frameBuffer);
         buffer_destroy(ctx, pVulkanPass->vsUniform);
 
         ctx.device.destroyRenderPass(pVulkanPass->renderPass);
@@ -642,11 +657,6 @@ void vulkan_scene_render(VulkanContext& ctx, RenderContext& renderContext, Scene
     for (auto& [name, pVulkanPass] : pVulkanScene->passes)
     {
         auto size = pVulkanPass->targetSize;
-
-        // Setup the camera for this pass
-        // pVulkanPass->pPass->camera.orbitDelta = glm::vec2(4.0f, 0.0f);
-        camera_set_film_size(pVulkanPass->pPass->camera, glm::ivec2(size));
-        camera_pre_render(pVulkanPass->pPass->camera);
 
         glm::vec3 meshPos = glm::vec3(0.0f, 0.0f, 0.0f);
         auto elapsed = timer_get_elapsed_seconds(globalTimer);
@@ -689,7 +699,7 @@ void vulkan_scene_render(VulkanContext& ctx, RenderContext& renderContext, Scene
         // Draw geometry
         vk::RenderPassBeginInfo renderPassBeginInfo;
         renderPassBeginInfo.renderPass = pVulkanPass->renderPass;
-        renderPassBeginInfo.framebuffer = pVulkanPass->frameBuffer.framebuffer;
+        //renderPassBeginInfo.framebuffer = pVulkanPass->frameBuffer.framebuffer;
         renderPassBeginInfo.renderArea.extent.width = size.x;
         renderPassBeginInfo.renderArea.extent.height = size.y;
         renderPassBeginInfo.clearValueCount = 2;
@@ -742,7 +752,7 @@ void vulkan_scene_render(VulkanContext& ctx, RenderContext& renderContext, Scene
             return;
         }
     }
-    
+
     pVulkanScene->commandBuffer.end();
     pVulkanScene->inFlight = true;
     ctx.queue.submit(vk::SubmitInfo{ 0, nullptr, nullptr, 1, &pVulkanScene->commandBuffer }, pVulkanScene->fence);

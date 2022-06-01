@@ -23,7 +23,6 @@ struct VulkanSurface : IDeviceSurface
     }
     VulkanImage image;
     std::string debugName;
-    glm::uvec2 currentSize;
 };
 
 struct VulkanGeometry
@@ -55,31 +54,25 @@ struct VulkanShader
     vk::PipelineShaderStageCreateInfo shaderCreateInfo;
 };
 
-struct VulkanPass : IDeviceRenderPass
+struct VulkanRenderPass : IDeviceRenderPass
 {
-    VulkanPass(Pass* pP)
+    VulkanRenderPass(Pass* pP)
         : IDeviceRenderPass(pP)
     {
     }
 
-    VulkanFrameBuffer frameBuffer;
-
-    glm::uvec2 currentFrameBufferSize = glm::uvec2(0);
-    glm::uvec2 targetSize = glm::uvec2(0);
+    // Image and depth for this pass
+    std::vector<VulkanImage*> colorImages;
+    VulkanImage* pDepthImage = nullptr;
 
     vk::RenderPass renderPass;
     
     vk::Pipeline geometryPipeline;
     vk::PipelineLayout geometryPipelineLayout;
-
     std::vector<vk::DescriptorSet> descriptorSets;
     std::vector<vk::DescriptorSetLayout> descriptorSetLayouts;
 
     VulkanBuffer vsUniform;
-
-    // Image and depth for this pass
-    std::vector<VulkanImage*> colorImages;
-    VulkanImage* pDepthImage = nullptr;
 
     struct Channel {
         alignas(16) glm::vec4 resolution;
@@ -116,6 +109,16 @@ struct VulkanPass : IDeviceRenderPass
     UBO vsUBO;
 };
 
+struct VulkanFrameBuffer : IDeviceFrameBuffer
+{
+    VulkanFrameBuffer(VulkanRenderPass* pRenderPass)
+        : IDeviceFrameBuffer(pRenderPass)
+    {
+    }
+
+    vk::Framebuffer frameBuffer;
+};
+
 struct VulkanScene
 {
     VulkanScene(SceneGraph* pS)
@@ -127,7 +130,8 @@ struct VulkanScene
     std::map<std::string, std::shared_ptr<VulkanSurface>> surfaces;
     std::map<fs::path, std::shared_ptr<VulkanGeometry>> geometries;
     std::map<fs::path, std::shared_ptr<VulkanShader>> shaderStages;
-    std::map<std::string, std::shared_ptr<VulkanPass>> passes;
+    std::map<std::string, std::shared_ptr<VulkanRenderPass>> passes;
+    std::map<std::string, std::shared_ptr<VulkanFrameBuffer>> frameBuffers;
   
     DescriptorCache descriptorCache;
 
@@ -137,11 +141,21 @@ struct VulkanScene
     vk::Fence fence;
 };
 
+VulkanScene* vulkan_scene_get(VulkanContext& ctx, SceneGraph& scene);
+std::string debug_pass_name(VulkanRenderPass& pass, const std::string& str);
+
 void vulkan_scene_init(VulkanContext& ctx, SceneGraph& scene);
 void vulkan_scene_destroy(VulkanContext& ctx, SceneGraph& scene);
 void vulkan_scene_render(VulkanContext& ctx, RenderContext& renderContext, SceneGraph& scene);
 void vulkan_scene_prepare(VulkanContext& ctx, RenderContext& renderContext, SceneGraph& scene);
+
+void framebuffer_destroy(VulkanContext& ctx, VulkanFrameBuffer* pFrameBuffer);
+
 IDeviceRenderPass* vulkan_scene_create_renderpass(VulkanContext& ctx, SceneGraph& scene, Pass& pass, const std::vector<IDeviceSurface*>& targets, IDeviceSurface* pDepth);
+IDeviceFrameBuffer* vulkan_framebuffer_create(VulkanContext& ctx, SceneGraph& scene, VulkanRenderPass& renderPass);
+
+void vulkan_framebuffer_destroy(VulkanContext& ctx, VulkanFrameBuffer* pFrameBuffer);
+
 vk::Format vulkan_scene_format_to_vulkan(const Format& format);
 
 } // namespace vulkan

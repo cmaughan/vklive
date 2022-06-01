@@ -32,6 +32,7 @@ struct IDeviceSurface
     {
     }
     Surface* pSurface;
+    glm::uvec2 currentSize;
 };
 
 struct IDeviceRenderPass
@@ -41,6 +42,17 @@ struct IDeviceRenderPass
     {
     }
     Pass* pPass;
+    glm::uvec2 targetSize = glm::uvec2(0, 0);
+};
+
+struct IDeviceFrameBuffer
+{
+    IDeviceFrameBuffer(IDeviceRenderPass* pRP)
+        : pRenderPass(pRP)
+    {
+    }
+
+    IDeviceRenderPass* pRenderPass = nullptr;
 };
 
 struct DeviceContext
@@ -72,6 +84,7 @@ struct IDevice
     virtual IDeviceSurface* FindSurface(const std::string& surface) const = 0;
     virtual IDeviceSurface* AddOrUpdateSurface(Surface& surface) = 0;
     virtual IDeviceRenderPass* AddOrUpdateRenderPass(SceneGraph& scene, Pass& pass, const std::vector<IDeviceSurface*>& targets, IDeviceSurface* pDepth = nullptr) = 0;
+    virtual IDeviceFrameBuffer* AddOrUpdateFrameBuffer(SceneGraph& scene, IDeviceRenderPass* pRenderPass) = 0;
     virtual void DestroySurface(const Surface& surface) = 0;
 
     virtual void ImGui_Render(ImDrawData* pDrawData) = 0;

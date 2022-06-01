@@ -22,6 +22,7 @@ struct VulkanDevice : public IDevice
     IDeviceSurface* FindSurface(const std::string& name) const;
     virtual IDeviceSurface* AddOrUpdateSurface(Surface& surface);
     virtual IDeviceRenderPass* AddOrUpdateRenderPass(SceneGraph& scene, Pass& pass, const std::vector<IDeviceSurface*>& targets, IDeviceSurface* pDepth = nullptr);
+    virtual IDeviceFrameBuffer* AddOrUpdateFrameBuffer(SceneGraph& scene, IDeviceRenderPass* pRenderPass);
     void DestroySurface(const Surface& surface);
 
     virtual void WaitIdle() override;

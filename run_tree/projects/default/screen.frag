@@ -15,7 +15,7 @@ void main()
 {
     // Temp
     vec2 rg = (gl_FragCoord.xy / ubo.iResolution.xy) * 2.0 - 1.0; 
-    float t = sin(ubo.iTime * .15f) * 10.0;
+    float t = sin(ubo.iTime * 0.45f) * 10.0;
     rg.x = sin(rg.x * t) + cos(rg.y * t);
     rg.y = sin(rg.y * t) + cos(rg.x * t);
 
