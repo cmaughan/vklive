@@ -1,5 +1,6 @@
 #include <vklive/IDevice.h>
 #include <vklive/scene.h>
+#include <vklive/validation.h>
 
 extern IDevice* GetDevice();
 
@@ -45,6 +46,8 @@ IDeviceSurface* scenegraph_render(SceneGraph& scene, const glm::vec2& frameBuffe
 
     for (auto& pPass : scene.sortedPasses)
     {
+        validation_set_shaders(pPass->shaders);
+
         std::vector<IDeviceSurface*> targets;
         IDeviceSurface* pDepthTarget = nullptr;
 
@@ -77,13 +80,30 @@ IDeviceSurface* scenegraph_render(SceneGraph& scene, const glm::vec2& frameBuffe
         camera_set_film_size(pPass->camera, glm::ivec2(pRenderPass->targetSize));
         camera_pre_render(pPass->camera);
 
-        // Copy the actual vertices to the GPU, if necessary.
+        // Set debug validation for shaders
+        // Stage vertices
+        // Pipeline state
+        // Uniform buffer
+        // Create command buffer if necessary
+        // 
         /* for (auto& name : pPass->geometries)
         {
             model_stage(ctx, pVulkanGeom->model);
         }
         */
 
+        /*
+        if (!pVulkanScene->commandBuffer)
+        {
+            pVulkanScene->fence = ctx.device.createFence(vk::FenceCreateInfo());
+            pVulkanScene->commandPool = ctx.device.createCommandPool(vk::CommandPoolCreateInfo(vk::CommandPoolCreateFlagBits::eResetCommandBuffer, ctx.graphicsQueue));
+            pVulkanScene->commandBuffer = ctx.device.allocateCommandBuffers(vk::CommandBufferAllocateInfo(pVulkanScene->commandPool, vk::CommandBufferLevel::ePrimary, 1))[0];
+
+            debug_set_commandpool_name(ctx.device, pVulkanScene->commandPool, "Scene:CommandPool");
+            debug_set_commandbuffer_name(ctx.device, pVulkanScene->commandBuffer, "Scene:CommandBuffer");
+            debug_set_fence_name(ctx.device, pVulkanScene->fence, "Scene:Fence");
+        }
+        */
         // IDevicePipeline
         // Draw
         /*// Walk the passes
@@ -95,6 +115,8 @@ IDeviceSurface* scenegraph_render(SceneGraph& scene, const glm::vec2& frameBuffe
             debug_set_devicememory_name(ctx.device, spVulkanPass->vsUniform.memory, debug_pass_name(*spVulkanPass, "UniformMemory"));
         }
         */
+            
+        validation_set_shaders({});
     }
 
     return pDevice->FindSurface("default_color");

@@ -299,28 +299,6 @@ void vulkan_scene_wait(VulkanContext& ctx, VulkanScene* pVulkanScene)
 void vulkan_scene_prepare(VulkanContext& ctx, RenderContext& renderContext, SceneGraph& scene)
 {
     /*
-    auto pVulkanScene = vulkan_scene_get(ctx, scene);
-    if (!pVulkanScene)
-    {
-        return;
-    }
-
-    for (auto& col : renderContext.colorBuffers)
-    {
-        col.rendered = false;
-    }
-    renderContext.depthBuffer.rendered = false;
-
-    if (!pVulkanScene->commandBuffer)
-    {
-        pVulkanScene->fence = ctx.device.createFence(vk::FenceCreateInfo());
-        pVulkanScene->commandPool = ctx.device.createCommandPool(vk::CommandPoolCreateInfo(vk::CommandPoolCreateFlagBits::eResetCommandBuffer, ctx.graphicsQueue));
-        pVulkanScene->commandBuffer = ctx.device.allocateCommandBuffers(vk::CommandBufferAllocateInfo(pVulkanScene->commandPool, vk::CommandBufferLevel::ePrimary, 1))[0];
-
-        debug_set_commandpool_name(ctx.device, pVulkanScene->commandPool, "Scene:CommandPool");
-        debug_set_commandbuffer_name(ctx.device, pVulkanScene->commandBuffer, "Scene:CommandBuffer");
-        debug_set_fence_name(ctx.device, pVulkanScene->fence, "Scene:Fence");
-    }
 
     bool targetsChanged = false;
     // Resize/create rendertargets

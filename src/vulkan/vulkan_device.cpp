@@ -189,6 +189,21 @@ IDeviceFrameBuffer* VulkanDevice::AddOrUpdateFrameBuffer(SceneGraph& scene, IDev
     return vulkan_framebuffer_create(ctx, scene, *static_cast<VulkanRenderPass*>(pRenderPass));
 }
 
+
+/*
+if (!pVulkanScene->commandBuffer)
+    {
+        pVulkanScene->fence = ctx.device.createFence(vk::FenceCreateInfo());
+        pVulkanScene->commandPool = ctx.device.createCommandPool(vk::CommandPoolCreateInfo(vk::CommandPoolCreateFlagBits::eResetCommandBuffer, ctx.graphicsQueue));
+        pVulkanScene->commandBuffer = ctx.device.allocateCommandBuffers(vk::CommandBufferAllocateInfo(pVulkanScene->commandPool, vk::CommandBufferLevel::ePrimary, 1))[0];
+
+        debug_set_commandpool_name(ctx.device, pVulkanScene->commandPool, "Scene:CommandPool");
+        debug_set_commandbuffer_name(ctx.device, pVulkanScene->commandBuffer, "Scene:CommandBuffer");
+        debug_set_fence_name(ctx.device, pVulkanScene->fence, "Scene:Fence");
+    }
+    */
+
+
 void VulkanDevice::DestroySurface(const Surface& surface)
 {
     auto pDeviceSurface = static_cast<VulkanSurface*>(FindSurface(surface.name));
