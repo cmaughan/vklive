@@ -1,6 +1,6 @@
 #pragma once
 
-#include "vulkan_image.h"
+#include "vulkan_surface.h"
 
 namespace vulkan
 {

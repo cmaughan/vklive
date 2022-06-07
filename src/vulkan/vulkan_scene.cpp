@@ -340,7 +340,7 @@ void vulkan_scene_prepare(VulkanContext& ctx, RenderContext& renderContext, Scen
                 targetsChanged = true;
 
                 vulkan_scene_wait(ctx, pVulkanScene);
-                image_destroy(ctx, *pVulkanSurface);
+                surface_destroy(ctx, *pVulkanSurface);
 
                 // Update to latest, even if we fail
                 pVulkanSurface->currentSize = size;
@@ -349,11 +349,11 @@ void vulkan_scene_prepare(VulkanContext& ctx, RenderContext& renderContext, Scen
                 {
                     if (format_is_depth(pSurface->format))
                     {
-                        image_create_depth(ctx, *pVulkanSurface, size, vulkan_scene_format_to_vulkan(pSurface->format), true, pSurface->name);
+                        surface_create_depth(ctx, *pVulkanSurface, size, vulkan_scene_format_to_vulkan(pSurface->format), true, pSurface->name);
                     }
                     else
                     {
-                        image_create(ctx, *pVulkanSurface, size, vulkan_scene_format_to_vulkan(pSurface->format), true, pSurface->name);
+                        surface_create(ctx, *pVulkanSurface, size, vulkan_scene_format_to_vulkan(pSurface->format), true, pSurface->name);
                         pVulkanSurface->sampler = ctx.device.createSampler(vk::SamplerCreateInfo({}, vk::Filter::eLinear, vk::Filter::eLinear, vk::SamplerMipmapMode::eLinear));
                         debug_set_sampler_name(ctx.device, pVulkanSurface->sampler, pSurface->name + "::Sampler");
                     }
@@ -402,7 +402,7 @@ void vulkan_scene_prepare(VulkanContext& ctx, RenderContext& renderContext, Scen
                         // TODO: We don't always need to setup for sampling if this target is never read.
                         if (!pVulkanSurface->samplerDescriptorSet)
                         {
-                            image_set_sampling(ctx, *pVulkanSurface);
+                            surface_set_sampling(ctx, *pVulkanSurface);
                         }
                     }
 
@@ -596,7 +596,7 @@ void vulkan_scene_destroy(VulkanContext& ctx, Scene& scene)
 
     for (auto& [name, pVulkanSurface] : pVulkanScene->surfaces)
     {
-        image_destroy(ctx, *pVulkanSurface);
+        surface_destroy(ctx, *pVulkanSurface);
     }
 
     for (auto& [name, pShader] : pVulkanScene->shaderStages)

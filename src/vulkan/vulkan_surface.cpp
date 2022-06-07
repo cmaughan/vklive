@@ -1,4 +1,4 @@
-#include "vklive/vulkan/vulkan_image.h"
+#include "vklive/vulkan/vulkan_surface.h"
 #include "vklive/vulkan/vulkan_context.h"
 #include "vklive/vulkan/vulkan_utils.h"
 #include "vklive/vulkan/vulkan_buffer.h"
@@ -6,13 +6,13 @@
 
 namespace vulkan
 {
-void image_unmap(VulkanContext& ctx, VulkanSurface& img)
+void surface_unmap(VulkanContext& ctx, VulkanSurface& img)
 {
     ctx.device.unmapMemory(img.memory);
     img.mapped = nullptr;
 }
 
-void image_destroy(VulkanContext& ctx, VulkanSurface& img)
+void surface_destroy(VulkanContext& ctx, VulkanSurface& img)
 {
     if (img.sampler)
     {
@@ -33,7 +33,7 @@ void image_destroy(VulkanContext& ctx, VulkanSurface& img)
     }
     if (img.mapped)
     {
-        image_unmap(ctx, img);
+        surface_unmap(ctx, img);
         img.mapped = nullptr;
     }
     if (img.view)
@@ -53,9 +53,9 @@ void image_destroy(VulkanContext& ctx, VulkanSurface& img)
     }
 };
 
-void image_create(VulkanContext& ctx, VulkanSurface& vulkanImage, const vk::ImageCreateInfo& imageCreateInfo, const vk::MemoryPropertyFlags& memoryPropertyFlags)
+void surface_create(VulkanContext& ctx, VulkanSurface& vulkanImage, const vk::ImageCreateInfo& imageCreateInfo, const vk::MemoryPropertyFlags& memoryPropertyFlags)
 {
-    image_destroy(ctx, vulkanImage);
+    surface_destroy(ctx, vulkanImage);
 
     vulkanImage.image = ctx.device.createImage(imageCreateInfo);
     vulkanImage.format = imageCreateInfo.format;
@@ -68,9 +68,9 @@ void image_create(VulkanContext& ctx, VulkanSurface& vulkanImage, const vk::Imag
     ctx.device.bindImageMemory(vulkanImage.image, vulkanImage.memory, 0);
 }
 
-void image_create(VulkanContext& ctx, VulkanSurface& vulkanImage, const glm::uvec2& size, vk::Format colorFormat, bool sampled, const std::string& name)
+void surface_create(VulkanContext& ctx, VulkanSurface& vulkanImage, const glm::uvec2& size, vk::Format colorFormat, bool sampled, const std::string& name)
 {
-    image_destroy(ctx, vulkanImage);
+    surface_destroy(ctx, vulkanImage);
 
     vk::ImageUsageFlags colorUsage = sampled ? vk::ImageUsageFlagBits::eSampled : vk::ImageUsageFlagBits();
 
@@ -86,7 +86,7 @@ void image_create(VulkanContext& ctx, VulkanSurface& vulkanImage, const glm::uve
     image.tiling = vk::ImageTiling::eOptimal;
     image.usage = vk::ImageUsageFlagBits::eColorAttachment | colorUsage;
     image.format = colorFormat;
-    image_create(ctx, vulkanImage, image, vk::MemoryPropertyFlagBits::eDeviceLocal);
+    surface_create(ctx, vulkanImage, image, vk::MemoryPropertyFlagBits::eDeviceLocal);
     debug_set_image_name(ctx.device, vulkanImage.image, name + ":ColorImage");
     debug_set_devicememory_name(ctx.device, vulkanImage.memory, name + ":ColorImageMemory");
 
@@ -104,9 +104,9 @@ void image_create(VulkanContext& ctx, VulkanSurface& vulkanImage, const glm::uve
     }
 }
 
-void image_create_depth(VulkanContext& ctx, VulkanSurface& vulkanImage, const glm::uvec2& size, vk::Format depthFormat, bool sampled, const std::string& name)
+void surface_create_depth(VulkanContext& ctx, VulkanSurface& vulkanImage, const glm::uvec2& size, vk::Format depthFormat, bool sampled, const std::string& name)
 {
-    image_destroy(ctx, vulkanImage);
+    surface_destroy(ctx, vulkanImage);
 
     vk::ImageUsageFlags depthUsage = vk::ImageUsageFlags();
 
@@ -125,7 +125,7 @@ void image_create_depth(VulkanContext& ctx, VulkanSurface& vulkanImage, const gl
     image.format = depthFormat;
     image.usage = vk::ImageUsageFlagBits::eDepthStencilAttachment | depthUsage;
      
-    image_create(ctx, vulkanImage, image, vk::MemoryPropertyFlagBits::eDeviceLocal);
+    surface_create(ctx, vulkanImage, image, vk::MemoryPropertyFlagBits::eDeviceLocal);
     debug_set_image_name(ctx.device, vulkanImage.image, name + ":DepthImage");
     debug_set_devicememory_name(ctx.device, vulkanImage.memory, name + ":DepthImageMemory");
 
@@ -140,7 +140,7 @@ void image_create_depth(VulkanContext& ctx, VulkanSurface& vulkanImage, const gl
     debug_set_imageview_name(ctx.device, vulkanImage.view, name + ":DepthImageView");
 }
 
-void image_set_sampling(VulkanContext& ctx, VulkanSurface& image)
+void surface_set_sampling(VulkanContext& ctx, VulkanSurface& image)
 {
     image.sampler = ctx.device.createSampler(vk::SamplerCreateInfo({}, vk::Filter::eLinear, vk::Filter::eLinear, vk::SamplerMipmapMode::eLinear));
 
@@ -165,7 +165,7 @@ void image_set_sampling(VulkanContext& ctx, VulkanSurface& image)
 }
 
 /*
-void image_set_layout(VulkanContext& ctx, vk::CommandBuffer const& commandBuffer, vk::Image image, vk::Format format, vk::ImageLayout oldImageLayout, vk::ImageLayout newImageLayout)
+void surface_set_layout(VulkanContext& ctx, vk::CommandBuffer const& commandBuffer, vk::Image image, vk::Format format, vk::ImageLayout oldImageLayout, vk::ImageLayout newImageLayout)
 {
     vk::AccessFlags sourceAccessMask;
     switch (oldImageLayout)
@@ -284,7 +284,7 @@ void image_set_layout(VulkanContext& ctx, vk::CommandBuffer const& commandBuffer
 // Create an image memory barrier for changing the layout of
 // an image and put it into an active command buffer
 // See chapter 11.4 "vk::Image Layout" for details
-void image_set_layout(VulkanContext& ctx, vk::CommandBuffer cmdbuffer, vk::Image image, vk::ImageLayout oldImageLayout, vk::ImageLayout newImageLayout, vk::ImageSubresourceRange subresourceRange)
+void surface_set_layout(VulkanContext& ctx, vk::CommandBuffer cmdbuffer, vk::Image image, vk::ImageLayout oldImageLayout, vk::ImageLayout newImageLayout, vk::ImageSubresourceRange subresourceRange)
 {
     // Create an image barrier object
     vk::ImageMemoryBarrier imageMemoryBarrier;
@@ -302,53 +302,53 @@ void image_set_layout(VulkanContext& ctx, vk::CommandBuffer cmdbuffer, vk::Image
 }
 
 // Fixed sub resource on first mip level and layer
-void image_set_layout(VulkanContext& ctx, vk::CommandBuffer cmdbuffer, vk::Image image, vk::ImageLayout oldImageLayout, vk::ImageLayout newImageLayout)
+void surface_set_layout(VulkanContext& ctx, vk::CommandBuffer cmdbuffer, vk::Image image, vk::ImageLayout oldImageLayout, vk::ImageLayout newImageLayout)
 {
-    image_set_layout(ctx, cmdbuffer, image, vk::ImageAspectFlagBits::eColor, oldImageLayout, newImageLayout);
+    surface_set_layout(ctx, cmdbuffer, image, vk::ImageAspectFlagBits::eColor, oldImageLayout, newImageLayout);
 }
 
 // Fixed sub resource on first mip level and layer
-void image_set_layout(VulkanContext& ctx, vk::CommandBuffer cmdbuffer, vk::Image image, vk::ImageAspectFlags aspectMask, vk::ImageLayout oldImageLayout, vk::ImageLayout newImageLayout)
+void surface_set_layout(VulkanContext& ctx, vk::CommandBuffer cmdbuffer, vk::Image image, vk::ImageAspectFlags aspectMask, vk::ImageLayout oldImageLayout, vk::ImageLayout newImageLayout)
 {
     vk::ImageSubresourceRange subresourceRange;
     subresourceRange.aspectMask = aspectMask;
     subresourceRange.levelCount = 1;
     subresourceRange.layerCount = 1;
-    image_set_layout(ctx, cmdbuffer, image, oldImageLayout, newImageLayout, subresourceRange);
+    surface_set_layout(ctx, cmdbuffer, image, oldImageLayout, newImageLayout, subresourceRange);
 }
 
-void image_set_layout(VulkanContext& ctx, vk::Image image, vk::ImageLayout oldImageLayout, vk::ImageLayout newImageLayout, vk::ImageSubresourceRange subresourceRange)
+void surface_set_layout(VulkanContext& ctx, vk::Image image, vk::ImageLayout oldImageLayout, vk::ImageLayout newImageLayout, vk::ImageSubresourceRange subresourceRange)
 {
     utils_with_command_buffer(ctx, [&](const auto& commandBuffer) {
         debug_set_commandbuffer_name(ctx.device, commandBuffer, "Buffer::ImageSetLayout");
-        image_set_layout(ctx, commandBuffer, image, oldImageLayout, newImageLayout, subresourceRange);
+        surface_set_layout(ctx, commandBuffer, image, oldImageLayout, newImageLayout, subresourceRange);
     });
 }
 
 // Fixed sub resource on first mip level and layer
-void image_set_layout(VulkanContext& ctx, vk::Image image, vk::ImageAspectFlags aspectMask, vk::ImageLayout oldImageLayout, vk::ImageLayout newImageLayout)
+void surface_set_layout(VulkanContext& ctx, vk::Image image, vk::ImageAspectFlags aspectMask, vk::ImageLayout oldImageLayout, vk::ImageLayout newImageLayout)
 {
     utils_with_command_buffer(ctx, [&](const auto& commandBuffer) {
         debug_set_commandbuffer_name(ctx.device, commandBuffer, "Buffer::ImageSetLayout");
-        image_set_layout(ctx, commandBuffer, image, aspectMask, oldImageLayout, newImageLayout);
+        surface_set_layout(ctx, commandBuffer, image, aspectMask, oldImageLayout, newImageLayout);
     });
 }
 
 /*
-VulkanSurface image_stage_to_device(VulkanContext& ctx, vk::ImageCreateInfo imageCreateInfo, const vk::MemoryPropertyFlags& memoryPropertyFlags, vk::DeviceSize size, const void* data, const std::vector<MipData>& mipData, const vk::ImageLayout layout)
+VulkanSurface surface_stage_to_device(VulkanContext& ctx, vk::ImageCreateInfo imageCreateInfo, const vk::MemoryPropertyFlags& memoryPropertyFlags, vk::DeviceSize size, const void* data, const std::vector<MipData>& mipData, const vk::ImageLayout layout)
 {
     VulkanBuffer staging = buffer_create_staging(ctx, size, data);
     imageCreateInfo.usage = imageCreateInfo.usage | vk::ImageUsageFlagBits::eTransferDst;
     
     VulkanSurface result;
-    image_create(ctx, result, imageCreateInfo, memoryPropertyFlags);
+    surface_create(ctx, result, imageCreateInfo, memoryPropertyFlags);
 
     utils_with_command_buffer(ctx, [&](const vk::CommandBuffer& copyCmd) {
         debug_set_commandbuffer_name(ctx.device, copyCmd, "Buffer::StageToDevice");
         vk::ImageSubresourceRange range(vk::ImageAspectFlagBits::eColor, 0, imageCreateInfo.mipLevels, 0, 1);
 
         // Prepare for transfer
-        image_set_layout(ctx, copyCmd, result.image, vk::ImageLayout::eUndefined, vk::ImageLayout::eTransferDstOptimal, range);
+        surface_set_layout(ctx, copyCmd, result.image, vk::ImageLayout::eUndefined, vk::ImageLayout::eTransferDstOptimal, range);
 
         // Prepare for transfer
         std::vector<vk::BufferImageCopy> bufferCopyRegions;
@@ -374,7 +374,7 @@ VulkanSurface image_stage_to_device(VulkanContext& ctx, vk::ImageCreateInfo imag
         }
         copyCmd.copyBufferToImage(staging.buffer, result.image, vk::ImageLayout::eTransferDstOptimal, bufferCopyRegions);
         // Prepare for shader read
-        image_set_layout(ctx, copyCmd, result.image, vk::ImageLayout::eTransferDstOptimal, layout, range);
+        surface_set_layout(ctx, copyCmd, result.image, vk::ImageLayout::eTransferDstOptimal, layout, range);
     });
     buffer_destroy(ctx, staging);
     return result;

@@ -31,7 +31,7 @@
 #include <vklive/logger/logger.h>
 
 #include "vklive/vulkan/vulkan_context.h"
-#include "vklive/vulkan/vulkan_image.h"
+#include "vklive/vulkan/vulkan_surface.h"
 #include "vklive/vulkan/vulkan_utils.h"
 
 namespace vulkan
