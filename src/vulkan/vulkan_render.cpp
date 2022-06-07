@@ -32,40 +32,10 @@ void render_init(VulkanContext& ctx)
     ctx.spRenderData = spRender;
 }
 
-void render_destroy_images(VulkanContext& ctx, RenderContext& renderContext)
-{
-    for (auto& buffer : renderContext.colorBuffers)
-    {
-        image_destroy(ctx, buffer);
-    }
-    renderContext.colorBuffers.clear();
-
-    if (renderContext.depthBuffer.format != vk::Format::eUndefined)
-    {
-        image_destroy(ctx, renderContext.depthBuffer);
-    }
-}
-
 void render_destroy(VulkanContext& ctx)
 {
     auto spRender = render_context(ctx);
-    render_destroy_images(ctx, *spRender);
-
     ctx.spRenderData = nullptr;
-}
-
-void render_create_images(VulkanContext& ctx, RenderContext& renderContext, const glm::uvec2& size, vk::Format colorFormat, vk::Format depthFormat)
-{
-    render_destroy_images(ctx, renderContext);
-
-    renderContext.colorBuffers.resize(1);
-    image_create(ctx, renderContext.colorBuffers[0], size, colorFormat, true, "RenderDefault");
-
-    bool useDepth = depthFormat != vk::Format::eUndefined;
-    if (useDepth)
-    {
-        image_create_depth(ctx, renderContext.depthBuffer, size, depthFormat, false, "RenderDefault");
-    }
 }
 
 void render_check_framebuffer(VulkanContext& ctx, const glm::uvec2& size)
@@ -81,13 +51,6 @@ void render_check_framebuffer(VulkanContext& ctx, const glm::uvec2& size)
 
     // Destroy old
     spRender->frameBufferSize = size;
-
-    render_create_images(ctx, *spRender, glm::uvec2(size), vk::Format::eR8G8B8A8Unorm, vk::Format::eD32Sfloat);
-
-    image_set_sampling(ctx, spRender->colorBuffers[0]);
-    debug_set_descriptorsetlayout_name(ctx.device, spRender->colorBuffers[0].samplerDescriptorSetLayout, "RenderColorBuffer::DescriptorSetLayout");
-    debug_set_descriptorset_name(ctx.device, spRender->colorBuffers[0].samplerDescriptorSet, "RenderColorBuffer::DescriptorSet");
-    debug_set_sampler_name(ctx.device, spRender->colorBuffers[0].sampler, "RenderColorBuffer::Sampler");
 }
 
 void render(VulkanContext& ctx, const glm::vec4& rect, Scene& scene)

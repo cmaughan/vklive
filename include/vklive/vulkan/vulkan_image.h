@@ -7,6 +7,8 @@
 #pragma warning(default : 26812)
 #include <vklive/vulkan/vulkan_context.h>
 
+struct Surface;
+
 namespace vulkan
 {
 
@@ -22,8 +24,19 @@ struct Allocation
     vk::MemoryPropertyFlags memoryPropertyFlags;
 };
 
-struct VulkanImage : Allocation
+// These structures mirror the scene structures and add the vulkan specific bits
+// The vulkan objects should not live longer than the scene!
+struct VulkanSurface : Allocation
 {
+    VulkanSurface(Surface* pS)
+        : pSurface(pS)
+    {
+    }
+
+    Surface* pSurface;
+    std::string debugName;
+    glm::uvec2 currentSize;
+
     vk::Image image;
     vk::Extent3D extent;
     vk::ImageView view;
@@ -35,20 +48,18 @@ struct VulkanImage : Allocation
 
     vk::Format format{ vk::Format::eUndefined };
 
-    // Has this image been rendered to during the frame?
-    bool rendered = false;
 };
 
 using MipData = ::std::pair<vk::Extent3D, vk::DeviceSize>;
 
-void image_create(VulkanContext& ctx, VulkanImage& vulkanImage, const vk::ImageCreateInfo& imageCreateInfo, const vk::MemoryPropertyFlags& memoryPropertyFlags);
-void image_create(VulkanContext& ctx, VulkanImage& vulkanImage, const glm::uvec2& size, vk::Format colorFormat, bool sampled, const std::string& name);
-void image_create_depth(VulkanContext& ctx, VulkanImage& vulkanImage, const glm::uvec2& size, vk::Format depthFormat, bool sampled, const std::string& name);
+void image_create(VulkanContext& ctx, VulkanSurface& vulkanImage, const vk::ImageCreateInfo& imageCreateInfo, const vk::MemoryPropertyFlags& memoryPropertyFlags);
+void image_create(VulkanContext& ctx, VulkanSurface& vulkanImage, const glm::uvec2& size, vk::Format colorFormat, bool sampled, const std::string& name);
+void image_create_depth(VulkanContext& ctx, VulkanSurface& vulkanImage, const glm::uvec2& size, vk::Format depthFormat, bool sampled, const std::string& name);
 
 // void image_set_layout(VulkanContext& ctx, vk::CommandBuffer const& commandBuffer, vk::Image image, vk::Format format, vk::ImageLayout oldImageLayout, vk::ImageLayout newImageLayout);
-void image_unmap(VulkanContext& ctx, VulkanImage& img);
-void image_destroy(VulkanContext& ctx, VulkanImage& img);
-VulkanImage image_stage_to_device(VulkanContext& ctx, vk::ImageCreateInfo imageCreateInfo, const vk::MemoryPropertyFlags& memoryPropertyFlags, vk::DeviceSize size, const void* data, const std::vector<MipData>& mipData = {}, const vk::ImageLayout layout = vk::ImageLayout::eShaderReadOnlyOptimal);
+void image_unmap(VulkanContext& ctx, VulkanSurface& img);
+void image_destroy(VulkanContext& ctx, VulkanSurface& img);
+//VulkanSurface image_stage_to_device(VulkanContext& ctx, vk::ImageCreateInfo imageCreateInfo, const vk::MemoryPropertyFlags& memoryPropertyFlags, vk::DeviceSize size, const void* data, const std::vector<MipData>& mipData = {}, const vk::ImageLayout layout = vk::ImageLayout::eShaderReadOnlyOptimal);
 
 void image_set_layout(VulkanContext& ctx, vk::CommandBuffer cmdbuffer, vk::Image image, vk::ImageLayout oldImageLayout, vk::ImageLayout newImageLayout, vk::ImageSubresourceRange subresourceRange);
 void image_set_layout(VulkanContext& ctx, vk::CommandBuffer cmdbuffer, vk::Image image, vk::ImageLayout oldImageLayout, vk::ImageLayout newImageLayout);
@@ -56,5 +67,5 @@ void image_set_layout(VulkanContext& ctx, vk::CommandBuffer cmdbuffer, vk::Image
 void image_set_layout(VulkanContext& ctx, vk::Image image, vk::ImageLayout oldImageLayout, vk::ImageLayout newImageLayout, vk::ImageSubresourceRange subresourceRange);
 void image_set_layout(VulkanContext& ctx, vk::Image image, vk::ImageAspectFlags aspectMask, vk::ImageLayout oldImageLayout, vk::ImageLayout newImageLayout);
 
-void image_set_sampling(VulkanContext& ctx, VulkanImage& image);
+void image_set_sampling(VulkanContext& ctx, VulkanSurface& image);
 } // namespace vulkan

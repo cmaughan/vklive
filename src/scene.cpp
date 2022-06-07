@@ -273,6 +273,17 @@ std::shared_ptr<Scene> scene_build(const fs::path& root)
         return spScene;
     }
 
+    // Default backbuffer and depth targets
+    auto spDefaultColor = std::make_shared<Surface>("default_color");
+    spDefaultColor->format = Format::Default;
+    
+    auto spDefaultDepth = std::make_shared<Surface>("default_depth");
+    spDefaultDepth->format = Format::Default_Depth;
+
+    spScene->surfaces["default_color"] = spDefaultColor;
+    spScene->surfaces["default_depth"] = spDefaultDepth;
+    spScene->finalColorTarget = spDefaultColor.get();
+
     try
     {
         int passStartLine = 0;
@@ -537,6 +548,15 @@ std::shared_ptr<Scene> scene_build(const fs::path& root)
                 {
                     spScene->passes[spPass->name] = spPass;
                 }
+
+                // If we didn't find targets, add them
+                if (spPass->targets.empty())
+                {
+                    spPass->targets.push_back("default_color");
+                    spPass->targets.push_back("default_depth");
+                }
+
+                spScene->passOrder.push_back(spPass.get());
             }
 
             mpc_ast_delete((mpc_ast_t*)r.output);
@@ -569,6 +589,12 @@ std::shared_ptr<Scene> scene_build(const fs::path& root)
         addError(fmt::format("Exception processing scenegraph: {}", ex.what()));
     }
 
+    /*
+    if (spScene->valid)
+    {
+        scenegraph_build(*spScene); 
+    }
+    */
     return spScene;
 }
 

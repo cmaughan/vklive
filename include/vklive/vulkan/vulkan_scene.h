@@ -11,19 +11,6 @@ namespace vulkan
 {
 
 struct RenderContext;
-// These structures mirror the scene structures and add the vulkan specific bits
-// The vulkan objects should not live longer than the scene!
-struct VulkanSurface
-{
-    VulkanSurface(Surface* pS)
-        : pSurface(pS)
-    {
-    }
-    Surface* pSurface;
-    VulkanImage image;
-    std::string debugName;
-    glm::uvec2 currentSize;
-};
 
 struct VulkanGeometry
 {
@@ -79,8 +66,8 @@ struct VulkanPass
     VulkanBuffer vsUniform;
 
     // Image and depth for this pass
-    std::vector<VulkanImage*> colorImages;
-    VulkanImage* pDepthImage = nullptr;
+    std::vector<VulkanSurface*> colorImages;
+    VulkanSurface* pDepthImage = nullptr;
 
     struct Channel {
         alignas(16) glm::vec4 resolution;
@@ -138,6 +125,7 @@ struct VulkanScene
     vk::Fence fence;
 };
 
+VulkanScene* vulkan_scene_get(VulkanContext& ctx, Scene& scene);
 void vulkan_scene_init(VulkanContext& ctx, Scene& scene);
 void vulkan_scene_destroy(VulkanContext& ctx, Scene& scene);
 void vulkan_scene_render(VulkanContext& ctx, RenderContext& renderContext, Scene& scene);

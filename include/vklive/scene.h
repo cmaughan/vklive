@@ -41,6 +41,9 @@ struct Surface
 
     // Format if a target
     Format format = Format::Default;
+    
+    // Has this image been rendered to during the frame?
+    bool rendered = false;
 };
 
 enum class GeometryType
@@ -114,10 +117,13 @@ struct Scene
     std::map<fs::path, std::shared_ptr<Geometry>> geometries;
     std::map<fs::path, std::shared_ptr<Shader>> shaders;
     std::map<std::string, std::shared_ptr<Pass>> passes;
-    std::vector<std::string> passOrder;
     std::vector<Message> errors; 
     std::vector<Message> warnings; 
     std::vector<fs::path> headers;
+
+    // Evaluated values for rendering 
+    std::vector<Pass*> passOrder;
+    Surface* finalColorTarget;
 
     bool valid = true;
 };

@@ -15,8 +15,8 @@ struct VulkanSwapFrame
     vk::CommandPool commandPool;
     vk::CommandBuffer commandBuffer;
     vk::Fence fence;
-    std::vector<VulkanImage> colorBuffers; // For multiple color target rendering
-    VulkanImage depthbuffer; // Might be null
+    std::vector<VulkanSurface> colorBuffers; // For multiple color target rendering
+    VulkanSurface depthbuffer; // Might be null
 
     vk::Framebuffer framebuffer;
 };

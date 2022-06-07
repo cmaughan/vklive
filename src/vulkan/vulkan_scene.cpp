@@ -153,7 +153,7 @@ void vulkan_scene_create_renderpass(VulkanContext& ctx, VulkanScene& scene, Vulk
         subpassDependencies.push_back(dependency);
     }
 
-    // TODO: 
+    // TODO:
     // Performance improvement/fix the dependencies here based on the scene graph.
     // We don't always need to read, for example.
     // This code is almost certainly setting up the dependencies here badly; I just haven't looked into how to do it properly based on
@@ -238,7 +238,6 @@ void vulkan_scene_init(VulkanContext& ctx, Scene& scene)
     for (auto& [path, pShader] : scene.shaders)
     {
         auto pVulkanShader = shader_create(ctx, scene, *pShader);
-        
 
         if (pVulkanShader && pVulkanShader->shaderCreateInfo.module)
         {
@@ -307,11 +306,10 @@ void vulkan_scene_prepare(VulkanContext& ctx, RenderContext& renderContext, Scen
         return;
     }
 
-    for (auto& col : renderContext.colorBuffers)
+    for (auto& [name, pSurf] : pVulkanScene->surfaces)
     {
-        col.rendered = false;
+        pSurf->pSurface->rendered = false;
     }
-    renderContext.depthBuffer.rendered = false;
 
     if (!pVulkanScene->commandBuffer)
     {
@@ -342,7 +340,7 @@ void vulkan_scene_prepare(VulkanContext& ctx, RenderContext& renderContext, Scen
                 targetsChanged = true;
 
                 vulkan_scene_wait(ctx, pVulkanScene);
-                image_destroy(ctx, pVulkanSurface->image);
+                image_destroy(ctx, *pVulkanSurface);
 
                 // Update to latest, even if we fail
                 pVulkanSurface->currentSize = size;
@@ -351,13 +349,13 @@ void vulkan_scene_prepare(VulkanContext& ctx, RenderContext& renderContext, Scen
                 {
                     if (format_is_depth(pSurface->format))
                     {
-                        image_create_depth(ctx, pVulkanSurface->image, size, vulkan_scene_format_to_vulkan(pSurface->format), true, pSurface->name);
+                        image_create_depth(ctx, *pVulkanSurface, size, vulkan_scene_format_to_vulkan(pSurface->format), true, pSurface->name);
                     }
                     else
                     {
-                        image_create(ctx, pVulkanSurface->image, size, vulkan_scene_format_to_vulkan(pSurface->format), true, pSurface->name);
-                        pVulkanSurface->image.sampler = ctx.device.createSampler(vk::SamplerCreateInfo({}, vk::Filter::eLinear, vk::Filter::eLinear, vk::SamplerMipmapMode::eLinear));
-                        debug_set_sampler_name(ctx.device, pVulkanSurface->image.sampler, pSurface->name + "::Sampler");
+                        image_create(ctx, *pVulkanSurface, size, vulkan_scene_format_to_vulkan(pSurface->format), true, pSurface->name);
+                        pVulkanSurface->sampler = ctx.device.createSampler(vk::SamplerCreateInfo({}, vk::Filter::eLinear, vk::Filter::eLinear, vk::SamplerMipmapMode::eLinear));
+                        debug_set_sampler_name(ctx.device, pVulkanSurface->sampler, pSurface->name + "::Sampler");
                     }
                 }
             }
@@ -367,9 +365,9 @@ void vulkan_scene_prepare(VulkanContext& ctx, RenderContext& renderContext, Scen
     if (targetsChanged)
     {
         vulkan_scene_wait(ctx, pVulkanScene);
-       
+
         // Can't reset the pool here because it will invalide the descriptor on the actively running scene!!
-        //ctx.queue.waitIdle();
+        // ctx.queue.waitIdle();
         descriptor_reset_pools(ctx, pVulkanScene->descriptorCache);
     }
 
@@ -389,35 +387,30 @@ void vulkan_scene_prepare(VulkanContext& ctx, RenderContext& renderContext, Scen
             // Figure out which surfaces we are using
             for (auto& target : pVulkanPass->pPass->targets)
             {
-                if (target == "default_color")
+                auto itr = pVulkanScene->surfaces.find(target);
+                if (itr != pVulkanScene->surfaces.end())
                 {
-                    pVulkanPass->colorImages.push_back(&renderContext.colorBuffers[0]);
-                }
-                else if (target == "default_depth")
-                {
-                    pVulkanPass->pDepthImage = &renderContext.depthBuffer;
+                    auto pVulkanSurface = itr->second.get();
+                    if (format_is_depth(itr->second->pSurface->format))
+                    {
+                        pVulkanPass->pDepthImage = pVulkanSurface;
+                    }
+                    else
+                    {
+                        pVulkanPass->colorImages.push_back(pVulkanSurface);
+
+                        // TODO: We don't always need to setup for sampling if this target is never read.
+                        if (!pVulkanSurface->samplerDescriptorSet)
+                        {
+                            image_set_sampling(ctx, *pVulkanSurface);
+                        }
+                    }
+
                 }
                 else
                 {
-                    auto itr = pVulkanScene->surfaces.find(target);
-                    if (itr != pVulkanScene->surfaces.end())
-                    {
-                        if (format_is_depth(itr->second->pSurface->format))
-                        {
-                            pVulkanPass->pDepthImage = &itr->second->image;
-                        }
-                        else
-                        {
-                            pVulkanPass->colorImages.push_back(&itr->second->image);
-                        }
-                    }
+                    scene_report_error(scene, fmt::format("Could not find target: {}", target));
                 }
-            }
-
-            if (pVulkanPass->colorImages.empty() && !pVulkanPass->pDepthImage)
-            {
-                pVulkanPass->colorImages.push_back(&renderContext.colorBuffers[0]);
-                pVulkanPass->pDepthImage = &renderContext.depthBuffer;
             }
 
             auto pPass = pVulkanPass->pPass;
@@ -523,8 +516,8 @@ void vulkan_scene_prepare(VulkanContext& ctx, RenderContext& renderContext, Scen
                 for (auto& sampler : samplers)
                 {
                     vk::DescriptorImageInfo desc_image;
-                    desc_image.sampler = sampler->image.sampler;
-                    desc_image.imageView = sampler->image.view;
+                    desc_image.sampler = sampler->sampler;
+                    desc_image.imageView = sampler->view;
                     desc_image.imageLayout = vk::ImageLayout::eShaderReadOnlyOptimal;
 
                     descriptor_bind_image(ctx,
@@ -575,7 +568,7 @@ void vulkan_scene_prepare(VulkanContext& ctx, RenderContext& renderContext, Scen
 
     // Validation layer may set an error, meaning this scene is not valid!
     // Destroy it, and reset the error trigger
-    if (validation_get_error_state())
+    if (validation_get_error_state() || !scene.valid)
     {
         vulkan_scene_destroy(ctx, scene);
         validation_clear_error_state();
@@ -603,7 +596,7 @@ void vulkan_scene_destroy(VulkanContext& ctx, Scene& scene)
 
     for (auto& [name, pVulkanSurface] : pVulkanScene->surfaces)
     {
-        image_destroy(ctx, pVulkanSurface->image);
+        image_destroy(ctx, *pVulkanSurface);
     }
 
     for (auto& [name, pShader] : pVulkanScene->shaderStages)
@@ -742,14 +735,14 @@ void vulkan_scene_render(VulkanContext& ctx, RenderContext& renderContext, Scene
             cmd.endRenderPass();
             debug_end_region(cmd);
 
-            for (auto& col : pVulkanPassPtr->colorImages)
+            for (auto& col : pVulkanPass->colorImages)
             {
-                col->rendered = true;
+                col->pSurface->rendered = true;
             }
 
             if (pVulkanPassPtr->pDepthImage)
             {
-                pVulkanPassPtr->pDepthImage->rendered = true;
+                pVulkanPassPtr->pDepthImage->pSurface->rendered = true;
             }
         }
         catch (std::exception& ex)
@@ -762,7 +755,7 @@ void vulkan_scene_render(VulkanContext& ctx, RenderContext& renderContext, Scene
             return;
         }
     }
-    
+
     pVulkanScene->commandBuffer.end();
     pVulkanScene->inFlight = true;
     ctx.queue.submit(vk::SubmitInfo{ 0, nullptr, nullptr, 1, &pVulkanScene->commandBuffer }, pVulkanScene->fence);
