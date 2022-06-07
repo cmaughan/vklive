@@ -6,13 +6,13 @@
 
 namespace vulkan
 {
-void image_unmap(VulkanContext& ctx, VulkanImage& img)
+void image_unmap(VulkanContext& ctx, VulkanSurface& img)
 {
     ctx.device.unmapMemory(img.memory);
     img.mapped = nullptr;
 }
 
-void image_destroy(VulkanContext& ctx, VulkanImage& img)
+void image_destroy(VulkanContext& ctx, VulkanSurface& img)
 {
     if (img.sampler)
     {
@@ -51,7 +51,7 @@ void image_destroy(VulkanContext& ctx, VulkanImage& img)
     }
 };
 
-void image_create(VulkanContext& ctx, VulkanImage& vulkanImage, const vk::ImageCreateInfo& imageCreateInfo, const vk::MemoryPropertyFlags& memoryPropertyFlags)
+void image_create(VulkanContext& ctx, VulkanSurface& vulkanImage, const vk::ImageCreateInfo& imageCreateInfo, const vk::MemoryPropertyFlags& memoryPropertyFlags)
 {
     image_destroy(ctx, vulkanImage);
 
@@ -66,7 +66,7 @@ void image_create(VulkanContext& ctx, VulkanImage& vulkanImage, const vk::ImageC
     ctx.device.bindImageMemory(vulkanImage.image, vulkanImage.memory, 0);
 }
 
-void image_create(VulkanContext& ctx, VulkanImage& vulkanImage, const glm::uvec2& size, vk::Format colorFormat, bool sampled, const std::string& name)
+void image_create(VulkanContext& ctx, VulkanSurface& vulkanImage, const glm::uvec2& size, vk::Format colorFormat, bool sampled, const std::string& name)
 {
     image_destroy(ctx, vulkanImage);
 
@@ -102,7 +102,7 @@ void image_create(VulkanContext& ctx, VulkanImage& vulkanImage, const glm::uvec2
     }
 }
 
-void image_create_depth(VulkanContext& ctx, VulkanImage& vulkanImage, const glm::uvec2& size, vk::Format depthFormat, bool sampled, const std::string& name)
+void image_create_depth(VulkanContext& ctx, VulkanSurface& vulkanImage, const glm::uvec2& size, vk::Format depthFormat, bool sampled, const std::string& name)
 {
     image_destroy(ctx, vulkanImage);
 
@@ -138,7 +138,7 @@ void image_create_depth(VulkanContext& ctx, VulkanImage& vulkanImage, const glm:
     debug_set_imageview_name(ctx.device, vulkanImage.view, name + ":DepthImageView");
 }
 
-void image_set_sampling(VulkanContext& ctx, VulkanImage& image)
+void image_set_sampling(VulkanContext& ctx, VulkanSurface& image)
 {
     image.sampler = ctx.device.createSampler(vk::SamplerCreateInfo({}, vk::Filter::eLinear, vk::Filter::eLinear, vk::SamplerMipmapMode::eLinear));
 
@@ -332,11 +332,13 @@ void image_set_layout(VulkanContext& ctx, vk::Image image, vk::ImageAspectFlags 
     });
 }
 
-VulkanImage image_stage_to_device(VulkanContext& ctx, vk::ImageCreateInfo imageCreateInfo, const vk::MemoryPropertyFlags& memoryPropertyFlags, vk::DeviceSize size, const void* data, const std::vector<MipData>& mipData, const vk::ImageLayout layout)
+/*
+VulkanSurface image_stage_to_device(VulkanContext& ctx, vk::ImageCreateInfo imageCreateInfo, const vk::MemoryPropertyFlags& memoryPropertyFlags, vk::DeviceSize size, const void* data, const std::vector<MipData>& mipData, const vk::ImageLayout layout)
 {
     VulkanBuffer staging = buffer_create_staging(ctx, size, data);
     imageCreateInfo.usage = imageCreateInfo.usage | vk::ImageUsageFlagBits::eTransferDst;
-    VulkanImage result;
+    
+    VulkanSurface result;
     image_create(ctx, result, imageCreateInfo, memoryPropertyFlags);
 
     utils_with_command_buffer(ctx, [&](const vk::CommandBuffer& copyCmd) {
@@ -375,6 +377,7 @@ VulkanImage image_stage_to_device(VulkanContext& ctx, vk::ImageCreateInfo imageC
     buffer_destroy(ctx, staging);
     return result;
 }
+*/
 /*
 inline void copy(size_t size, const void* data, VkDeviceSize offset = 0) const
 {

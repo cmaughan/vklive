@@ -98,7 +98,7 @@ void CreateWindowSwapChain(VulkanContext& ctx, VulkanWindow* wd, int w, int h)
         memset(wd->frameSemaphores, 0, sizeof(wd->frameSemaphores[0]) * wd->imageCount);
         for (uint32_t i = 0; i < wd->imageCount; i++)
         {
-            VulkanImage img;
+            VulkanSurface img(nullptr);
             img.image = swapImages[i];
             wd->frames[i].colorBuffers.push_back(img);
         

@@ -6,6 +6,7 @@
 #include "vklive/vulkan/vulkan_imgui.h"
 #include "vklive/vulkan/vulkan_render.h"
 #include "vklive/vulkan/vulkan_utils.h"
+#include "vklive/vulkan/vulkan_scene.h"
 
 #include "vklive/file/runtree.h"
 
@@ -732,20 +733,22 @@ void imgui_render_3d(VulkanContext& ctx, Scene& scene, bool background)
 
         if (ctx.deviceState == DeviceState::Normal)
         {
+            // If we have a final target, and we rendered to it
             auto spRender = render_context(ctx);
-            if (spRender->colorBuffers[0].rendered)
+            auto pVulkanScene = vulkan_scene_get(ctx, scene);
+            if (pVulkanScene)
             {
-                pDrawList->AddImage((ImTextureID)spRender->colorBuffers[0].samplerDescriptorSet,
-                    ImVec2(canvas_pos.x, canvas_pos.y),
-                    ImVec2(canvas_pos.x + canvas_size.x, canvas_pos.y + canvas_size.y));
-            }
-            else
-            {
-                pDrawList->AddText(ImVec2(canvas_pos.x, canvas_pos.y), 0xFFFFFFFF, "No passes draw to the this buffer...");
-                /*pDrawList->AddRectFilled(
-                    ImVec2(canvas_pos.x, canvas_pos.y),
-                    ImVec2(canvas_pos.x + canvas_size.x, canvas_pos.y + canvas_size.y),0xFF0000FF, 10.0f);
-                    */
+                auto itrSurface = pVulkanScene->surfaces.find(scene.finalColorTarget->name);
+                if (itrSurface != pVulkanScene->surfaces.end() && scene.finalColorTarget->rendered && itrSurface->second->samplerDescriptorSet)
+                {
+                    pDrawList->AddImage((ImTextureID)itrSurface->second->samplerDescriptorSet,
+                        ImVec2(canvas_pos.x, canvas_pos.y),
+                        ImVec2(canvas_pos.x + canvas_size.x, canvas_pos.y + canvas_size.y));
+                }
+                else
+                {
+                    pDrawList->AddText(ImVec2(canvas_pos.x, canvas_pos.y), 0xFFFFFFFF, "No passes draw to the this buffer...");
+                }
             }
         }
     }

@@ -14,8 +14,6 @@ namespace vulkan
 struct VulkanModel;
 struct RenderContext : IContextData
 {
-    std::vector<VulkanImage> colorBuffers;
-    VulkanImage depthBuffer; // Might be null
     glm::uvec2 frameBufferSize;
 };
 
