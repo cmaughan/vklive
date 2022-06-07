@@ -13,7 +13,7 @@ if [ "$(uname)" == "Darwin" ]; then
 fi
 
 cd vcpkg
-./vcpkg install reproc fmt nativefiledialog tinyfiledialogs clipp tomlplusplus freetype concurrentqueue assimp glm tinydir sdl2[vulkan] imgui[sdl2-binding,docking-experimental,freetype] --triplet ${triplet[0]} --recurse
+./vcpkg install reproc fmt nativefiledialog tinyfiledialogs clipp tomlplusplus freetype concurrentqueue assimp glm tinydir vulkan-memory-allocator spirv-reflect sdl2[vulkan] imgui[sdl2-binding,docking-experimental,freetype] --triplet ${triplet[0]} --recurse
 if [ "$(uname)" != "Darwin" ]; then
 ./vcpkg install glib --triplet ${triplet[0]} --recurse
 fi
