@@ -22,13 +22,15 @@ void image_destroy(VulkanContext& ctx, VulkanSurface& img)
     if (img.samplerDescriptorSetLayout)
     {
         ctx.device.destroyDescriptorSetLayout(img.samplerDescriptorSetLayout);
+        img.samplerDescriptorSetLayout = nullptr;
     }
-    /*
+
+    // We don't free these here, but do take account of the fact they are no longer valid
     if (img.samplerDescriptorSet)
     {
-        ctx.device.freeDescriptorSets(ctx.descriptorPool, img.samplerDescriptorSet);
+        //ctx.device.freeDescriptorSets(ctx.descriptorPool, img.samplerDescriptorSet);
+        img.samplerDescriptorSet = nullptr;
     }
-    */
     if (img.mapped)
     {
         image_unmap(ctx, img);

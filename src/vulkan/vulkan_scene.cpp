@@ -583,7 +583,7 @@ void vulkan_scene_destroy(VulkanContext& ctx, Scene& scene)
         return;
     }
 
-    vulkan_scene_wait(ctx, pVulkanScene);
+    ctx.device.waitIdle();
 
     descriptor_cleanup(ctx, pVulkanScene->descriptorCache);
 

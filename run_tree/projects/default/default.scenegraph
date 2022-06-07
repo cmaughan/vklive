@@ -49,6 +49,7 @@ pass: Pass2 {
 // Final pass, will copy the target we created to the main target
 pass: Pass4 {
     samplers: (A)               // List of samplers, just the color 
+    targets: (default_color, default_depth) // Not required
     geometry: copy {
         path: screen_rect        // screen_rect is Quad
         vs: copy.vert            // Shader just copies to target
