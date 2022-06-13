@@ -1,7 +1,11 @@
 #include <regex>
 #include <set>
 
+#include <cstring>
+#include <fstream>
+#include <sstream>
 #include <fmt/format.h>
+
 #include <spirv_reflect.h>
 
 #include "config_app.h"
@@ -11,6 +15,7 @@
 #include <vklive/process/process.h>
 #include <vklive/string/string_utils.h>
 #include <vklive/vulkan/vulkan_shader.h>
+#include <vklive/vulkan/vulkan_reflect.h>
 
 namespace vulkan
 {
@@ -142,7 +147,6 @@ bool shader_parse_output(const std::string& strOutput, const fs::path& shaderPat
     }
     return errors;
 }
-
 void shader_reflect(const std::string& spirv, VulkanShader& vulkanShader)
 {
     SpvReflectShaderModule module = {};

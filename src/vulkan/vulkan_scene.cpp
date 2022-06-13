@@ -1,5 +1,7 @@
 #include <fmt/format.h>
 
+#include <vklive/logger/logger.h>
+
 #include <vklive/file/runtree.h>
 #include <vklive/time/timer.h>
 #include <vklive/validation.h>
@@ -7,6 +9,7 @@
 #include <vklive/vulkan/vulkan_command.h>
 #include <vklive/vulkan/vulkan_context.h>
 #include <vklive/vulkan/vulkan_pipeline.h>
+#include <vklive/vulkan/vulkan_reflect.h>
 #include <vklive/vulkan/vulkan_scene.h>
 #include <vklive/vulkan/vulkan_shader.h>
 #include <vklive/vulkan/vulkan_uniform.h>
@@ -169,6 +172,44 @@ void vulkan_scene_create_renderpass(VulkanContext& ctx, VulkanScene& scene, Vulk
     debug_set_renderpass_name(ctx.device, pass.renderPass, debug_pass_name(pass, "RenderPass"));
 }
 
+std::vector<VulkanShader*> pass_gather_shaders(VulkanScene& scene, VulkanPass& pass)
+{
+    std::vector<VulkanShader*> shaders;
+    for (auto& shader : pass.pPass->shaders)
+    {
+        auto itrShader = scene.shaderStages.find(shader);
+        if (itrShader == scene.shaderStages.end())
+        {
+            return {};
+        }
+        shaders.push_back(itrShader->second.get());
+    }
+    return shaders;
+}
+
+std::map<uint32_t, VulkanBindingSet> shaders_merge_descriptors(Pass& pass, const std::vector<VulkanShader*>& shaders)
+{
+    std::map<uint32_t, VulkanBindingSet> bindingSets;
+    for (auto& pShader : shaders)
+    {
+        for (auto& [set, bindings] : pShader->bindingSets)
+        {
+            bindingSets[set].bindings.merge(bindings.bindings);
+        }
+    }
+
+    LOG(DBG, fmt::format("Pass {}, Descriptors:", pass.name));
+    for (auto& [set, bindings] : bindingSets)
+    {
+        for (auto& [index, binding] : bindings.bindings)
+        {
+            LOG(DBG, fmt::format("Set: {} Index: {} Type: {} (Count: {})", set, index, ToStringDescriptorType((SpvReflectDescriptorType)binding.descriptorType), binding.descriptorCount));
+        }
+    }
+
+    return bindingSets;
+}
+
 void vulkan_scene_init(VulkanContext& ctx, Scene& scene)
 {
     // Already has errors, we can't build vulkan info from it.
@@ -275,6 +316,9 @@ void vulkan_scene_init(VulkanContext& ctx, Scene& scene)
         debug_set_buffer_name(ctx.device, spVulkanPass->vsUniform.buffer, debug_pass_name(*spVulkanPass, "Uniforms"));
         debug_set_devicememory_name(ctx.device, spVulkanPass->vsUniform.memory, debug_pass_name(*spVulkanPass, "UniformMemory"));
 
+        auto shaders = pass_gather_shaders(*spVulkanScene, *spVulkanPass);
+        spVulkanPass->mergedBindingSets = shaders_merge_descriptors(*spPass, shaders);
+
         spVulkanScene->passes[name] = spVulkanPass;
     }
 
@@ -364,9 +408,9 @@ void vulkan_scene_prepare(VulkanContext& ctx, RenderContext& renderContext, Scen
 
     if (targetsChanged)
     {
+        // Need to wait before resetting descriptors 
         vulkan_scene_wait(ctx, pVulkanScene);
 
-        // Can't reset the pool here because it will invalide the descriptor on the actively running scene!!
         // ctx.queue.waitIdle();
         descriptor_reset_pools(ctx, pVulkanScene->descriptorCache);
     }
@@ -381,7 +425,7 @@ void vulkan_scene_prepare(VulkanContext& ctx, RenderContext& renderContext, Scen
             pVulkanPass->pDepthImage = nullptr;
 
             pVulkanPass->descriptorSets.clear();
-            pVulkanPass->descriptorSetLayouts.clear();
+            //pVulkanPass->descriptorSetLayouts.clear();
 
             std::vector<glm::uvec2> sizes;
             // Figure out which surfaces we are using
@@ -405,7 +449,6 @@ void vulkan_scene_prepare(VulkanContext& ctx, RenderContext& renderContext, Scen
                             surface_set_sampling(ctx, *pVulkanSurface);
                         }
                     }
-
                 }
                 else
                 {
@@ -533,7 +576,10 @@ void vulkan_scene_prepare(VulkanContext& ctx, RenderContext& renderContext, Scen
                 debug_set_descriptorsetlayout_name(ctx.device, samplerBuilder.layout, debug_pass_name(*pVulkanPass, "Sampler:DescriptorSetLayout"));
                 debug_set_descriptorset_name(ctx.device, samplerBuilder.set, debug_pass_name(*pVulkanPass, "Sampler:DescriptorSet"));
 
-                pVulkanPass->descriptorSetLayouts = { globalBuilder.layout, samplerBuilder.layout };
+                //std::vector<vk::DescriptorSet> descriptorSets;
+                std::vector<vk::DescriptorSetLayout> descriptorSetLayouts;
+                descriptorSetLayouts = { globalBuilder.layout, samplerBuilder.layout };
+
                 pVulkanPass->descriptorSets = { globalBuilder.set, samplerBuilder.set };
 
                 if (pVulkanPass->geometryPipelineLayout)
@@ -541,7 +587,7 @@ void vulkan_scene_prepare(VulkanContext& ctx, RenderContext& renderContext, Scen
                     ctx.device.destroyPipelineLayout(pVulkanPass->geometryPipelineLayout);
                     pVulkanPass->geometryPipelineLayout = nullptr;
                 }
-                pVulkanPass->geometryPipelineLayout = ctx.device.createPipelineLayout({ {}, pVulkanPass->descriptorSetLayouts });
+                pVulkanPass->geometryPipelineLayout = ctx.device.createPipelineLayout({ {}, descriptorSetLayouts });
                 debug_set_pipelinelayout_name(ctx.device, pVulkanPass->geometryPipelineLayout, debug_pass_name(*pVulkanPass, "PipelineLayout"));
             }
 

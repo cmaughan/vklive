@@ -61,7 +61,9 @@ struct VulkanPass
     vk::PipelineLayout geometryPipelineLayout;
 
     std::vector<vk::DescriptorSet> descriptorSets;
-    std::vector<vk::DescriptorSetLayout> descriptorSetLayouts;
+    //std::vector<vk::DescriptorSetLayout> descriptorSetLayouts;
+
+    std::map<uint32_t, VulkanBindingSet> mergedBindingSets;
 
     VulkanBuffer vsUniform;
 
@@ -119,6 +121,7 @@ struct VulkanScene
   
     DescriptorCache descriptorCache;
 
+    // In flight stuff
     bool inFlight = false;
     vk::CommandBuffer commandBuffer;
     vk::CommandPool commandPool;
