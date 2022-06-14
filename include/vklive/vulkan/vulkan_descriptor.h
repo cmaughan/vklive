@@ -92,6 +92,7 @@ struct DescriptorBuilder
 };
 
 void descriptor_reset_pools(VulkanContext& ctx, DescriptorCache& cache);
+vk::DescriptorSetLayout descriptor_create_layout(VulkanContext& ctx, DescriptorCache& cache, vk::DescriptorSetLayoutCreateInfo& info);
 bool descriptor_allocate(VulkanContext& ctx, DescriptorCache& cache, vk::DescriptorSet* set, vk::DescriptorSetLayout layout);
 void descriptor_init(VulkanContext& ctx, DescriptorCache& cache);
 void descriptor_cleanup(VulkanContext& ctx, DescriptorCache& cache);
@@ -100,5 +101,6 @@ void descriptor_bind_buffer(VulkanContext& ctx, DescriptorCache& cache, Descript
 void descriptor_bind_image(VulkanContext& ctx, DescriptorCache& cache, DescriptorBuilder& builder, uint32_t binding, vk::DescriptorImageInfo* imageInfo, vk::DescriptorType type, vk::ShaderStageFlags stageFlags);
 bool descriptor_build(VulkanContext& ctx, DescriptorCache& cache, DescriptorBuilder& builder, const std::string& debugName = "");
 void descriptor_reset(VulkanContext& ctx, DescriptorCache& cache, DescriptorBuilder& builder);
+
 
 } // namespace vulkan

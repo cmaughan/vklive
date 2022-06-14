@@ -8,6 +8,7 @@
 
 #include <vklive/vulkan/vulkan_command.h>
 #include <vklive/vulkan/vulkan_context.h>
+#include <vklive/vulkan/vulkan_descriptor.h>
 #include <vklive/vulkan/vulkan_pipeline.h>
 #include <vklive/vulkan/vulkan_reflect.h>
 #include <vklive/vulkan/vulkan_scene.h>
@@ -189,6 +190,7 @@ std::vector<VulkanShader*> pass_gather_shaders(VulkanScene& scene, VulkanPass& p
 
 std::map<uint32_t, VulkanBindingSet> shaders_merge_descriptors(Pass& pass, const std::vector<VulkanShader*>& shaders)
 {
+    // TODO: Merge stage flags
     std::map<uint32_t, VulkanBindingSet> bindingSets;
     for (auto& pShader : shaders)
     {
@@ -198,12 +200,30 @@ std::map<uint32_t, VulkanBindingSet> shaders_merge_descriptors(Pass& pass, const
         }
     }
 
+    // Merge the stage flags for matching bindings
+    for (auto& [setA, bindingSetA] : bindingSets)
+    {
+        auto& bindingsA = bindingSetA.bindings;
+        for (auto& pShader : shaders)
+        {
+            for (auto& bindingsB : pShader->bindingSets[setA].bindings)
+            {
+                auto itr = bindingsA.find(bindingsB.first);
+                if (itr != bindingsA.end())
+                {
+                    itr->second.stageFlags |= bindingsB.second.stageFlags;
+                }
+            }
+        }
+    }
+
     LOG(DBG, fmt::format("Pass {}, Descriptors:", pass.name));
     for (auto& [set, bindings] : bindingSets)
     {
+        LOG(DBG, "Set: " << set);
         for (auto& [index, binding] : bindings.bindings)
         {
-            LOG(DBG, fmt::format("Set: {} Index: {} Type: {} (Count: {})", set, index, ToStringDescriptorType((SpvReflectDescriptorType)binding.descriptorType), binding.descriptorCount));
+            LOG(DBG, fmt::format("{} {} (Count: {}) Flags: {}", index, ToStringDescriptorType((SpvReflectDescriptorType)binding.descriptorType), binding.descriptorCount, (VkShaderStageFlags)binding.stageFlags));
         }
     }
 
@@ -342,6 +362,96 @@ void vulkan_scene_wait(VulkanContext& ctx, VulkanScene* pVulkanScene)
     }
 }
 
+bool vulkan_scene_build_bindings(VulkanContext& ctx, VulkanScene& scene, VulkanPass& pass)
+{
+    // Build pointers to image infos for later
+    std::map<std::string, vk::DescriptorImageInfo> imageInfos;
+    for (auto& sampler : pass.pPass->samplers)
+    {
+        auto itrSurface = scene.surfaces.find(sampler);
+        if (itrSurface != scene.surfaces.end())
+        {
+            auto pSurface = itrSurface->second;
+            vk::DescriptorImageInfo desc_image;
+            desc_image.sampler = pSurface->sampler;
+            desc_image.imageView = pSurface->view;
+            desc_image.imageLayout = vk::ImageLayout::eShaderReadOnlyOptimal;
+            imageInfos[sampler] = desc_image;
+        }
+    }
+    
+    for (auto& [set, bindingSet] : pass.mergedBindingSets)
+    {
+        LOG(DBG, "Set: " << set);
+        std::vector<vk::DescriptorSetLayoutBinding> flatBindingList;
+        std::vector<vk::WriteDescriptorSet> writes;
+
+        for (auto& [index, binding] : bindingSet.bindings)
+        {
+            // TODO: StageFlags
+            LOG(DBG, fmt::format("Index: {} Type: {} (Count: {})", index, ToStringDescriptorType((SpvReflectDescriptorType)binding.descriptorType), binding.descriptorCount));
+            flatBindingList.push_back(binding);
+
+            vk::WriteDescriptorSet newWrite{};
+            newWrite.pNext = nullptr;
+            newWrite.descriptorCount = 1;
+            newWrite.descriptorType = binding.descriptorType;
+            newWrite.dstBinding = index;
+            newWrite.dstSet = nullptr;
+            newWrite.dstArrayElement = 0;
+            newWrite.pBufferInfo = nullptr;
+            newWrite.pTexelBufferView = nullptr;
+            if (binding.descriptorType == vk::DescriptorType::eUniformBuffer)
+            {
+                newWrite.pBufferInfo = &pass.vsUniform.descriptor;
+                writes.push_back(newWrite);
+            }
+            else if (binding.descriptorType == vk::DescriptorType::eCombinedImageSampler)
+            {
+                // TODO: Map specific sampler in set to the correct slot
+                // (Based on name in shader?)
+                // layout (set = 1, binding = 1) uniform sampler2D samplerA;
+                // For now, just one sampler, the first one.
+                if (!imageInfos.empty())
+                {
+                    auto itrImage = &imageInfos.begin()->second;
+                    newWrite.pImageInfo = itrImage;
+                    writes.push_back(newWrite);
+                }
+            }
+        }
+
+        // build layout first
+        vk::DescriptorSetLayoutCreateInfo layoutInfo{};
+        layoutInfo.pNext = nullptr;
+        layoutInfo.pBindings = flatBindingList.data();
+        layoutInfo.bindingCount = static_cast<uint32_t>(flatBindingList.size());
+
+        bindingSet.descriptorLayout = descriptor_create_layout(ctx, scene.descriptorCache, layoutInfo);
+
+        // allocate descriptor
+        bool success = descriptor_allocate(ctx, scene.descriptorCache, &bindingSet.descriptorSet, bindingSet.descriptorLayout);
+        if (!success)
+        {
+            return false;
+        };
+
+        if (!writes.empty())
+        {
+            for (vk::WriteDescriptorSet& w : writes)
+            {
+                w.dstSet = bindingSet.descriptorSet;
+            }
+
+            ctx.device.updateDescriptorSets(static_cast<uint32_t>(writes.size()), writes.data(), 0, nullptr);
+        }
+
+        debug_set_descriptorsetlayout_name(ctx.device, bindingSet.descriptorLayout, debug_pass_name(pass, "Layout"));
+        debug_set_descriptorset_name(ctx.device, bindingSet.descriptorSet, debug_pass_name(pass, "DescriptorSet"));
+    }
+    return true;
+}
+
 void vulkan_scene_prepare(VulkanContext& ctx, RenderContext& renderContext, Scene& scene)
 {
     auto pVulkanScene = vulkan_scene_get(ctx, scene);
@@ -408,7 +518,7 @@ void vulkan_scene_prepare(VulkanContext& ctx, RenderContext& renderContext, Scen
 
     if (targetsChanged)
     {
-        // Need to wait before resetting descriptors 
+        // Need to wait before resetting descriptors
         vulkan_scene_wait(ctx, pVulkanScene);
 
         // ctx.queue.waitIdle();
@@ -425,7 +535,6 @@ void vulkan_scene_prepare(VulkanContext& ctx, RenderContext& renderContext, Scen
             pVulkanPass->pDepthImage = nullptr;
 
             pVulkanPass->descriptorSets.clear();
-            //pVulkanPass->descriptorSetLayouts.clear();
 
             std::vector<glm::uvec2> sizes;
             // Figure out which surfaces we are using
@@ -528,59 +637,20 @@ void vulkan_scene_prepare(VulkanContext& ctx, RenderContext& renderContext, Scen
 
             if (!shaderStages.empty())
             {
-                std::vector<VulkanSurface*> samplers;
-                for (auto& sampler : pVulkanPass->pPass->samplers)
+                if (!vulkan_scene_build_bindings(ctx, *pVulkanScene, *pVulkanPass))
                 {
-                    auto itrSurface = pVulkanScene->surfaces.find(sampler);
-                    if (itrSurface != pVulkanScene->surfaces.end())
-                    {
-                        samplers.push_back(itrSurface->second.get());
-                    }
-                    /*
-                    else
-                    {
-                        reportError(fmt::format("Sampler not found: {}", sampler));
-                    }
-                    */
+                    scene_report_error(*pVulkanScene->pScene, fmt::format("Failed to build descriptors"));
+                    return;
                 }
 
-                DescriptorBuilder globalBuilder;
-                descriptor_bind_buffer(ctx,
-                    pVulkanScene->descriptorCache,
-                    globalBuilder,
-                    0,
-                    &pVulkanPass->vsUniform.descriptor,
-                    vk::DescriptorType::eUniformBuffer,
-                    vk::ShaderStageFlagBits::eVertex | vk::ShaderStageFlagBits::eFragment | vk::ShaderStageFlagBits::eGeometry);
-                descriptor_build(ctx, pVulkanScene->descriptorCache, globalBuilder, debug_pass_name(*pVulkanPass, "UBO"));
-
-                DescriptorBuilder samplerBuilder;
-                uint32_t index = 0;
-                for (auto& sampler : samplers)
-                {
-                    vk::DescriptorImageInfo desc_image;
-                    desc_image.sampler = sampler->sampler;
-                    desc_image.imageView = sampler->view;
-                    desc_image.imageLayout = vk::ImageLayout::eShaderReadOnlyOptimal;
-
-                    descriptor_bind_image(ctx,
-                        pVulkanScene->descriptorCache,
-                        samplerBuilder,
-                        index++,
-                        &desc_image,
-                        vk::DescriptorType::eCombinedImageSampler,
-                        vk::ShaderStageFlagBits::eVertex | vk::ShaderStageFlagBits::eFragment | vk::ShaderStageFlagBits::eGeometry);
-                }
-                descriptor_build(ctx, pVulkanScene->descriptorCache, samplerBuilder, debug_pass_name(*pVulkanPass, "Sampler:DescriptorSet"));
-
-                debug_set_descriptorsetlayout_name(ctx.device, samplerBuilder.layout, debug_pass_name(*pVulkanPass, "Sampler:DescriptorSetLayout"));
-                debug_set_descriptorset_name(ctx.device, samplerBuilder.set, debug_pass_name(*pVulkanPass, "Sampler:DescriptorSet"));
-
-                //std::vector<vk::DescriptorSet> descriptorSets;
+                // TODO: Move earlier
                 std::vector<vk::DescriptorSetLayout> descriptorSetLayouts;
-                descriptorSetLayouts = { globalBuilder.layout, samplerBuilder.layout };
-
-                pVulkanPass->descriptorSets = { globalBuilder.set, samplerBuilder.set };
+                pVulkanPass->descriptorSets.clear();
+                for (auto& [set, bindingSet] : pVulkanPass->mergedBindingSets)
+                {
+                    descriptorSetLayouts.push_back(bindingSet.descriptorLayout);
+                    pVulkanPass->descriptorSets.push_back(bindingSet.descriptorSet);
+                }
 
                 if (pVulkanPass->geometryPipelineLayout)
                 {

@@ -26,7 +26,10 @@ struct VulkanGeometry
 
 struct VulkanBindingSet
 {
-    std::map<uint32_t, VkDescriptorSetLayoutBinding> bindings;
+    std::map<uint32_t, vk::DescriptorSetLayoutBinding> bindings;
+    
+    vk::DescriptorSet descriptorSet;
+    vk::DescriptorSetLayout descriptorLayout;
 };
 
 struct VulkanShader

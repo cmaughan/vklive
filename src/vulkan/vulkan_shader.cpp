@@ -163,20 +163,20 @@ void shader_reflect(const std::string& spirv, VulkanShader& vulkanShader)
 
     for (auto& set : sets)
     {
-        std::vector<VkDescriptorSetLayoutBinding> bindings;
+        std::vector<vk::DescriptorSetLayoutBinding> bindings;
         for (uint32_t index = 0; index < set->binding_count; ++index)
         {
             auto& bindingReflect = *set->bindings[index];
 
-            VkDescriptorSetLayoutBinding layout_binding;
+            vk::DescriptorSetLayoutBinding layout_binding;
             layout_binding.binding = bindingReflect.binding;
-            layout_binding.descriptorType = static_cast<VkDescriptorType>(bindingReflect.descriptor_type);
+            layout_binding.descriptorType = static_cast<vk::DescriptorType>(bindingReflect.descriptor_type);
             layout_binding.descriptorCount = 1;
             for (uint32_t dim = 0; dim < bindingReflect.array.dims_count; dim++)
             {
                 layout_binding.descriptorCount *= bindingReflect.array.dims[dim];
             }
-            layout_binding.stageFlags = static_cast<VkShaderStageFlagBits>(module.shader_stage);
+            layout_binding.stageFlags = static_cast<vk::ShaderStageFlagBits>(module.shader_stage);
             vulkanShader.bindingSets[set->set].bindings[layout_binding.binding] = layout_binding;
         }
     }

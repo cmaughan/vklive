@@ -157,7 +157,7 @@ void descriptor_cleanup(VulkanContext& ctx, DescriptorCache& cache)
     cache.freePools.clear();
 }
 
-vk::DescriptorSetLayout create_descriptor_layout(VulkanContext& ctx, DescriptorCache& cache, vk::DescriptorSetLayoutCreateInfo& info)
+vk::DescriptorSetLayout descriptor_create_layout(VulkanContext& ctx, DescriptorCache& cache, vk::DescriptorSetLayoutCreateInfo& info)
 {
     DescriptorLayoutInfo layoutinfo;
     layoutinfo.bindings.reserve(info.bindingCount);
@@ -274,7 +274,7 @@ bool descriptor_build(VulkanContext& ctx, DescriptorCache& cache, DescriptorBuil
     layoutInfo.pBindings = builder.bindings.data();
     layoutInfo.bindingCount = static_cast<uint32_t>(builder.bindings.size());
 
-    builder.layout = create_descriptor_layout(ctx, cache, layoutInfo);
+    builder.layout = descriptor_create_layout(ctx, cache, layoutInfo);
 
     // allocate descriptor
     bool success = descriptor_allocate(ctx, cache, &builder.set, builder.layout);
