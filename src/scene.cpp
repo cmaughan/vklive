@@ -384,7 +384,6 @@ std::shared_ptr<Scene> scene_build(const fs::path& root)
                 auto pSurfaceNameNode = getChild(pSurfaceNode, T_IDENT);
 
                 auto spSurface = std::make_shared<Surface>(pSurfaceNameNode->contents);
-                auto pSurfaceFormat = getChild(pSurfaceNode, T_FORMAT);
 
                 if (hasChild(pSurfaceNode, T_PATH))
                 {

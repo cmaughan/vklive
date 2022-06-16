@@ -460,11 +460,6 @@ void vulkan_scene_prepare(VulkanContext& ctx, RenderContext& renderContext, Scen
         return;
     }
 
-    for (auto& [name, pSurf] : pVulkanScene->surfaces)
-    {
-        pSurf->pSurface->rendered = false;
-    }
-
     if (!pVulkanScene->commandBuffer)
     {
         pVulkanScene->fence = ctx.device.createFence(vk::FenceCreateInfo());
@@ -481,6 +476,8 @@ void vulkan_scene_prepare(VulkanContext& ctx, RenderContext& renderContext, Scen
     for (auto& [name, pVulkanSurface] : pVulkanScene->surfaces)
     {
         auto pSurface = pVulkanSurface->pSurface;
+        pSurface->rendered = false;
+
         if (pSurface->path.empty())
         {
             auto size = pSurface->size;
@@ -513,6 +510,21 @@ void vulkan_scene_prepare(VulkanContext& ctx, RenderContext& renderContext, Scen
                     }
                 }
             }
+        }
+        else
+        {
+            if (pVulkanSurface->allocationState == VulkanAllocationState::Init)
+            {
+                /*
+                auto file = runtree_find_path(fs::path("textures") / pVulkanSurface->pSurface->path);
+                if (fs::exists(file))
+                {
+                    surface_load_from_file(ctx, *pVulkanSurface, file);
+                }
+                */
+                pVulkanSurface->allocationState = VulkanAllocationState::Loaded;
+            }
+
         }
     }
 
@@ -790,7 +802,7 @@ void vulkan_scene_render(VulkanContext& ctx, RenderContext& renderContext, Scene
         // TODO: year, month, day, seconds since EPOCH
         pVulkanPass->vsUBO.iDate = glm::vec4(0.0f);
 
-        // TODO: Based on inputs when we have textures
+        // TODO: Based on input sizes; shouldn't be same as target necessarily.
         for (uint32_t i = 0; i < 4; i++)
         {
             pVulkanPass->vsUBO.iChannelResolution[i] = pVulkanPass->vsUBO.iResolution;
