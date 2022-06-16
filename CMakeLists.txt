@@ -43,6 +43,7 @@ find_package(unofficial-nativefiledialog CONFIG REQUIRED) # File dialogs that lo
 find_package(unofficial-spirv-reflect CONFIG REQUIRED)
 find_package(unofficial-vulkan-memory-allocator CONFIG REQUIRED)
 find_package(gli CONFIG REQUIRED)
+find_path(STB_INCLUDE_DIRS "stb.h")
 
 # Set this if we are sitting on SDL
 add_definitions(-DZEP_USE_SDL)
@@ -230,6 +231,7 @@ target_include_directories(Rezonality
     ${CMAKE_CURRENT_SOURCE_DIR}/zep/include
     ${CMAKE_CURRENT_LIST_DIR}/app/include
     ${CMAKE_CURRENT_LIST_DIR}/external
+    ${STB_INCLUDE_DIRS}
     )
 
 target_link_libraries(Rezonality 

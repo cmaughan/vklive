@@ -1,5 +1,8 @@
 #include <gli/gli.hpp>
 
+#define STB_IMAGE_IMPLEMENTATION
+#include <stb_image.h>
+
 #include "vklive/vulkan/vulkan_buffer.h"
 #include "vklive/vulkan/vulkan_command.h"
 #include "vklive/vulkan/vulkan_context.h"
@@ -148,14 +151,18 @@ void surface_create_sampler(VulkanContext& ctx, VulkanSurface& surface)
     vk::SamplerCreateInfo samplerCreateInfo;
     samplerCreateInfo.magFilter = vk::Filter::eLinear;
     samplerCreateInfo.minFilter = vk::Filter::eLinear;
+    samplerCreateInfo.addressModeU = vk::SamplerAddressMode::eMirroredRepeat;
+    samplerCreateInfo.addressModeV = vk::SamplerAddressMode::eMirroredRepeat;
+    samplerCreateInfo.addressModeW = vk::SamplerAddressMode::eMirroredRepeat;
+
     samplerCreateInfo.mipmapMode = vk::SamplerMipmapMode::eLinear;
     // Max level-of-detail should match mip level count
     samplerCreateInfo.maxLod = static_cast<float>(surface.mipLevels);
     // Only enable anisotropic filtering if enabled on the devicec
     // TODO
-    //samplerCreateInfo.maxAnisotropy = ctx.deviceFeatures.samplerAnisotropy ? ctx.deviceProperties.limits.maxSamplerAnisotropy : 1.0f;
-    //samplerCreateInfo.anisotropyEnable = ctx.deviceFeatures.samplerAnisotropy;
-    samplerCreateInfo.borderColor = vk::BorderColor::eFloatOpaqueWhite;
+    // samplerCreateInfo.maxAnisotropy = ctx.deviceFeatures.samplerAnisotropy ? ctx.deviceProperties.limits.maxSamplerAnisotropy : 1.0f;
+    // samplerCreateInfo.anisotropyEnable = ctx.deviceFeatures.samplerAnisotropy;
+    samplerCreateInfo.borderColor = vk::BorderColor::eFloatTransparentBlack; //OpaqueWhite;
 
     surface.sampler = ctx.device.createSampler(samplerCreateInfo);
 }
@@ -409,7 +416,7 @@ void surface_stage_to_device(VulkanContext& ctx, VulkanSurface& surface, const v
     surface_stage_to_device(ctx, surface, imageCreateInfo, memoryPropertyFlags, (vk::DeviceSize)tex2D.size(), tex2D.data(), mips, layout);
 }
 
-void surface_load_from_file(VulkanContext& ctx, VulkanSurface& surface, const fs::path& filename, vk::Format format, vk::ImageUsageFlags imageUsageFlags, vk::ImageLayout imageLayout, bool forceLinear)
+void surface_create_from_file(VulkanContext& ctx, VulkanSurface& surface, const fs::path& filename, vk::Format format, vk::ImageUsageFlags imageUsageFlags, vk::ImageLayout imageLayout, bool forceLinear)
 {
     surface_destroy(ctx, surface);
 
@@ -421,28 +428,57 @@ void surface_load_from_file(VulkanContext& ctx, VulkanSurface& surface, const fs
     std::shared_ptr<gli::texture2d> tex2Dptr;
 
     auto data = file_read(filename);
-    tex2Dptr = std::make_shared<gli::texture2d>(gli::load(data.c_str(), data.size()));
 
-    const auto& tex2D = *tex2Dptr;
-    assert(!tex2D.empty());
+    if (filename.extension() == ".dds" || filename.extension() == ".ktx")
+    {
+        auto pTex = std::make_shared<gli::texture2d>(gli::load(data.c_str(), data.size()));
+        if (!pTex)
+        {
+            // TODO: Error
+            return; 
+        }
 
-    surface.extent.width = static_cast<uint32_t>(tex2D[0].extent().x);
-    surface.extent.height = static_cast<uint32_t>(tex2D[0].extent().y);
-    surface.extent.depth = 1;
-    surface.mipLevels = static_cast<uint32_t>(tex2D.levels());
-    surface.layerCount = 1;
+        surface.extent.width = static_cast<uint32_t>(pTex->extent().x);
+        surface.extent.height = static_cast<uint32_t>(pTex->extent().y);
+        surface.extent.depth = 1;
+        surface.mipLevels = static_cast<uint32_t>(pTex->levels());
+        surface.layerCount = 1;
 
-    // Create optimal tiled target image
-    vk::ImageCreateInfo imageCreateInfo;
-    imageCreateInfo.imageType = vk::ImageType::e2D;
-    imageCreateInfo.format = format;
-    imageCreateInfo.mipLevels = surface.mipLevels;
-    imageCreateInfo.arrayLayers = 1;
-    imageCreateInfo.extent = surface.extent;
-    imageCreateInfo.usage = imageUsageFlags | vk::ImageUsageFlagBits::eTransferDst;
+        // Create optimal tiled target image
+        vk::ImageCreateInfo imageCreateInfo;
+        imageCreateInfo.imageType = vk::ImageType::e2D;
+        imageCreateInfo.format = format;
+        imageCreateInfo.mipLevels = surface.mipLevels;
+        imageCreateInfo.arrayLayers = 1;
+        imageCreateInfo.extent = surface.extent;
+        imageCreateInfo.usage = imageUsageFlags | vk::ImageUsageFlagBits::eTransferDst;
 
-    // Will create the surface image 
-    surface_stage_to_device(ctx, surface, imageCreateInfo, vk::MemoryPropertyFlagBits::eDeviceLocal, tex2D, imageLayout);
+        // Will create the surface image
+        surface_stage_to_device(ctx, surface, imageCreateInfo, vk::MemoryPropertyFlagBits::eDeviceLocal, *pTex, imageLayout);
+    }
+    else
+    {
+        int x, y, n;
+        auto loaded = stbi_load_from_memory((const stbi_uc*)data.c_str(), int(data.size()), &x, &y, &n, 0);
+     
+        surface.extent.width = static_cast<uint32_t>(x);
+        surface.extent.height = static_cast<uint32_t>(y);
+        surface.extent.depth = 1;
+        surface.mipLevels = 1;
+        surface.layerCount = 1;
+
+        // Create optimal tiled target image
+        vk::ImageCreateInfo imageCreateInfo;
+        imageCreateInfo.imageType = vk::ImageType::e2D;
+        imageCreateInfo.format = format;
+        imageCreateInfo.mipLevels = surface.mipLevels;
+        imageCreateInfo.arrayLayers = 1;
+        imageCreateInfo.extent = surface.extent;
+        imageCreateInfo.usage = imageUsageFlags | vk::ImageUsageFlagBits::eTransferDst;
+
+        // Will create the surface image
+        surface_stage_to_device(ctx, surface, imageCreateInfo, vk::MemoryPropertyFlagBits::eDeviceLocal, x * y * n, static_cast<const void*>(loaded));
+    }
 
     // Add sampler
     surface_create_sampler(ctx, surface);
@@ -466,7 +502,6 @@ void surface_load_from_file(VulkanContext& ctx, VulkanSurface& surface, const fs
         surface.descriptorInfo.sampler = surface.sampler;
     }
 }
-
 
 /*
 inline void copy(size_t size, const void* data, VkDeviceSize offset = 0) const

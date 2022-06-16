@@ -369,11 +369,14 @@ bool vulkan_scene_build_bindings(VulkanContext& ctx, VulkanScene& vulkanScene, V
         if (itrSurface != vulkanScene.surfaces.end())
         {
             auto pSurface = itrSurface->second;
-            vk::DescriptorImageInfo desc_image;
-            desc_image.sampler = pSurface->sampler;
-            desc_image.imageView = pSurface->view;
-            desc_image.imageLayout = vk::ImageLayout::eShaderReadOnlyOptimal;
-            imageInfos[sampler] = desc_image;
+            if (pSurface->image && pSurface->view)
+            {
+                vk::DescriptorImageInfo desc_image;
+                desc_image.sampler = pSurface->sampler;
+                desc_image.imageView = pSurface->view;
+                desc_image.imageLayout = vk::ImageLayout::eShaderReadOnlyOptimal;
+                imageInfos[sampler] = desc_image;
+            }
         }
     }
     
@@ -534,13 +537,11 @@ void vulkan_scene_prepare(VulkanContext& ctx, RenderContext& renderContext, Scen
         {
             if (pVulkanSurface->allocationState == VulkanAllocationState::Init)
             {
-                /*
                 auto file = runtree_find_path(fs::path("textures") / pVulkanSurface->pSurface->path);
                 if (fs::exists(file))
                 {
-                    surface_load_from_file(ctx, *pVulkanSurface, file);
+                    surface_create_from_file(ctx, *pVulkanSurface, file);
                 }
-                */
                 pVulkanSurface->allocationState = VulkanAllocationState::Loaded;
             }
 

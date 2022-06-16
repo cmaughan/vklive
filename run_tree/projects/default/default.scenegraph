@@ -1,7 +1,7 @@
 // Background
 
 surface: Noise {
-    path: noise.png
+    path: Noise.png
 }
 
 surface: A {
@@ -18,6 +18,7 @@ surface: Depth {
 }
 
 pass: Pass1 {                   // A pass draws geometry 
+    samplers: (Noise)          // List of samplers; noise texture
     targets: (A, Depth)       // List of render targets
     clear: (0.0, 1.0, 0.0, 1.0) // Clear done every pass
     geometry: background {      // The geometry to submit
@@ -32,7 +33,7 @@ pass: Pass2 {
     targets: (A, Depth)
     geometry : shape {
         path: sphere.gltf
-        scale: (1.45, 1.25, 1.25) // Scale for the model matrix
+        scale: (1.0, 1.0, 1.0) // Scale for the model matrix
         vs: geom.vert
         fs: geom.frag
     }
@@ -43,7 +44,6 @@ pass: Pass2 {
     targets: (A, Depth)
     geometry : shape {
         path: sphere.gltf
-        scale: (1.45, 2.25, 2.25)
         vs: geom.vert
         fs: geom.frag
         gs: geom.geom

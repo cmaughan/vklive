@@ -14,8 +14,8 @@ layout (set = 1, binding = 0) uniform sampler2D A;
 void main() 
 {
     vec2 texCoord = inUV ;
-    texCoord.x += (sin(ubo.iTime * texCoord.x) * .01) * 4.0;
-    texCoord.y += (cos(ubo.iTime * texCoord.y) * .01) * 4.0;
+//    texCoord.x += (sin(ubo.iTime * texCoord.x) * .01) * 4.0;
+//    texCoord.y += (cos(ubo.iTime * texCoord.y) * .01) * 4.0;
     outFragColor = texture(A, texCoord);
     outFragColor.w = 1.0;
 }
