@@ -1,8 +1,10 @@
-#include "vklive/vulkan/vulkan_surface.h"
-#include "vklive/vulkan/vulkan_context.h"
-#include "vklive/vulkan/vulkan_utils.h"
+#include <gli/gli.hpp>
+
 #include "vklive/vulkan/vulkan_buffer.h"
 #include "vklive/vulkan/vulkan_command.h"
+#include "vklive/vulkan/vulkan_context.h"
+#include "vklive/vulkan/vulkan_surface.h"
+#include "vklive/vulkan/vulkan_utils.h"
 
 namespace vulkan
 {
@@ -28,7 +30,7 @@ void surface_destroy(VulkanContext& ctx, VulkanSurface& img)
     // We don't free these here, but do take account of the fact they are no longer valid
     if (img.samplerDescriptorSet)
     {
-        //ctx.device.freeDescriptorSets(ctx.descriptorPool, img.samplerDescriptorSet);
+        // ctx.device.freeDescriptorSets(ctx.descriptorPool, img.samplerDescriptorSet);
         img.samplerDescriptorSet = nullptr;
     }
     if (img.mapped)
@@ -124,7 +126,7 @@ void surface_create_depth(VulkanContext& ctx, VulkanSurface& vulkanImage, const 
     image.tiling = vk::ImageTiling::eOptimal;
     image.format = depthFormat;
     image.usage = vk::ImageUsageFlagBits::eDepthStencilAttachment | depthUsage;
-     
+
     surface_create(ctx, vulkanImage, image, vk::MemoryPropertyFlagBits::eDeviceLocal);
     debug_set_image_name(ctx.device, vulkanImage.image, name + ":DepthImage");
     debug_set_devicememory_name(ctx.device, vulkanImage.memory, name + ":DepthImageMemory");
@@ -140,23 +142,41 @@ void surface_create_depth(VulkanContext& ctx, VulkanSurface& vulkanImage, const 
     debug_set_imageview_name(ctx.device, vulkanImage.view, name + ":DepthImageView");
 }
 
-void surface_set_sampling(VulkanContext& ctx, VulkanSurface& image)
+void surface_create_sampler(VulkanContext& ctx, VulkanSurface& surface)
 {
-    image.sampler = ctx.device.createSampler(vk::SamplerCreateInfo({}, vk::Filter::eLinear, vk::Filter::eLinear, vk::SamplerMipmapMode::eLinear));
+    // Create sampler
+    vk::SamplerCreateInfo samplerCreateInfo;
+    samplerCreateInfo.magFilter = vk::Filter::eLinear;
+    samplerCreateInfo.minFilter = vk::Filter::eLinear;
+    samplerCreateInfo.mipmapMode = vk::SamplerMipmapMode::eLinear;
+    // Max level-of-detail should match mip level count
+    samplerCreateInfo.maxLod = static_cast<float>(surface.mipLevels);
+    // Only enable anisotropic filtering if enabled on the devicec
+    // TODO
+    //samplerCreateInfo.maxAnisotropy = ctx.deviceFeatures.samplerAnisotropy ? ctx.deviceProperties.limits.maxSamplerAnisotropy : 1.0f;
+    //samplerCreateInfo.anisotropyEnable = ctx.deviceFeatures.samplerAnisotropy;
+    samplerCreateInfo.borderColor = vk::BorderColor::eFloatOpaqueWhite;
 
-    auto binding = vk::DescriptorSetLayoutBinding(0, vk::DescriptorType::eCombinedImageSampler, 1, vk::ShaderStageFlagBits::eFragment, &image.sampler);
-    image.samplerDescriptorSetLayout = ctx.device.createDescriptorSetLayout(vk::DescriptorSetLayoutCreateInfo(vk::DescriptorSetLayoutCreateFlags(), binding));
-    image.samplerDescriptorSet = ctx.device.allocateDescriptorSets(vk::DescriptorSetAllocateInfo(ctx.descriptorPool, image.samplerDescriptorSetLayout))[0];
+    surface.sampler = ctx.device.createSampler(samplerCreateInfo);
+}
+
+void surface_set_sampling(VulkanContext& ctx, VulkanSurface& surface)
+{
+    surface_create_sampler(ctx, surface);
+
+    auto binding = vk::DescriptorSetLayoutBinding(0, vk::DescriptorType::eCombinedImageSampler, 1, vk::ShaderStageFlagBits::eFragment, &surface.sampler);
+    surface.samplerDescriptorSetLayout = ctx.device.createDescriptorSetLayout(vk::DescriptorSetLayoutCreateInfo(vk::DescriptorSetLayoutCreateFlags(), binding));
+    surface.samplerDescriptorSet = ctx.device.allocateDescriptorSets(vk::DescriptorSetAllocateInfo(ctx.descriptorPool, surface.samplerDescriptorSetLayout))[0];
 
     // Update the Descriptor Set:
     {
         vk::DescriptorImageInfo desc_image;
-        desc_image.sampler = image.sampler;
-        desc_image.imageView = image.view;
+        desc_image.sampler = surface.sampler;
+        desc_image.imageView = surface.view;
         desc_image.imageLayout = vk::ImageLayout::eShaderReadOnlyOptimal;
 
         vk::WriteDescriptorSet write_desc;
-        write_desc.dstSet = image.samplerDescriptorSet;
+        write_desc.dstSet = surface.samplerDescriptorSet;
         write_desc.descriptorCount = 1;
         write_desc.descriptorType = vk::DescriptorType::eCombinedImageSampler;
         write_desc.setImageInfo(desc_image);
@@ -334,21 +354,19 @@ void surface_set_layout(VulkanContext& ctx, vk::Image image, vk::ImageAspectFlag
     });
 }
 
-/*
-VulkanSurface surface_stage_to_device(VulkanContext& ctx, vk::ImageCreateInfo imageCreateInfo, const vk::MemoryPropertyFlags& memoryPropertyFlags, vk::DeviceSize size, const void* data, const std::vector<MipData>& mipData, const vk::ImageLayout layout)
+void surface_stage_to_device(VulkanContext& ctx, VulkanSurface& surface, vk::ImageCreateInfo imageCreateInfo, const vk::MemoryPropertyFlags& memoryPropertyFlags, vk::DeviceSize size, const void* data, const std::vector<MipData>& mipData, const vk::ImageLayout layout)
 {
     VulkanBuffer staging = buffer_create_staging(ctx, size, data);
     imageCreateInfo.usage = imageCreateInfo.usage | vk::ImageUsageFlagBits::eTransferDst;
-    
-    VulkanSurface result;
-    surface_create(ctx, result, imageCreateInfo, memoryPropertyFlags);
+
+    surface_create(ctx, surface, imageCreateInfo, memoryPropertyFlags);
 
     utils_with_command_buffer(ctx, [&](const vk::CommandBuffer& copyCmd) {
         debug_set_commandbuffer_name(ctx.device, copyCmd, "Buffer::StageToDevice");
         vk::ImageSubresourceRange range(vk::ImageAspectFlagBits::eColor, 0, imageCreateInfo.mipLevels, 0, 1);
 
         // Prepare for transfer
-        surface_set_layout(ctx, copyCmd, result.image, vk::ImageLayout::eUndefined, vk::ImageLayout::eTransferDstOptimal, range);
+        surface_set_layout(ctx, copyCmd, surface.image, vk::ImageLayout::eUndefined, vk::ImageLayout::eTransferDstOptimal, range);
 
         // Prepare for transfer
         std::vector<vk::BufferImageCopy> bufferCopyRegions;
@@ -372,14 +390,84 @@ VulkanSurface surface_stage_to_device(VulkanContext& ctx, vk::ImageCreateInfo im
                 bufferCopyRegions.push_back(bufferCopyRegion);
             }
         }
-        copyCmd.copyBufferToImage(staging.buffer, result.image, vk::ImageLayout::eTransferDstOptimal, bufferCopyRegions);
+        copyCmd.copyBufferToImage(staging.buffer, surface.image, vk::ImageLayout::eTransferDstOptimal, bufferCopyRegions);
         // Prepare for shader read
-        surface_set_layout(ctx, copyCmd, result.image, vk::ImageLayout::eTransferDstOptimal, layout, range);
+        surface_set_layout(ctx, copyCmd, surface.image, vk::ImageLayout::eTransferDstOptimal, layout, range);
     });
     buffer_destroy(ctx, staging);
-    return result;
 }
-*/
+
+void surface_stage_to_device(VulkanContext& ctx, VulkanSurface& surface, const vk::ImageCreateInfo& imageCreateInfo, const vk::MemoryPropertyFlags& memoryPropertyFlags, const gli::texture2d& tex2D, const vk::ImageLayout& layout)
+{
+    std::vector<MipData> mips;
+    for (size_t i = 0; i < imageCreateInfo.mipLevels; ++i)
+    {
+        const auto& mip = tex2D[i];
+        const auto dims = mip.extent();
+        mips.push_back({ vk::Extent3D{ (uint32_t)dims.x, (uint32_t)dims.y, 1 }, (uint32_t)mip.size() });
+    }
+    surface_stage_to_device(ctx, surface, imageCreateInfo, memoryPropertyFlags, (vk::DeviceSize)tex2D.size(), tex2D.data(), mips, layout);
+}
+
+void surface_load_from_file(VulkanContext& ctx, VulkanSurface& surface, const fs::path& filename, vk::Format format, vk::ImageUsageFlags imageUsageFlags, vk::ImageLayout imageLayout, bool forceLinear)
+{
+    surface_destroy(ctx, surface);
+
+    if (!fs::exists(filename))
+    {
+        return;
+    }
+
+    std::shared_ptr<gli::texture2d> tex2Dptr;
+
+    auto data = file_read(filename);
+    tex2Dptr = std::make_shared<gli::texture2d>(gli::load(data.c_str(), data.size()));
+
+    const auto& tex2D = *tex2Dptr;
+    assert(!tex2D.empty());
+
+    surface.extent.width = static_cast<uint32_t>(tex2D[0].extent().x);
+    surface.extent.height = static_cast<uint32_t>(tex2D[0].extent().y);
+    surface.extent.depth = 1;
+    surface.mipLevels = static_cast<uint32_t>(tex2D.levels());
+    surface.layerCount = 1;
+
+    // Create optimal tiled target image
+    vk::ImageCreateInfo imageCreateInfo;
+    imageCreateInfo.imageType = vk::ImageType::e2D;
+    imageCreateInfo.format = format;
+    imageCreateInfo.mipLevels = surface.mipLevels;
+    imageCreateInfo.arrayLayers = 1;
+    imageCreateInfo.extent = surface.extent;
+    imageCreateInfo.usage = imageUsageFlags | vk::ImageUsageFlagBits::eTransferDst;
+
+    // Will create the surface image 
+    surface_stage_to_device(ctx, surface, imageCreateInfo, vk::MemoryPropertyFlagBits::eDeviceLocal, tex2D, imageLayout);
+
+    // Add sampler
+    surface_create_sampler(ctx, surface);
+
+    // Create image view
+    static const vk::ImageUsageFlags VIEW_USAGE_FLAGS = vk::ImageUsageFlagBits::eSampled | vk::ImageUsageFlagBits::eStorage | vk::ImageUsageFlagBits::eColorAttachment | vk::ImageUsageFlagBits::eDepthStencilAttachment | vk::ImageUsageFlagBits::eInputAttachment;
+
+    if (imageUsageFlags & VIEW_USAGE_FLAGS)
+    {
+        vk::ImageViewCreateInfo viewCreateInfo;
+        viewCreateInfo.viewType = vk::ImageViewType::e2D;
+        viewCreateInfo.image = surface.image;
+        viewCreateInfo.format = format;
+        viewCreateInfo.subresourceRange = { vk::ImageAspectFlagBits::eColor, 0, surface.mipLevels, 0, surface.layerCount };
+        surface.view = ctx.device.createImageView(viewCreateInfo);
+
+        // Update descriptor image info member that can be used for setting up descriptor sets
+        // TODO: Not sure I need this copy of stuff?
+        surface.descriptorInfo.imageLayout = imageLayout;
+        surface.descriptorInfo.imageView = surface.view;
+        surface.descriptorInfo.sampler = surface.sampler;
+    }
+}
+
+
 /*
 inline void copy(size_t size, const void* data, VkDeviceSize offset = 0) const
 {

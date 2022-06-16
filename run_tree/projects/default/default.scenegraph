@@ -1,5 +1,9 @@
 // Background
 
+surface: Noise {
+    path: noise.png
+}
+
 surface: A {
     scale: (1, 1, 1)      // Scale relative to window
     format: default_color       // Default RGBA8

@@ -37,20 +37,6 @@ int utils_get_min_image_count_from_present_mode(vk::PresentModeKHR present_mode)
 // Image
 void utils_set_image_layout(VulkanContext& ctx, vk::CommandBuffer const& commandBuffer, vk::Image image, vk::Format format, vk::ImageLayout oldImageLayout, vk::ImageLayout newImageLayout);
 
-/*
-template <typename T>
-VulkanSurface image_stage_to_device(VulkanContext& ctx, const vk::ImageCreateInfo& imageCreateInfo, const vk::MemoryPropertyFlags& memoryPropertyFlags, const std::vector<T>& data)
-{
-    return image_stage_to_device(ctx, imageCreateInfo, memoryPropertyFlags, data.size() * sizeof(T), (void*)data.data());
-}
-
-template <typename T>
-VulkanSurface image_stage_to_device(VulkanContext& ctx, const vk::ImageCreateInfo& imageCreateInfo, const std::vector<T>& data)
-{
-    return image_stage_to_device(ctx, imageCreateInfo, vk::MemoryPropertyFlagBits::eDeviceLocal, data.size() * sizeof(T), (void*)data.data());
-}
-*/
-
 void utils_copy_to_memory(VulkanContext& ctx, const vk::DeviceMemory& memory, const void* data, vk::DeviceSize size, vk::DeviceSize offset = 0);
 
 template <typename T>
