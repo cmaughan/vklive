@@ -178,6 +178,14 @@ void shader_reflect(const std::string& spirv, VulkanShader& vulkanShader)
             }
             layout_binding.stageFlags = static_cast<vk::ShaderStageFlagBits>(module.shader_stage);
             vulkanShader.bindingSets[set->set].bindings[layout_binding.binding] = layout_binding;
+
+            VulkanBindingMeta meta;
+            meta.name = bindingReflect.name;
+            meta.shaderPath = vulkanShader.pShader->path;
+            // TODO: Can we provide the range here? 
+            // The reflection doesn't give us file offsets, so we would have to scan the file and find the declarations
+            meta.line = 0;
+            vulkanShader.bindingSets[set->set].bindingMeta[layout_binding.binding] = meta;
         }
     }
     spvReflectDestroyShaderModule(&module);

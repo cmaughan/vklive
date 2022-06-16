@@ -1,9 +1,9 @@
 #pragma once
 
-#include <vector>
-#include <string>
-#include <memory>
 #include <map>
+#include <memory>
+#include <string>
+#include <vector>
 
 #include "file/file.h"
 #include <vklive/camera.h>
@@ -29,7 +29,7 @@ struct Surface
     }
 
     std::string name;
-    
+
     // Meaning full size framebuffer
     glm::uvec2 size = glm::uvec2(0);
 
@@ -41,7 +41,7 @@ struct Surface
 
     // Format if a target
     Format format = Format::Default;
-    
+
     // Has this image been rendered to during the frame?
     bool rendered = false;
 };
@@ -55,7 +55,8 @@ enum class GeometryType
 struct Geometry
 {
     Geometry(const fs::path& p)
-        : path(p), type(GeometryType::Model)
+        : path(p)
+        , type(GeometryType::Model)
     {
     }
 
@@ -72,7 +73,7 @@ struct Geometry
 
 struct Shader
 {
-    Shader(const fs::path &n)
+    Shader(const fs::path& n)
         : path(n)
     {
     }
@@ -95,7 +96,7 @@ struct Pass
     std::string depth;
     std::vector<fs::path> geometries;
     std::vector<fs::path> shaders;
-    
+
     Camera camera;
 
     int scriptTargetsLine = 0;
@@ -117,11 +118,11 @@ struct Scene
     std::map<fs::path, std::shared_ptr<Geometry>> geometries;
     std::map<fs::path, std::shared_ptr<Shader>> shaders;
     std::map<std::string, std::shared_ptr<Pass>> passes;
-    std::vector<Message> errors; 
-    std::vector<Message> warnings; 
+    std::vector<Message> errors;
+    std::vector<Message> warnings;
     std::vector<fs::path> headers;
 
-    // Evaluated values for rendering 
+    // Evaluated values for rendering
     std::vector<Pass*> passOrder;
     Surface* finalColorTarget;
 
@@ -131,6 +132,4 @@ struct Scene
 std::shared_ptr<Scene> scene_build(const fs::path& root);
 void scene_destroy_parser();
 bool format_is_depth(const Format& fmt);
-void scene_report_error(Scene& scene, const std::string& txt);
-
-
+void scene_report_error(Scene& scene, const std::string& txt, const fs::path& path = fs::path(), int32_t line = -1, const std::pair<int32_t, int32_t>& range = std::make_pair(-1, -1));

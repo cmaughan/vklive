@@ -190,17 +190,18 @@ std::vector<VulkanShader*> pass_gather_shaders(VulkanScene& scene, VulkanPass& p
 
 std::map<uint32_t, VulkanBindingSet> shaders_merge_descriptors(Pass& pass, const std::vector<VulkanShader*>& shaders)
 {
-    // TODO: Merge stage flags
     std::map<uint32_t, VulkanBindingSet> bindingSets;
     for (auto& pShader : shaders)
     {
         for (auto& [set, bindings] : pShader->bindingSets)
         {
             bindingSets[set].bindings.merge(bindings.bindings);
+            bindingSets[set].bindingMeta.merge(bindings.bindingMeta);
         }
     }
 
     // Merge the stage flags for matching bindings
+    // TODO: Is this all we need to do here?
     for (auto& [setA, bindingSetA] : bindingSets)
     {
         auto& bindingsA = bindingSetA.bindings;
@@ -249,10 +250,6 @@ void vulkan_scene_init(VulkanContext& ctx, Scene& scene)
     auto spVulkanScene = std::make_shared<VulkanScene>(&scene);
     ctx.mapVulkanScene[&scene] = spVulkanScene;
 
-    auto reportError = [&](auto txt) {
-        scene_report_error(scene, txt);
-    };
-
     descriptor_init(ctx, spVulkanScene->descriptorCache);
 
     // First, load the models
@@ -271,7 +268,7 @@ void vulkan_scene_init(VulkanContext& ctx, Scene& scene)
             loadPath = runtree_find_path("models/quad.obj");
             if (loadPath.empty())
             {
-                reportError(fmt::format("Could not load default asset: {}", "runtree/models/quad.obj"));
+                scene_report_error(scene, fmt::format("Could not load default asset: {}", "runtree/models/quad.obj"));
                 continue;
             }
         }
@@ -286,7 +283,7 @@ void vulkan_scene_init(VulkanContext& ctx, Scene& scene)
             {
                 txt += "\n" + spVulkanGeometry->model.errors;
             }
-            reportError(txt);
+            scene_report_error(scene, txt);
         }
         else
         {
@@ -307,7 +304,7 @@ void vulkan_scene_init(VulkanContext& ctx, Scene& scene)
         }
         else
         {
-            reportError(fmt::format("Could not create shader: {}", path.filename().string()));
+            scene_report_error(scene, fmt::format("Could not create shader: {}", path.filename().string()));
         }
     }
 
@@ -362,14 +359,14 @@ void vulkan_scene_wait(VulkanContext& ctx, VulkanScene* pVulkanScene)
     }
 }
 
-bool vulkan_scene_build_bindings(VulkanContext& ctx, VulkanScene& scene, VulkanPass& pass)
+bool vulkan_scene_build_bindings(VulkanContext& ctx, VulkanScene& vulkanScene, VulkanPass& vulkanPass)
 {
     // Build pointers to image infos for later
     std::map<std::string, vk::DescriptorImageInfo> imageInfos;
-    for (auto& sampler : pass.pPass->samplers)
+    for (auto& sampler : vulkanPass.pPass->samplers)
     {
-        auto itrSurface = scene.surfaces.find(sampler);
-        if (itrSurface != scene.surfaces.end())
+        auto itrSurface = vulkanScene.surfaces.find(sampler);
+        if (itrSurface != vulkanScene.surfaces.end())
         {
             auto pSurface = itrSurface->second;
             vk::DescriptorImageInfo desc_image;
@@ -380,7 +377,7 @@ bool vulkan_scene_build_bindings(VulkanContext& ctx, VulkanScene& scene, VulkanP
         }
     }
     
-    for (auto& [set, bindingSet] : pass.mergedBindingSets)
+    for (auto& [set, bindingSet] : vulkanPass.mergedBindingSets)
     {
         LOG(DBG, "Set: " << set);
         std::vector<vk::DescriptorSetLayoutBinding> flatBindingList;
@@ -388,10 +385,16 @@ bool vulkan_scene_build_bindings(VulkanContext& ctx, VulkanScene& scene, VulkanP
 
         for (auto& [index, binding] : bindingSet.bindings)
         {
-            // TODO: StageFlags
-            LOG(DBG, fmt::format("Index: {} Type: {} (Count: {})", index, ToStringDescriptorType((SpvReflectDescriptorType)binding.descriptorType), binding.descriptorCount));
+            auto itrMeta = bindingSet.bindingMeta.find(index);
+            if (itrMeta == bindingSet.bindingMeta.end())
+            {
+                // TODO: Is this an Error? I think it might be
+                return false;
+            }
+
             flatBindingList.push_back(binding);
 
+            // TODO: Binding count.  When is there more than 1 specified? An array in the shader?
             vk::WriteDescriptorSet newWrite{};
             newWrite.pNext = nullptr;
             newWrite.descriptorCount = 1;
@@ -403,20 +406,25 @@ bool vulkan_scene_build_bindings(VulkanContext& ctx, VulkanScene& scene, VulkanP
             newWrite.pTexelBufferView = nullptr;
             if (binding.descriptorType == vk::DescriptorType::eUniformBuffer)
             {
-                newWrite.pBufferInfo = &pass.vsUniform.descriptor;
+                // For now bind the existing UBO
+                newWrite.pBufferInfo = &vulkanPass.vsUniform.descriptor;
                 writes.push_back(newWrite);
             }
             else if (binding.descriptorType == vk::DescriptorType::eCombinedImageSampler)
             {
-                // TODO: Map specific sampler in set to the correct slot
-                // (Based on name in shader?)
+                // Map specific sampler in set to the correct slot
+                // Based on name in shader.
                 // layout (set = 1, binding = 1) uniform sampler2D samplerA;
-                // For now, just one sampler, the first one.
-                if (!imageInfos.empty())
+                auto itrImage = imageInfos.find(itrMeta->second.name);
+                if (itrImage != imageInfos.end())
                 {
-                    auto itrImage = &imageInfos.begin()->second;
-                    newWrite.pImageInfo = itrImage;
+                    newWrite.pImageInfo = &itrImage->second;
                     writes.push_back(newWrite);
+                }
+                else
+                {
+                    scene_report_error(*vulkanScene.pScene, fmt::format("Could not find surface to bind to: {}", itrMeta->second.name), itrMeta->second.shaderPath, itrMeta->second.line, itrMeta->second.range);
+                    return false;
                 }
             }
         }
@@ -427,12 +435,13 @@ bool vulkan_scene_build_bindings(VulkanContext& ctx, VulkanScene& scene, VulkanP
         layoutInfo.pBindings = flatBindingList.data();
         layoutInfo.bindingCount = static_cast<uint32_t>(flatBindingList.size());
 
-        bindingSet.descriptorLayout = descriptor_create_layout(ctx, scene.descriptorCache, layoutInfo);
+        bindingSet.descriptorLayout = descriptor_create_layout(ctx, vulkanScene.descriptorCache, layoutInfo);
 
         // allocate descriptor
-        bool success = descriptor_allocate(ctx, scene.descriptorCache, &bindingSet.descriptorSet, bindingSet.descriptorLayout);
+        bool success = descriptor_allocate(ctx, vulkanScene.descriptorCache, &bindingSet.descriptorSet, bindingSet.descriptorLayout);
         if (!success)
         {
+            scene_report_error(*vulkanScene.pScene, fmt::format("Could not allocate descriptor"));
             return false;
         };
 
@@ -446,9 +455,19 @@ bool vulkan_scene_build_bindings(VulkanContext& ctx, VulkanScene& scene, VulkanP
             ctx.device.updateDescriptorSets(static_cast<uint32_t>(writes.size()), writes.data(), 0, nullptr);
         }
 
-        debug_set_descriptorsetlayout_name(ctx.device, bindingSet.descriptorLayout, debug_pass_name(pass, "Layout"));
-        debug_set_descriptorset_name(ctx.device, bindingSet.descriptorSet, debug_pass_name(pass, "DescriptorSet"));
+        debug_set_descriptorsetlayout_name(ctx.device, bindingSet.descriptorLayout, debug_pass_name(vulkanPass, "Layout"));
+        debug_set_descriptorset_name(ctx.device, bindingSet.descriptorSet, debug_pass_name(vulkanPass, "DescriptorSet"));
     }
+
+    // Store these for easy setting later
+    vulkanPass.descriptorSetLayouts.clear();
+    vulkanPass.descriptorSets.clear();
+    for (auto& [set, bindingSet] : vulkanPass.mergedBindingSets)
+    {
+        vulkanPass.descriptorSetLayouts.push_back(bindingSet.descriptorLayout);
+        vulkanPass.descriptorSets.push_back(bindingSet.descriptorSet);
+    }
+
     return true;
 }
 
@@ -533,8 +552,6 @@ void vulkan_scene_prepare(VulkanContext& ctx, RenderContext& renderContext, Scen
 
             pVulkanPass->colorImages.clear();
             pVulkanPass->pDepthImage = nullptr;
-
-            pVulkanPass->descriptorSets.clear();
 
             std::vector<glm::uvec2> sizes;
             // Figure out which surfaces we are using
@@ -639,17 +656,7 @@ void vulkan_scene_prepare(VulkanContext& ctx, RenderContext& renderContext, Scen
             {
                 if (!vulkan_scene_build_bindings(ctx, *pVulkanScene, *pVulkanPass))
                 {
-                    scene_report_error(*pVulkanScene->pScene, fmt::format("Failed to build descriptors"));
                     return;
-                }
-
-                // TODO: Move earlier
-                std::vector<vk::DescriptorSetLayout> descriptorSetLayouts;
-                pVulkanPass->descriptorSets.clear();
-                for (auto& [set, bindingSet] : pVulkanPass->mergedBindingSets)
-                {
-                    descriptorSetLayouts.push_back(bindingSet.descriptorLayout);
-                    pVulkanPass->descriptorSets.push_back(bindingSet.descriptorSet);
                 }
 
                 if (pVulkanPass->geometryPipelineLayout)
@@ -657,7 +664,7 @@ void vulkan_scene_prepare(VulkanContext& ctx, RenderContext& renderContext, Scen
                     ctx.device.destroyPipelineLayout(pVulkanPass->geometryPipelineLayout);
                     pVulkanPass->geometryPipelineLayout = nullptr;
                 }
-                pVulkanPass->geometryPipelineLayout = ctx.device.createPipelineLayout({ {}, descriptorSetLayouts });
+                pVulkanPass->geometryPipelineLayout = ctx.device.createPipelineLayout({ {}, pVulkanPass->descriptorSetLayouts });
                 debug_set_pipelinelayout_name(ctx.device, pVulkanPass->geometryPipelineLayout, debug_pass_name(*pVulkanPass, "PipelineLayout"));
             }
 

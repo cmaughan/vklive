@@ -5,6 +5,7 @@
 #include <vklive/vulkan/vulkan_framebuffer.h>
 #include <vklive/vulkan/vulkan_model.h>
 #include <vklive/vulkan/vulkan_descriptor.h>
+#include <vklive/vulkan/vulkan_shader.h>
 
 #include <vklive/camera.h>
 namespace vulkan
@@ -22,26 +23,6 @@ struct VulkanGeometry
     VulkanModel model;
     std::string debugVertexName;
     std::string debugIndexName;
-};
-
-struct VulkanBindingSet
-{
-    std::map<uint32_t, vk::DescriptorSetLayoutBinding> bindings;
-    
-    vk::DescriptorSet descriptorSet;
-    vk::DescriptorSetLayout descriptorLayout;
-};
-
-struct VulkanShader
-{
-    VulkanShader(Shader* pS)
-        : pShader(pS)
-    {
-    }
-    Shader* pShader;
-
-    std::map<uint32_t, VulkanBindingSet> bindingSets;
-    vk::PipelineShaderStageCreateInfo shaderCreateInfo;
 };
 
 struct VulkanPass
@@ -64,7 +45,7 @@ struct VulkanPass
     vk::PipelineLayout geometryPipelineLayout;
 
     std::vector<vk::DescriptorSet> descriptorSets;
-    //std::vector<vk::DescriptorSetLayout> descriptorSetLayouts;
+    std::vector<vk::DescriptorSetLayout> descriptorSetLayouts;
 
     std::map<uint32_t, VulkanBindingSet> mergedBindingSets;
 

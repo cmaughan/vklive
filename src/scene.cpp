@@ -598,13 +598,25 @@ std::shared_ptr<Scene> scene_build(const fs::path& root)
     return spScene;
 }
 
-void scene_report_error(Scene& scene, const std::string& txt)
+void scene_report_error(Scene& scene, const std::string& txt, const fs::path& path, int32_t line, const std::pair<int32_t, int32_t>& range)
 {
     Message msg;
     msg.text = txt;
-    msg.path = scene.sceneGraphPath;
-    msg.line = -1;
+    if (!path.empty())
+    {
+        msg.path = path;
+    }
+    else
+    {
+        msg.path = scene.sceneGraphPath;
+    }
+
+    if (range.first == -1)
+    {
+        msg.line = line;
+    }
     msg.severity = MessageSeverity::Error;
+    msg.range = range;
 
     // Any error invalidates the scene
     scene.errors.push_back(msg);
