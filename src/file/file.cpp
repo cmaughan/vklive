@@ -111,7 +111,7 @@ std::vector<fs::path> file_gather_folders(const fs::path& root)
     return list;
 }
 
-std::vector<fs::path> file_gather_files(const fs::path& root)
+std::vector<fs::path> file_gather_files(const fs::path& root, bool recursive)
 {
     std::vector<fs::path> ret;
 
@@ -164,12 +164,15 @@ std::vector<fs::path> file_gather_files(const fs::path& root)
 
                 if (fs::is_directory(filePath))
                 {
-                    tinydir_dir subDir;
-                    if (tinydir_open(&subDir, filePath.string().c_str()) != -1)
+                    if (recursive)
                     {
-                        fs::path newPath(subDir.path);
-                        newPath = fs::canonical(newPath);
-                        dirs.push(subDir);
+                        tinydir_dir subDir;
+                        if (tinydir_open(&subDir, filePath.string().c_str()) != -1)
+                        {
+                            fs::path newPath(subDir.path);
+                            newPath = fs::canonical(newPath);
+                            dirs.push(subDir);
+                        }
                     }
                 }
                 else

@@ -9,12 +9,48 @@
 #include <vklive/scene.h>
 #include <vklive/string/string_utils.h>
 #include <vklive/time/timer.h>
+#include <vklive/IDevice.h>
 
 #include <config_app.h>
 
 #include <app/config.h>
 #include <app/controller.h>
 #include <app/editor.h>
+
+extern IDevice* GetDevice();
+
+namespace
+{
+enum class PopupType
+{
+    None,
+    Audio
+};
+PopupType popupType = PopupType::None;
+}
+
+void show_audio_popup()
+{
+    auto dpi = 1.0f;
+    if (GetDevice())
+    {
+        dpi = GetDevice()->Context().vdpi;
+    }
+
+    // TODO: Center
+    ImGui::SetNextWindowSize(ImVec2(dpi * 500, dpi * 500), ImGuiCond_Appearing);
+    if (ImGui::BeginPopup("Audio", NULL))
+    {
+        //maud.spDevice->ShowGUI();
+
+        if (ImGui::Button("OK"))
+        {
+            popupType = PopupType::None;
+            ImGui::CloseCurrentPopup();
+        }
+        ImGui::EndPopup();
+    }
+}
 
 void menu_show()
 {
@@ -36,18 +72,10 @@ void menu_show()
                 // Opus::MakeDefaultOpus();
                 if (ImGui::BeginMenu("From Template"))
                 {
-                    auto files = file_gather_folders(runtree_path() / "projects");
-                    for (auto& p : files)
-                    {
-                        // Seperate and capitalize the words
-                        std::string name = p.stem().string();
+                    auto generateName = [=](auto& folder) {
+                        std::string name = folder.stem().string();
                         name = string_tolower(name);
                         auto words = string_split(name, " _");
-                        if (words.empty())
-                        {
-                            continue;
-                        }
-
                         std::ostringstream str;
                         for (auto& word : words)
                         {
@@ -58,13 +86,43 @@ void menu_show()
                             str << word << " ";
                         }
 
-                        auto menuName = string_trim(str.str());
+                        return string_trim(str.str());
+                    };
 
-                        if (ImGui::MenuItem(menuName.c_str()))
+                    using fnAddFolder = std::function<void(const fs::path&)>;
+                    fnAddFolder addFolder = [&](auto folder) -> void {
+                        auto files = file_gather_files(folder, false);
+                        auto name = generateName(folder);
+                        if (!name.empty())
                         {
-                            auto spProject = project_load_to_temp(p);
-                            controller.spProjectQueue->enqueue(spProject);
+                            // No files, just more folders
+                            if (files.empty())
+                            {
+                                if (ImGui::BeginMenu(name.c_str()))
+                                {
+                                    auto folders = file_gather_folders(folder);
+                                    for (auto& f : folders)
+                                    {
+                                        addFolder(f);
+                                    }
+                                    ImGui::EndMenu();
+                                }
+                            }
+                            else
+                            {
+                                if (ImGui::MenuItem(name.c_str()))
+                                {
+                                    auto spProject = project_load_to_temp(folder);
+                                    controller.spProjectQueue->enqueue(spProject);
+                                }
+                            }
                         }
+                    };
+
+                    auto folders = file_gather_folders(runtree_path() / "projects");
+                    for (auto& f : folders)
+                    {
+                        addFolder(f);
                     }
 
                     ImGui::EndMenu();
@@ -99,7 +157,7 @@ void menu_show()
                     }
                 }
             }
-            
+
             if (ImGui::MenuItem("Close"))
             {
                 if (zep_get_editor().GetActiveTabWindow())
@@ -152,8 +210,14 @@ void menu_show()
             ImGui::EndMenu();
         }
 
+    //ImGui::SetNextWindowPosCenter(ImGuiCond_Appearing);
         if (ImGui::BeginMenu("Settings"))
         {
+            if (ImGui::MenuItem("Audio..."))
+            {
+                popupType = PopupType::Audio;
+            }
+
             ImGui::MenuItem("Background Render", nullptr, &appConfig.draw_on_background, true);
 
             if (ImGui::BeginMenu("Background Options", appConfig.draw_on_background))
@@ -209,7 +273,7 @@ void menu_show()
 
             ImGui::EndMenu();
         }
-        
+
         if (ImGui::BeginMenu("Help"))
         {
             if (ImGui::MenuItem("Getting Started"))
@@ -220,7 +284,7 @@ void menu_show()
         }
         if (ImGui::BeginMenu("Window"))
         {
-            //DoLayoutMenu();
+            // DoLayoutMenu();
             auto pTabWindow = zep_get_editor().GetActiveTabWindow();
             if (ImGui::MenuItem("Horizontal Split"))
             {
@@ -267,24 +331,15 @@ void menu_show()
         */
     }
 
-    /*
-    switch (selectedPopup)
-    {
-    default: {
-        if (!currentError.empty())
-        {
-            ImGui::OpenPopup("Error");
-        }
-    }
-    break;
-    case PopupSelection::Error:
-        ImGui::OpenPopup("Error");
+    switch (popupType)
+    {    
+    default:
         break;
-    case PopupSelection::Audio:
+    case PopupType::Audio:
         ImGui::OpenPopup("Audio");
         break;
     };
-
-    editor_show_popups();
-    */
+        
+    show_audio_popup();
 }
+

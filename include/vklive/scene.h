@@ -129,7 +129,14 @@ struct Scene
     bool valid = true;
 };
 
+enum AssetType
+{
+    None,
+    Texture
+};
+
 std::shared_ptr<Scene> scene_build(const fs::path& root);
 void scene_destroy_parser();
 bool format_is_depth(const Format& fmt);
 void scene_report_error(Scene& scene, const std::string& txt, const fs::path& path = fs::path(), int32_t line = -1, const std::pair<int32_t, int32_t>& range = std::make_pair(-1, -1));
+fs::path scene_find_asset(Scene& scene, const fs::path& path, AssetType assetType = AssetType::None);

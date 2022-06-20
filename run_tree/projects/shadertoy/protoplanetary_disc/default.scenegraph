@@ -1,0 +1,63 @@
+// Background
+
+surface: Noise {
+    path: Noise.png
+}
+
+surface: A {
+    scale: (1, 1, 1)      // Scale relative to window
+    format: default_color       // Default RGBA8
+    clear: (0.0, 0.0, 0.0, 0.0) // Clear color for restart
+    // path: tex.png            // Path to a texture 
+}
+
+surface: Depth {
+    scale: (1, 1, 1)
+    clear: 0.0
+    format: default_depth // Default D32f
+}
+
+pass: Pass1 {                   // A pass draws geometry 
+    samplers: (Noise)          // List of samplers; noise texture
+    targets: (A, Depth)       // List of render targets
+    clear: (0.0, 1.0, 0.0, 1.0) // Clear done every pass
+    geometry: background {      // The geometry to submit
+        path: screen_rect       // screen_rect is Quad
+        vs: screen.vert
+        fs: screen.frag
+    }
+}
+
+// Shape
+pass: Pass2 {
+    targets: (A, Depth)
+    geometry : shape {
+        path: sphere.gltf
+        scale: (1.0, 1.0, 1.0) // Scale for the model matrix
+        vs: geom.vert
+        fs: geom.frag
+    }
+}
+
+// Third pass draws the normals using a geometry shader
+!pass: Pass3 { // Put a ! in front of the pass to disable
+    targets: (A, Depth)
+    geometry : shape {
+        path: sphere.gltf
+        vs: geom.vert
+        fs: geom.frag
+        gs: geom.geom
+    }
+}
+
+// Final pass, will copy the target we created to the main target
+pass: Pass4 {
+    samplers: (A)               // List of samplers, just the color 
+    targets: (default_color, default_depth) // Not required
+    geometry: copy {
+        path: screen_rect        // screen_rect is Quad
+        vs: copy.vert            // Shader just copies to target
+        fs: copy.frag
+    }
+}
+

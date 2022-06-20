@@ -622,4 +622,42 @@ void scene_report_error(Scene& scene, const std::string& txt, const fs::path& pa
     scene.valid = false;
 };
 
+fs::path scene_find_asset(Scene& scene, const fs::path& path, AssetType type)
+{
+    if (path.is_absolute())
+    {
+        if (fs::exists(path))
+        {
+            return path;
+        }
+        return fs::path();
+    }
+
+    auto trialPaths = std::vector<fs::path>{
+        scene.root / path,
+    };
+
+    if (type == AssetType::Texture)
+    {
+        trialPaths.push_back(scene.root / "textures" / path);
+    }
+
+    trialPaths.push_back(runtree_path() / path);
+    
+    if (type == AssetType::Texture)
+    {
+        trialPaths.push_back(runtree_path() / "textures" / path);
+    }
+
+    for (auto& test : trialPaths)
+    {
+        if (fs::exists(test))
+        {
+            auto ret = fs::canonical(fs::absolute(test));
+            LOG(DBG, "Found asset at: " << ret.c_str());
+            return ret;
+        }
+    }
+    return fs::path();
+}
 

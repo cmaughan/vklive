@@ -10,7 +10,7 @@ bool file_write(const fs::path& fileName, const void* pData, size_t size);
 bool file_write(const fs::path& fileName, const std::string& str);
 fs::path file_get_relative_path(fs::path from, fs::path to);
 
-std::vector<fs::path> file_gather_files(const fs::path& root);
+std::vector<fs::path> file_gather_files(const fs::path& root, bool recursive = true);
 std::vector<fs::path> file_gather_folders(const fs::path& root);
 
 fs::path file_exe_path();

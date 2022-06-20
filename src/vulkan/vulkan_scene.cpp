@@ -537,8 +537,8 @@ void vulkan_scene_prepare(VulkanContext& ctx, RenderContext& renderContext, Scen
         {
             if (pVulkanSurface->allocationState == VulkanAllocationState::Init)
             {
-                auto file = runtree_find_path(fs::path("textures") / pVulkanSurface->pSurface->path);
-                if (fs::exists(file))
+                auto file = scene_find_asset(scene, pVulkanSurface->pSurface->path, AssetType::Texture);
+                if (!file.empty())
                 {
                     surface_create_from_file(ctx, *pVulkanSurface, file);
                 }

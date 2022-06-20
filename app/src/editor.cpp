@@ -157,6 +157,25 @@ void zep_load(const fs::path& file, bool activate, uint32_t flags)
     // Get the buffer, or create
     auto pBuffer = zep_get_editor().GetFileBuffer(ZepPath(file.string()), flags, true);
 
+    // TODO: Theme/color.  Hijack Zep's theme for now
+    auto& theme = pBuffer->GetTheme();
+    if (file.extension() == ".scenegraph")
+    {
+        pBuffer->SetToneColor(theme.GetColor(theme.GetUniqueColor(0)));
+    }
+    else if (file.extension() == ".vert")
+    {
+        pBuffer->SetToneColor(theme.GetColor(theme.GetUniqueColor(1)));
+    }
+    else if (file.extension() == ".frag")
+    {
+        pBuffer->SetToneColor(theme.GetColor(theme.GetUniqueColor(4)));
+    }
+    else if (file.extension() == ".geom")
+    {
+        pBuffer->SetToneColor(theme.GetColor(theme.GetUniqueColor(3)));
+    }
+
     // Find the buffer
     auto windows = zep_get_editor().FindBufferWindows(pBuffer);
 
