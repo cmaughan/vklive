@@ -44,7 +44,7 @@ find_package(unofficial-spirv-reflect CONFIG REQUIRED)
 find_package(unofficial-vulkan-memory-allocator CONFIG REQUIRED)
 find_package(gli CONFIG REQUIRED)
 find_package(portaudio CONFIG REQUIRED)
-find_path(STB_INCLUDE_DIRS "stb.h")
+find_path(STB_INCLUDE_DIRS "stb_c_lexer.h")
 
 # Set this if we are sitting on SDL
 add_definitions(-DZEP_USE_SDL)
