@@ -494,12 +494,6 @@ void surface_create_from_file(VulkanContext& ctx, VulkanSurface& surface, const 
         viewCreateInfo.format = format;
         viewCreateInfo.subresourceRange = { vk::ImageAspectFlagBits::eColor, 0, surface.mipLevels, 0, surface.layerCount };
         surface.view = ctx.device.createImageView(viewCreateInfo);
-
-        // Update descriptor image info member that can be used for setting up descriptor sets
-        // TODO: Not sure I need this copy of stuff?
-        surface.descriptorInfo.imageLayout = imageLayout;
-        surface.descriptorInfo.imageView = surface.view;
-        surface.descriptorInfo.sampler = surface.sampler;
     }
 }
 

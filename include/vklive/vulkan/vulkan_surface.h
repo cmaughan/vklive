@@ -61,8 +61,6 @@ struct VulkanSurface : Allocation
     vk::Sampler sampler;
     vk::DescriptorSetLayout samplerDescriptorSetLayout;
     vk::DescriptorSet samplerDescriptorSet;
-    
-    vk::DescriptorImageInfo descriptorInfo;
 
     vk::Format format{ vk::Format::eUndefined };
 };
