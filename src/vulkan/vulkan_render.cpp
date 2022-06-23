@@ -49,7 +49,7 @@ void render_check_framebuffer(VulkanContext& ctx, const glm::uvec2& size)
     // Might still be rendering to/with this FB, so wait for it.
     ctx.device.waitIdle();
 
-    // Destroy old
+    // audio_destroy old
     spRender->frameBufferSize = size;
 }
 

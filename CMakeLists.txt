@@ -45,6 +45,7 @@ find_package(unofficial-vulkan-memory-allocator CONFIG REQUIRED)
 find_package(gli CONFIG REQUIRED)
 find_package(portaudio CONFIG REQUIRED)
 find_path(STB_INCLUDE_DIRS "stb_c_lexer.h")
+find_package(unofficial-kissfft CONFIG REQUIRED)
 
 # Set this if we are sitting on SDL
 add_definitions(-DZEP_USE_SDL)
@@ -131,27 +132,31 @@ if (UNIX)
 endif() # UNIX
 
 set(VK_SOURCES
-    src/model.cpp
-    src/scene.cpp
-    src/pass.cpp
+    src/audio/audio.cpp
+    src/audio/audio_analysis.cpp
     src/camera.cpp
     src/file/file.cpp
     src/file/runtree.cpp
-    src/string/string_utils.cpp
-    src/string/murmur_hash.cpp
-    src/process/process.cpp
-    src/time/timer.cpp
     src/imgui/imgui_sdl.cpp
+    src/model.cpp
+    src/pass.cpp
+    src/process/process.cpp
+    src/scene.cpp
+    src/string/murmur_hash.cpp
+    src/string/string_utils.cpp
+    src/time/timer.cpp
     src/validation.cpp
 
     external/mpc/mpc.c
 
-    include/vklive/imgui/imgui_sdl.h
-
-    include/vklive/camera.h
     include/vklive/IDevice.h
+    include/vklive/audio/audio.h
+    include/vklive/audio/audio_analysis_settings.h
+    include/vklive/audio/audio_device_settings.h
+    include/vklive/camera.h
     include/vklive/file/file.h
     include/vklive/file/runtree.h
+    include/vklive/imgui/imgui_sdl.h
     include/vklive/model.h
     include/vklive/pass.h
     include/vklive/process/process.h
@@ -170,18 +175,18 @@ set(LIB_SOURCES
 set(APP_SOURCES 
     TODO.md
     README.md
-    app/src/main.cpp
-    app/src/editor.cpp
     app/src/config.cpp
-    app/src/project.cpp
-    app/src/menu.cpp
     app/src/controller.cpp
+    app/src/editor.cpp
+    app/src/main.cpp
+    app/src/menu.cpp
+    app/src/project.cpp
 
-    app/include/app/editor.h
     app/include/app/config.h
-    app/include/app/project.h
-    app/include/app/menu.h
     app/include/app/controller.h
+    app/include/app/editor.h
+    app/include/app/menu.h
+    app/include/app/project.h
 )
 
 set_source_files_properties (external/mpc/mpc.c PROPERTIES SKIP_PRECOMPILE_HEADERS 1)
@@ -250,6 +255,7 @@ target_link_libraries(Rezonality
         unofficial::vulkan-memory-allocator::vulkan-memory-allocator
         gli
         portaudio_static
+        unofficial::kissfft::kissfft
     )
 
 if(WIN32)

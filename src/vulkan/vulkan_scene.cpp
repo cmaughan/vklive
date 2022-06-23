@@ -703,7 +703,7 @@ void vulkan_scene_prepare(VulkanContext& ctx, RenderContext& renderContext, Scen
     }
 
     // Validation layer may set an error, meaning this scene is not valid!
-    // Destroy it, and reset the error trigger
+    // audio_destroy it, and reset the error trigger
     if (validation_get_error_state() || !scene.valid)
     {
         vulkan_scene_destroy(ctx, scene);

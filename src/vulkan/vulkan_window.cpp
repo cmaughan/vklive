@@ -23,7 +23,7 @@ void CreateWindowSwapChain(VulkanContext& ctx, VulkanWindow* wd, int w, int h)
     ctx.device.waitIdle();
 
     // We don't use ImGui_ImplVulkanH_DestroyWindow() because we want to preserve the old swapchain to create the new one.
-    // Destroy old Framebuffer
+    // audio_destroy old Framebuffer
     for (uint32_t i = 0; i < wd->imageCount; i++)
     {
         window_destroy_frame(ctx, &wd->frames[i]);

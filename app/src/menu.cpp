@@ -10,6 +10,7 @@
 #include <vklive/string/string_utils.h>
 #include <vklive/time/timer.h>
 #include <vklive/IDevice.h>
+#include <vklive/audio/audio.h>
 
 #include <config_app.h>
 
@@ -41,7 +42,7 @@ void show_audio_popup()
     ImGui::SetNextWindowSize(ImVec2(dpi * 500, dpi * 500), ImGuiCond_Appearing);
     if (ImGui::BeginPopup("Audio", NULL))
     {
-        //maud.spDevice->ShowGUI();
+        Audio::audio_show_gui();
 
         if (ImGui::Button("OK"))
         {

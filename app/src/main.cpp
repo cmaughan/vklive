@@ -22,6 +22,8 @@
 
 #include <vklive/validation.h>
 
+#include <vklive/audio/audio.h>
+
 #include <config_app.h>
 
 #include <app/config.h>
@@ -126,6 +128,8 @@ int main(int argc, char** argv)
 
     // Main device 
     g_pDevice = vulkan::create_vulkan_device(init_sdl_window(), imSettingsPath, appConfig.viewports);
+
+    //Audio::audio_init(nullptr);
 
     // This update thread generates a new scene, then returns it in a queue ready for 'swapping' with the existing one
     // if it is valid
@@ -459,6 +463,8 @@ int main(int argc, char** argv)
         g_pDevice->DestroyScene(*controller.spCurrentProject->spScene.get());
     }
     g_pDevice.reset();
+
+    //Audio::audio_destroy();
 
     scene_destroy_parser();
 
