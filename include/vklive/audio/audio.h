@@ -4,6 +4,7 @@
 #include <mutex>
 #include <portaudio.h>
 #include <complex>
+#include <atomic>
 
 #include <vklive/logger/logger.h>
 

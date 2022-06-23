@@ -26,7 +26,7 @@ public:
 
     T& GetConsumerMemory()
     {
-        PROFILE_SCOPE_STR("LazyMem_Lock", PROFILE_COL_LOCK);
+        //PROFILE_SCOPE_STR("LazyMem_Lock", PROFILE_COL_LOCK);
         m_swapMutex.lock();
         return memory[1 - producerMemory];
     }
