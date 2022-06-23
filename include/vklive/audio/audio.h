@@ -9,7 +9,6 @@
 #include <vklive/logger/logger.h>
 
 #include <vklive/memory.h>
-#include <vklive/audio/audio_analysis.h>
 #include <vklive/audio/audio_analysis_settings.h>
 #include <vklive/audio/audio_device_settings.h>
 
@@ -58,8 +57,8 @@ struct ApiInfo
 
 struct AudioChannelState
 {
-    uint32_t frameCount = 0;
-    int64_t frames = 0;
+    uint32_t frames = 0;
+    int64_t totalFrames = 0;
     uint32_t channelCount = 2;
     uint32_t sampleRate = 44000;
     double deltaTime = 1.0f / (double)sampleRate;
@@ -122,11 +121,6 @@ struct AudioContext
     AudioChannelState inputState;
     AudioChannelState outputState;
     
-    uint32_t inputFrameCount = 0;
-    int64_t totalInputFrames = 0;
-    uint32_t inputChannels = 2;
-    uint32_t inputSampleRate = 44000;
-    double deltaInputTime = 1.0f / (double)inputSampleRate;
 
     AudioSettings settings;
     AudioDeviceSettings audioDeviceSettings;

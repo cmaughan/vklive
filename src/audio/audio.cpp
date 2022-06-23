@@ -1,15 +1,15 @@
 #include <chrono>
 #include <imgui.h>
 #include <vklive/audio/audio.h>
+#include <vklive/audio/audio_analysis.h>
 #include <vklive/memory.h>
 
 using namespace std::chrono;
 
 namespace Audio
 {
-
 void audio_validate_rates();
-//void audio_set_channels_rate(int channels, uint32_t rate);
+void audio_set_channels_rate(int outputChannels, int inputChannels, uint32_t outputRate, uint32_t inputRate);
 void audio_enumerate_devices();
 void audio_dump_devices();
 void audio_validate_settings();
@@ -43,8 +43,16 @@ int audio_tick(const void* inputBuffer, void* outputBuffer, unsigned long nBuffe
     // PROFILE_REGION(Audio);
     // PROFILE_NAME_THREAD(Audio);
 
-    ctx.threadId = std::this_thread::get_id();
+    if (!ctx.m_audioValid)
+    {
+        return 0;
+    }
 
+    ctx.threadId = std::this_thread::get_id();
+    ctx.inputState.frames = nBufferFrames;
+    ctx.outputState.frames = nBufferFrames;
+
+    double deltaTime = 1.0f / (double)ctx.outputState.sampleRate;
     const double sampleRate = static_cast<double>(ctx.outputState.sampleRate);
     const auto bufferDuration = duration_cast<microseconds>(duration<double>{ nBufferFrames / sampleRate });
     const auto latency = duration_cast<microseconds>(duration<double>{ timeInfo->outputBufferDacTime });
@@ -59,18 +67,16 @@ int audio_tick(const void* inputBuffer, void* outputBuffer, unsigned long nBuffe
 
     if (ctx.m_isPlaying)
     {
-        if (!outputBuffer)
+        if (outputBuffer)
         {
-            return 0;
-        }
-
-        float beatAtTime = 0.0f;
-        float quantum = 0.0f;
-        std::chrono::microseconds hostTime(0);
-        memset(outputBuffer, 0, nBufferFrames * 2 * sizeof(float));
-        if (ctx.m_fnCallback)
-        {
-            ctx.m_fnCallback(beatAtTime, quantum, hostTime, outputBuffer, inputBuffer, nBufferFrames);
+            float beatAtTime = 0.0f;
+            float quantum = 0.0f;
+            std::chrono::microseconds hostTime(0);
+            memset(outputBuffer, 0, nBufferFrames * ctx.outputState.channelCount * sizeof(float));
+            if (ctx.m_fnCallback)
+            {
+                ctx.m_fnCallback(beatAtTime, quantum, hostTime, outputBuffer, inputBuffer, nBufferFrames);
+            }
         }
     }
 
@@ -78,11 +84,21 @@ int audio_tick(const void* inputBuffer, void* outputBuffer, unsigned long nBuffe
     {
         ProducerMemLock memLock(ctx.audioInputAnalysis);
         auto& results = memLock.Data();
-        for (int i = 0; i < ctx.inputChannels; i++)
+        for (int i = 0; i < ctx.inputState.channelCount; i++)
         {
-            audio_analysis_update(*results.activeChannels[i], (const float*)inputBuffer, (uint32_t)nBufferFrames, ctx.inputChannels);
+            // TODO: This is currently a one-time malloc on the audio thread.  Need to fix.
+            if (results.activeChannels.size() <= i)
+            {
+                results.activeChannels.push_back(std::make_shared<AudioAnalysis>());
+                audio_analysis_init(*results.activeChannels[i], ctx.inputState);
+            }
+            audio_analysis_update(*results.activeChannels[i], ((const float*)inputBuffer) + i, (uint32_t)nBufferFrames, ctx.inputState.channelCount);
         }
     }
+
+    ctx.inputState.totalFrames += nBufferFrames;
+    ctx.outputState.totalFrames += nBufferFrames;
+
     return 0;
 }
 
@@ -293,13 +309,22 @@ void audio_enumerate_devices()
     audio_dump_devices();
 }
 
-/*
 void audio_set_channels_rate(int outputChannels, int inputChannels, uint32_t outputRate, uint32_t inputRate)
 {
     auto& ctx = audioContext;
     ctx.outputState.sampleRate = outputRate;
     ctx.outputState.deltaTime = 1.0f / float(outputRate);
     ctx.outputState.channelCount = outputChannels;
+    ctx.outputState.totalFrames = 0;
+
+    ctx.inputState.sampleRate = outputRate;
+    ctx.inputState.deltaTime = 1.0f / float(outputRate);
+    ctx.inputState.channelCount = outputChannels;
+    ctx.inputState.totalFrames = 0;
+
+    // Note inputRate is currently always == outputRate
+    // I don't know if these can be different from a device point of view; so for now they always match
+    assert(outputRate == inputRate);
 
     {
         ProducerMemLock memLock(ctx.audioOutputAnalysis);
@@ -310,26 +335,19 @@ void audio_set_channels_rate(int outputChannels, int inputChannels, uint32_t out
             if (results.activeChannels.size() <= i)
             {
                 results.activeChannels.push_back(std::make_shared<AudioAnalysis>());
-                //jaudio_analysis_init(*results.activeChannels[i], ctx.outputState);
+                audio_analysis_init(*results.activeChannels[i], ctx.outputState);
             }
         }
     }
 
     {
-        ProducerMemLock memLock(ctx.audioInputAnalysis);
-        auto& results = memLock.Data();
-
         ctx.inputState.sampleRate = outputRate;
         ctx.inputState.deltaTime = 1.0f / float(outputRate);
-        ctx.inputState.channelCount = outputChannels;
+        ctx.inputState.channelCount = inputChannels;
+
 
         for (uint32_t i = 0; i < inputChannels; i++)
         {
-            if (results.activeChannels.size() <= i)
-            {
-                results.activeChannels.push_back(std::make_shared<AudioAnalysis>());
-                //audio_analysis_init(*results.activeChannels[i], jctx.inputState);
-            }
         }
     }
     //if (ctx.pSP)
@@ -342,7 +360,6 @@ void audio_set_channels_rate(int outputChannels, int inputChannels, uint32_t out
     //ctx.pSP->nchan = channels;
    // ctx.pSP->sr = ctx.sampleRate;
 }
-*/
 
 void audio_destroy()
 {
@@ -402,7 +419,7 @@ bool audio_init(const AudioCB& fnCallback)
 
     if (!ctx.audioDeviceSettings.enableInput && !ctx.audioDeviceSettings.enableOutput)
     {
-        //audio_set_channels_rate(ctx.audioDeviceSettings.outputChannels, ctx.audioDeviceSettings.sampleRate);
+        audio_set_channels_rate(ctx.audioDeviceSettings.outputChannels, ctx.audioDeviceSettings.inputChannels, ctx.audioDeviceSettings.sampleRate, ctx.audioDeviceSettings.sampleRate);
         ctx.m_audioValid = true;
         return true;
     }
@@ -450,7 +467,7 @@ bool audio_init(const AudioCB& fnCallback)
     // The actual rate that got picked
     ctx.audioDeviceSettings.sampleRate = uint32_t(Pa_GetStreamInfo(ctx.m_pStream)->sampleRate);
 
-    //audio_set_channels_rate(ctx.audioDeviceSettings.outputChannels, ctx.audioDeviceSettings.sampleRate);
+    audio_set_channels_rate(ctx.audioDeviceSettings.outputChannels, ctx.audioDeviceSettings.inputChannels, ctx.audioDeviceSettings.sampleRate, ctx.audioDeviceSettings.sampleRate);
 
     ctx.m_audioValid = true;
     return true;

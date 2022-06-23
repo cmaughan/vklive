@@ -78,10 +78,12 @@ void audio_analysis_destroy(AudioAnalysis& analysis)
     }
 }
 
-bool audio_analysis_init(AudioAnalysis& analysis)
+bool audio_analysis_init(AudioAnalysis& analysis, const AudioChannelState& state)
 {
     auto& ctx = GetAudioContext();
     analysis.outputSamples = (ctx.audioAnalysisSettings.frames / 2);
+
+    analysis.channel = state;
 
     // Hamming window
     analysis.window = audio_analysis_create_window(ctx.audioAnalysisSettings.frames);
@@ -112,7 +114,7 @@ void audio_analysis_update(AudioAnalysis& analysis, const float* data, uint32_t 
     //PROFILE_SCOPE(Audio_Analysis);
     auto& ctx = GetAudioContext();
 
-    assert(num >= ctx.audioAnalysisSettings.frames);
+    assert(num >= analysis.channel.frames);
 
     auto frameOffset = 0; // ctx.audioAnalysisSettings.removeFFTJitter ? (uint32_t)-_lastPeakHarmonic & ~0x1 : 0;
 
@@ -170,7 +172,8 @@ void audio_analysis_calculate_audio(AudioAnalysis& analysis)
     //PROFILE_SCOPE(Analysis_Audio);
     auto& ctx = GetAudioContext();
 
-    auto samplesPerSecond = analysis.channel.sampleRate / (float)analysis.channel.frameCount;
+    // TODO: This can't be right?
+    auto samplesPerSecond = analysis.channel.sampleRate / (float)analysis.channel.frames;
     auto blendFactor = 64.0f / samplesPerSecond;
 
     // Copy the data into the real part, windowing it to remove the transitions at the edges of the transform.
@@ -319,7 +322,7 @@ void audio_analysis_calculate_spectrum(AudioAnalysis& analysis)
     if (ctx.audioAnalysisSettings.blendFFT)
     {
         // Time in ms / blend duration in ms
-        auto samplesPerSecond = analysis.channel.sampleRate / (float)analysis.channel.frameCount;
+        auto samplesPerSecond = analysis.channel.sampleRate / (float)analysis.channel.frames;
         auto blendFactor = 64.0f / samplesPerSecond;
         for (uint32_t i = 0; i < analysis.outputSamples; i++)
         {
@@ -401,12 +404,12 @@ void audio_analysis_calculate_spectrum_bands(AudioAnalysis& analysis)
     //PROFILE_SCOPE(Analysis_Bands);
     auto& ctx = GetAudioContext();
 
-    auto samplesPerSecond = analysis.channel.sampleRate / (float)analysis.channel.frameCount;
+    auto samplesPerSecond = analysis.channel.sampleRate / (float)analysis.channel.frames;
     auto blendFactor = 64.0f / samplesPerSecond;
     auto bands = glm::vec4(0.0f);
 
     // Calculate the bucket offsets for each of the frequency bands in teh course partitions.
-    auto frequencyPerBucket = float(analysis.channel.sampleRate) / float(analysis.channel.frameCount);
+    auto frequencyPerBucket = float(analysis.channel.sampleRate) / float(analysis.channel.frames);
     auto spectrumOffsets = Div(ctx.audioAnalysisSettings.spectrumFrequencies, (int)frequencyPerBucket) + glm::uvec4(1, 1, 1, 0);
 
     for (uint32_t i = 0; i < analysis.outputSamples; i++)
