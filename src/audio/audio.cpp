@@ -322,6 +322,9 @@ void audio_set_channels_rate(int outputChannels, int inputChannels, uint32_t out
     ctx.inputState.channelCount = outputChannels;
     ctx.inputState.totalFrames = 0;
 
+    // TODO: Figure out where and who sets this and how it is used
+    ctx.audioAnalysisSettings.frames = ctx.audioDeviceSettings.frames;
+
     // Note inputRate is currently always == outputRate
     // I don't know if these can be different from a device point of view; so for now they always match
     assert(outputRate == inputRate);
@@ -382,7 +385,7 @@ bool audio_init(const AudioCB& fnCallback)
     ctx.m_fnCallback = fnCallback;
     ctx.audioAnalysisSettings.blendAudio = false;
     ctx.audioAnalysisSettings.blendFFT = true;
-    ctx.audioAnalysisSettings.filterFFT = true;
+    ctx.audioAnalysisSettings.filterFFT = false;
     ctx.audioAnalysisSettings.frames = 4096;
     ctx.audioAnalysisSettings.audioDecibelRange = 75;
     ctx.audioAnalysisSettings.spectrumBuckets = 256;
@@ -467,7 +470,7 @@ bool audio_init(const AudioCB& fnCallback)
     // The actual rate that got picked
     ctx.audioDeviceSettings.sampleRate = uint32_t(Pa_GetStreamInfo(ctx.m_pStream)->sampleRate);
 
-    audio_set_channels_rate(ctx.audioDeviceSettings.outputChannels, ctx.audioDeviceSettings.inputChannels, ctx.audioDeviceSettings.sampleRate, ctx.audioDeviceSettings.sampleRate);
+    audio_set_channels_rate(ctx.m_outputParams.channelCount,  ctx.m_inputParams.channelCount, ctx.audioDeviceSettings.sampleRate, ctx.audioDeviceSettings.sampleRate);
 
     ctx.m_audioValid = true;
     return true;

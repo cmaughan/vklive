@@ -9,6 +9,9 @@
 #include "vklive/vulkan/vulkan_surface.h"
 #include "vklive/vulkan/vulkan_utils.h"
 
+#include <vklive/audio/audio_analysis.h>
+#include <vklive/memory.h>
+
 namespace vulkan
 {
 void surface_unmap(VulkanContext& ctx, VulkanSurface& img)
@@ -162,7 +165,7 @@ void surface_create_sampler(VulkanContext& ctx, VulkanSurface& surface)
     // TODO
     // samplerCreateInfo.maxAnisotropy = ctx.deviceFeatures.samplerAnisotropy ? ctx.deviceProperties.limits.maxSamplerAnisotropy : 1.0f;
     // samplerCreateInfo.anisotropyEnable = ctx.deviceFeatures.samplerAnisotropy;
-    samplerCreateInfo.borderColor = vk::BorderColor::eFloatTransparentBlack; //OpaqueWhite;
+    samplerCreateInfo.borderColor = vk::BorderColor::eFloatTransparentBlack; // OpaqueWhite;
 
     surface.sampler = ctx.device.createSampler(samplerCreateInfo);
 }
@@ -435,7 +438,7 @@ void surface_create_from_file(VulkanContext& ctx, VulkanSurface& surface, const 
         if (!pTex)
         {
             // TODO: Error
-            return; 
+            return;
         }
 
         surface.extent.width = static_cast<uint32_t>(pTex->extent().x);
@@ -460,7 +463,7 @@ void surface_create_from_file(VulkanContext& ctx, VulkanSurface& surface, const 
     {
         int x, y, n;
         auto loaded = stbi_load_from_memory((const stbi_uc*)data.c_str(), int(data.size()), &x, &y, &n, 0);
-     
+
         surface.extent.width = static_cast<uint32_t>(x);
         surface.extent.height = static_cast<uint32_t>(y);
         surface.extent.depth = 1;
@@ -495,6 +498,115 @@ void surface_create_from_file(VulkanContext& ctx, VulkanSurface& surface, const 
         viewCreateInfo.subresourceRange = { vk::ImageAspectFlagBits::eColor, 0, surface.mipLevels, 0, surface.layerCount };
         surface.view = ctx.device.createImageView(viewCreateInfo);
     }
+}
+
+void surface_update_from_audio(VulkanContext& ctx, VulkanSurface& surface, bool& surfaceChanged)
+{
+    vk::Format format = vk::Format::eR32Sfloat;
+    vk::ImageUsageFlags imageUsageFlags = vk::ImageUsageFlagBits::eSampled;
+    vk::ImageLayout imageLayout = vk::ImageLayout::eShaderReadOnlyOptimal;
+
+    auto& audioContext = Audio::GetAudioContext();
+
+    auto updateSurface = [&](auto width, auto height, std::vector<float>& data) {
+        /* if (surface.extent.width == width || surface.extent.height == height)
+        {
+            return;
+        }*/
+
+        surface.extent.width = width;
+        surface.extent.height = height;
+        surface.extent.depth = 1;
+        surface.mipLevels = 1;
+        surface.layerCount = 1;
+
+        // Create optimal tiled target image
+        vk::ImageCreateInfo imageCreateInfo;
+        imageCreateInfo.imageType = vk::ImageType::e2D;
+        imageCreateInfo.format = format;
+        imageCreateInfo.mipLevels = surface.mipLevels;
+        imageCreateInfo.arrayLayers = 1;
+        imageCreateInfo.extent = surface.extent;
+        imageCreateInfo.usage = imageUsageFlags | vk::ImageUsageFlagBits::eTransferDst;
+
+        ctx.device.waitIdle();
+
+        surface_stage_to_device(ctx, surface, imageCreateInfo, vk::MemoryPropertyFlagBits::eDeviceLocal, data);
+
+        // Add sampler
+        surface_create_sampler(ctx, surface);
+
+        // Create image view
+        static const vk::ImageUsageFlags VIEW_USAGE_FLAGS = vk::ImageUsageFlagBits::eSampled | vk::ImageUsageFlagBits::eStorage | vk::ImageUsageFlagBits::eColorAttachment | vk::ImageUsageFlagBits::eDepthStencilAttachment | vk::ImageUsageFlagBits::eInputAttachment;
+
+        if (imageUsageFlags & VIEW_USAGE_FLAGS)
+        {
+            vk::ImageViewCreateInfo viewCreateInfo;
+            viewCreateInfo.viewType = vk::ImageViewType::e2D;
+            viewCreateInfo.image = surface.image;
+            viewCreateInfo.format = format;
+            viewCreateInfo.subresourceRange = { vk::ImageAspectFlagBits::eColor, 0, surface.mipLevels, 0, surface.layerCount };
+            surface.view = ctx.device.createImageView(viewCreateInfo);
+        }
+
+        surfaceChanged = true;
+    };
+
+    ConsumerMemLock memLock(audioContext.audioInputAnalysis);
+    auto& processData = memLock.Data();
+    if (processData.activeChannels.empty())
+    {
+        // Ensure a blank surface
+        return;
+    }
+
+    static std::vector<float> uploadCache;
+    uint32_t currentSpectrum = 0;
+    uint32_t currentAudio = 0;
+    const float* spectrum[2];
+    const float* audio[2];
+    auto spectrumSize = 0;
+    auto audioSize = 0;
+    uint32_t channels = processData.activeChannels.size();
+    for (auto& pData : processData.activeChannels)
+    {
+        spectrum[currentSpectrum++] = &Audio::audio_analysis_get_spectrum_buckets(*pData)[0];
+        spectrumSize = int(Audio::audio_analysis_get_spectrum_buckets(*pData).size());
+    }
+
+    if (currentSpectrum == 1)
+    {
+        spectrum[currentSpectrum] = spectrum[currentSpectrum - 1];
+    }
+
+    for (auto& pData : processData.activeChannels)
+    {
+        audio[currentAudio++] = &Audio::audio_analysis_get_audio(*pData)[0];
+        audioSize = int(Audio::audio_analysis_get_audio(*pData).size());
+    }
+
+    if (currentAudio == 1)
+    {
+        audio[currentAudio] = audio[currentAudio - 1];
+    }
+
+    if (currentAudio == 0 || currentSpectrum == 0)
+    {
+        return;
+    }
+
+    auto maxStride = std::min(spectrumSize, audioSize); 
+
+    // Stereo, Audio and Spectrum (4 rows total)
+    uploadCache.resize(channels * 2 * maxStride);
+    for (auto channel = 0; channel < channels; channel++)
+    {
+        memcpy(&uploadCache[channel * maxStride], spectrum[channel], maxStride * sizeof(float));
+        memcpy(&uploadCache[(channel + channels) * maxStride], audio[channel], maxStride * sizeof(float));
+    }
+
+    // Left/Right FFT and Audio (4 rows)
+    updateSurface(std::min(spectrumSize, audioSize), channels * 2, uploadCache);
 }
 
 /*

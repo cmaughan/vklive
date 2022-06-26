@@ -19,7 +19,7 @@ struct AudioDeviceSettings
     uint32_t inputChannels = 2;
     uint32_t outputChannels = 2;
     uint32_t sampleRate = 0;        // 0 is default / preferred rate
-    uint32_t frames = 256;          // default frames
+    uint32_t frames = 1024;          // default frames
 };
 
 /*

@@ -5,9 +5,9 @@
 
 #include <glm/gtc/constants.hpp>
 
-#include <vklive/logger/logger.h>
-#include <vklive/audio/audio_analysis_settings.h>
 #include <vklive/audio/audio_analysis.h>
+#include <vklive/audio/audio_analysis_settings.h>
+#include <vklive/logger/logger.h>
 
 #include <vklive/audio/audio.h>
 
@@ -17,7 +17,7 @@ namespace Audio
 void audio_analysis_update(AudioAnalysis& analysis, const float* data, uint32_t num);
 void audio_analysis_gen_linear_space(AudioAnalysis& analysis, uint32_t limit, uint32_t n);
 void audio_analysis_gen_log_space(AudioAnalysis& analysis, uint32_t limit, uint32_t n);
-//void audio_analysis_process();
+// void audio_analysis_process();
 void audio_analysis_calculate_spectrum(AudioAnalysis& analysis);
 void audio_analysis_calculate_spectrum_bands(AudioAnalysis& analysis);
 void audio_analysis_calculate_audio(AudioAnalysis& analysis);
@@ -51,7 +51,7 @@ const std::vector<float>& audio_analysis_get_spectrum(AudioAnalysis& analysis)
 
 const std::vector<float>& audio_analysis_get_spectrum_buckets(AudioAnalysis& analysis)
 {
-    return analysis.spectrumBuckets[analysis.currentBuffer]; 
+    return analysis.spectrumBuckets[analysis.currentBuffer];
 }
 
 const std::vector<float>& audio_analysis_get_audio(AudioAnalysis& analysis)
@@ -59,14 +59,9 @@ const std::vector<float>& audio_analysis_get_audio(AudioAnalysis& analysis)
     return analysis.audio[analysis.currentBuffer];
 }
 
-void audio_analysis_clear(AudioAnalysis& analysis) 
-{ 
-    analysis.audioActive = false; 
-}
-
-uint32_t audio_analysis_get_trigger_index(AudioAnalysis& analysis) 
-{ 
-    return analysis.triggerIndex[analysis.currentBuffer]; 
+void audio_analysis_clear(AudioAnalysis& analysis)
+{
+    analysis.audioActive = false;
 }
 
 void audio_analysis_destroy(AudioAnalysis& analysis)
@@ -111,10 +106,8 @@ bool audio_analysis_init(AudioAnalysis& analysis, const AudioChannelState& state
 
 void audio_analysis_update(AudioAnalysis& analysis, const float* data, uint32_t num, uint32_t stride)
 {
-    //PROFILE_SCOPE(Audio_Analysis);
+    // PROFILE_SCOPE(Audio_Analysis);
     auto& ctx = GetAudioContext();
-
-    assert(num >= analysis.channel.frames);
 
     auto frameOffset = 0; // ctx.audioAnalysisSettings.removeFFTJitter ? (uint32_t)-_lastPeakHarmonic & ~0x1 : 0;
 
@@ -133,43 +126,82 @@ void audio_analysis_update(AudioAnalysis& analysis, const float* data, uint32_t 
     }
 #endif
 
-    // Copy the audio buffer; handle channel stride
-    float* pDest = &audioBuffer[0];
-    const float* pSource = data;
-    for (size_t i = 0; i < num; i++)
+    auto floatsToAdd = (num / stride);
+    auto floatsToMove = audioBuffer.size() - floatsToAdd;
+ 
+    if (floatsToAdd > 0)
     {
-        *pDest = *pSource;
-        pSource += stride;
+        const float* pSource;
+        float* pDest;
+        if (floatsToMove > 0)
+        {
+            pSource = (const float*)&audioBuffer[floatsToAdd];
+            pDest = (float*)&audioBuffer[0];
+
+            memmove(pDest, pSource, floatsToMove * sizeof(float));
+        }
+
+        pDest = (float*)&audioBuffer[floatsToMove];
+        pSource = data;
+
+        // Copy with stride
+        for (uint32_t count = 0; count < floatsToAdd; count++)
+        {
+            *pDest++ = *pSource;
+            pSource += stride;
+        }
     }
 
     audio_analysis_calculate_audio(analysis);
 
+    // Some of this math found here:
+    //   https://github.com/beautypi/shadertoy-iOS-v2/blob/master/shadertoy/SoundStreamHelper.m
     if (analysis.audioActive)
     {
         for (uint32_t i = 0; i < ctx.audioAnalysisSettings.frames; i++)
         {
             // Hamming window, FF
             analysis.fftIn[i] = std::complex(audioBuffer[i] * analysis.window[i], 0.0f);
-            assert(std::isfinite(analysis.fftIn[i].real()));
+            // assert(std::isfinite(analysis.fftIn[i].real()));
         }
 
         mkiss::kiss_fft(analysis.cfg, (const mkiss::kiss_fft_cpx*)&analysis.fftIn[0], (mkiss::kiss_fft_cpx*)&analysis.fftOut[0]);
 
-        // Sample 0 is the all frequency component
-        analysis.fftOut[0] = std::complex<float>(0.0f, 0.0f);
+        // 0 for imaginary part
+        analysis.fftOut[0] = std::complex(analysis.fftOut[0].real(), 0.0f);
 
-        for (uint32_t i = 0; i < analysis.outputSamples; i++)
+        float scale = 1.0f / (ctx.audioAnalysisSettings.frames * 2);
+
+        for (uint32_t i = 1; i < analysis.outputSamples; i++)
         {
-            // Magnitude
-            analysis.fftMag[i] = std::abs(analysis.fftOut[i]);
+            analysis.fftOut[i] = analysis.fftOut[i] * scale;
         }
+        analysis.fftOut[0] = std::complex(analysis.fftOut[0].real(), 0.0f);
+
+        // Convert to dB
+        for (uint32_t i = 1; i < analysis.outputSamples; i++)
+        {
+            analysis.fftMag[i] = std::norm(analysis.fftOut[i]);
+            analysis.fftMag[i] = 10 * std::log10(analysis.fftMag[i]);
+
+            // Min decibels -100
+            // Max decibels -30
+            // Range is -128 -> 0 so adjust
+            analysis.fftMag[i] += 74.0f;
+            analysis.fftMag[i] *= (1.0f / 74.0f);
+
+            // Clamp 0->1
+            analysis.fftMag[i] = std::max(analysis.fftMag[i], 0.0f);
+            analysis.fftMag[i] = std::min(analysis.fftMag[i], 1.0f);
+        }
+
         audio_analysis_calculate_spectrum(analysis);
     }
 }
 
 void audio_analysis_calculate_audio(AudioAnalysis& analysis)
 {
-    //PROFILE_SCOPE(Analysis_Audio);
+    // PROFILE_SCOPE(Analysis_Audio);
     auto& ctx = GetAudioContext();
 
     // TODO: This can't be right?
@@ -183,38 +215,16 @@ void audio_analysis_calculate_audio(AudioAnalysis& analysis)
     auto& audioBuf = analysis.audio[analysis.currentBuffer];
     auto& audioBufOld = analysis.audio[1 - analysis.currentBuffer];
 
-    analysis.triggerIndex[analysis.currentBuffer] = 0;
-
     analysis.audioActive = false;
 
-    // Find the max and the trigger point
-    bool startTrigger = false;
-    float triggerRange = .1f;
-    auto maxAudio = std::numeric_limits<float>::min();
+    // Find the min/max
+    auto maxAudio = -std::numeric_limits<float>::max();
     auto minAudio = std::numeric_limits<float>::max();
     for (uint32_t i = 0; i < audioBuf.size(); i++)
     {
         auto fVal = audioBuf[i];
-
         maxAudio = std::max(maxAudio, fVal);
         minAudio = std::min(minAudio, fVal);
-        if (analysis.triggerIndex[analysis.currentBuffer] == 0)
-        {
-            if (!startTrigger)
-            {
-                if (fVal < -triggerRange)
-                {
-                    startTrigger = true;
-                }
-            }
-            else
-            {
-                if (fVal > triggerRange)
-                {
-                    analysis.triggerIndex[analysis.currentBuffer] = i;
-                }
-            }
-        }
     }
 
     // Only process active audio
@@ -222,16 +232,6 @@ void audio_analysis_calculate_audio(AudioAnalysis& analysis)
     {
         analysis.audioActive = true;
     }
-
-    analysis.triggerIndex[analysis.currentBuffer] = 0;
-
-    if (!ctx.audioAnalysisSettings.normalizeAudio)
-    {
-        maxAudio = 1.0f;
-    }
-
-    auto newTrigger = analysis.triggerIndex[analysis.currentBuffer];
-    memmove(&audioBuf[0], &audioBuf[newTrigger], (audioBuf.size() - newTrigger) * sizeof(float));
 
     // Normalize
     for (uint32_t i = 0; i < audioBuf.size(); i++)
@@ -241,18 +241,16 @@ void audio_analysis_calculate_audio(AudioAnalysis& analysis)
             // Scale and blend the audio
             audioBuf[i] = audioBuf[i] * blendFactor + audioBufOld[i] * (1.0f - blendFactor);
         }
-        else
+        else if (ctx.audioAnalysisSettings.normalizeAudio)
         {
-            audioBuf[i] = audioBuf[i] / maxAudio;
+            audioBuf[i] = (audioBuf[i] - minAudio) / (maxAudio - minAudio);
         }
-
-        assert(std::isfinite(audioBuf[i]));
     }
 }
 
 void audio_analysis_calculate_spectrum(AudioAnalysis& analysis)
 {
-    //PROFILE_SCOPE(CalculateSpectrum);
+    // PROFILE_SCOPE(CalculateSpectrum);
     auto& ctx = GetAudioContext();
 
     float minSpec = std::numeric_limits<float>::max();
@@ -272,8 +270,9 @@ void audio_analysis_calculate_spectrum(AudioAnalysis& analysis)
 
         // Magnitude * 2 because we are half the spectrum,
         // divided by the total of the hamming window to compenstate
-        spectrum[i] = (analysis.fftMag[i] * 2.0f) / analysis.totalWin;
-        spectrum[i] = std::max(spectrum[i], std::numeric_limits<float>::min());
+        //spectrum[i] = (analysis.fftMag[i] * 2.0f) / analysis.totalWin;
+        //spectrum[i] = std::max(spectrum[i], std::numeric_limits<float>::min());
+        spectrum[i] = analysis.fftMag[i];
 
         // assert(std::isfinite(spectrum[i]));
 
@@ -284,12 +283,12 @@ void audio_analysis_calculate_spectrum(AudioAnalysis& analysis)
         }
 
         // Log based on a reference value of 1
-        spectrum[i] = 20 * std::log10(spectrum[i] / ref);
+        //spectrum[i] = 20 * std::log10(spectrum[i] / ref);
 
         // Normalize by moving up and dividing
         // Decibels are now positive from 0->1;
-        spectrum[i] /= ctx.audioAnalysisSettings.audioDecibelRange;
-        spectrum[i] += 1.0f; // ctx.audioAnalysisSettings.audioDecibelRange;
+        //spectrum[i] /= ctx.audioAnalysisSettings.audioDecibelRange;
+        //spectrum[i] += 1.0f; // ctx.audioAnalysisSettings.audioDecibelRange;
         spectrum[i] = std::clamp(spectrum[i], 0.0f, 1.0f);
 
         if (i != 0)
@@ -335,15 +334,16 @@ void audio_analysis_calculate_spectrum(AudioAnalysis& analysis)
         // Make less buckets on a big window, but at least 8
         uint32_t buckets = std::min(analysis.outputSamples / 8, uint32_t(ctx.audioAnalysisSettings.spectrumBuckets));
         buckets = std::max(buckets, uint32_t(4));
+        buckets = 512;
 
         // Quantize into bigger buckets; filtering helps smooth the graph, and gives a more pleasant effect
         uint32_t spectrumSamples = uint32_t(spectrum.size());
 
         // Linear space shows lower frequencies, log space shows all freqencies but focused
         // on the lower buckets more
-//#define LINEAR_SPACE
+#define LINEAR_SPACE
 #ifdef LINEAR_SPACE
-        audio_analysis_gen_linear_space(analysis,spectrumSamples / 4, buckets);
+        audio_analysis_gen_linear_space(analysis, spectrumSamples, buckets);
 #else
         audio_analysis_gen_log_space(analysis, spectrumSamples, buckets);
 #endif
@@ -380,19 +380,7 @@ void audio_analysis_calculate_spectrum(AudioAnalysis& analysis)
             }
         }
     }
-    // Calculate a peak frequency and a low harmonic of it.
-    // We will use the low harmonic to adjust the FFT sample point and remove some jitter from the results.
-    // i.e. by aligning the FFT start sample with a harmonic multiple of the audio we just captured, we hope to fall into
-    // the same buckets cleanly and avoid aliasing of the samples.
-    auto frequencyPerBucket = float(analysis.channel.sampleRate) / float(analysis.channel.frames);
-    analysis.lastPeakFrequency = (maxSpectrumBucket + .5f) * frequencyPerBucket;
-    const float a = std::log2f(analysis.lastPeakFrequency);
-    const float b = std::log2f(analysis.MaxLowHarmonic);
-
-    analysis.lastPeakHarmonic = (float)std::pow(2, int(std::floor(b - a))) * analysis.lastPeakFrequency;
-    if (!std::isnormal(analysis.lastPeakHarmonic))
-        analysis.lastPeakHarmonic = analysis.LowHarmonic;
-
+    
     audio_analysis_calculate_spectrum_bands(analysis);
 }
 
@@ -401,7 +389,7 @@ void audio_analysis_calculate_spectrum(AudioAnalysis& analysis)
 // For example, vec4.x might end up containing 0->500Hz, vec4.y might be 500-1000Hz, etc.
 void audio_analysis_calculate_spectrum_bands(AudioAnalysis& analysis)
 {
-    //PROFILE_SCOPE(Analysis_Bands);
+    // PROFILE_SCOPE(Analysis_Bands);
     auto& ctx = GetAudioContext();
 
     auto samplesPerSecond = analysis.channel.sampleRate / (float)analysis.channel.frames;
@@ -489,5 +477,22 @@ void audio_analysis_gen_linear_space(AudioAnalysis& analysis, uint32_t limit, ui
     }
 }
 
-} // Audio
+} // namespace Audio
 
+/*
+* From ShaderToy
+realSignal[1024] //mono signal floats for input
+imagSignal[1024] //can be all zeroes for input
+spectumMag[512] //populate after FFT
+fft.forward(realSignal,imagSignal)
+spectrumLength = realSignal.length / 2
+for (int i = 0; i <= spectrum.Length - 1; i++) {
+	float magnitude = log10(sqrt(pow(realSignal[i], 2) + pow(imagSignal[i], 2)));
+	spectumMag[i]= magnitude;
+}
+//normalize spectumMag[] between 0 to 1 using min and max values from spectumMag[]
+min = spectumMag[].MinValue;
+max = spectumMag[].MaxValue;
+for (int i = 0; i <= spectrumMag.length - 1; i++) {
+	spectrumMag[i] = (spectrumMag[i] - min) / (max - min);
+    */

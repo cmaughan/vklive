@@ -500,7 +500,16 @@ void vulkan_scene_prepare(VulkanContext& ctx, RenderContext& renderContext, Scen
         auto pSurface = pVulkanSurface->pSurface;
         pSurface->rendered = false;
 
-        if (pSurface->path.empty())
+        if (pSurface->name == "AudioAnalysis")
+        {
+            bool surfaceChanged = false;
+            surface_update_from_audio(ctx, *pVulkanSurface, surfaceChanged);
+            if (surfaceChanged)
+            {
+                targetsChanged = true;
+            }
+        }
+        else if (pSurface->path.empty())
         {
             auto size = pSurface->size;
             if (size == glm::uvec2(0, 0))

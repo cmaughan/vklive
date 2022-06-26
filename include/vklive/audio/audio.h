@@ -81,7 +81,6 @@ struct AudioAnalysis
     std::vector<float> spectrumBuckets[SwapBuffers];
     std::vector<float> spectrum[SwapBuffers];
     std::vector<float> audio[SwapBuffers];
-    uint32_t triggerIndex[SwapBuffers] = { 0, 0 };
     uint32_t currentBuffer = 0;
 
     std::vector<float> frameCache;
@@ -94,11 +93,6 @@ struct AudioAnalysis
     uint32_t maxSpectrumIndex;
 
     glm::vec4 spectrumBands = glm::vec4(0.0);
-
-    const float LowHarmonic = 60.0f;
-    const float MaxLowHarmonic = 80.0f;
-    float lastPeakHarmonic = LowHarmonic;
-    float lastPeakFrequency = 0.0f;
 
     bool audioActive = false;
 
@@ -115,12 +109,13 @@ struct AudioContext
 {
     bool m_initialized = false;
     bool m_isPlaying = true;
+    bool m_audioValid = false;
+    bool m_changedDeviceCombo = true;
 
     AudioCB m_fnCallback = nullptr;
 
     AudioChannelState inputState;
     AudioChannelState outputState;
-    
 
     AudioSettings settings;
     AudioDeviceSettings audioDeviceSettings;
@@ -131,10 +126,8 @@ struct AudioContext
     PNL_CL_Memory<ChannelProcessResults, std::mutex> audioOutputAnalysis;
     AudioAnalysisSettings audioAnalysisSettings;
 
-    uint64_t m_sampleTime;
+    uint64_t m_sampleTime = 0;
     std::thread::id threadId;
-    bool m_audioValid = false;
-    bool m_changedDeviceCombo = true;
     std::vector<std::string> m_deviceNames;
     std::vector<std::string> m_apiNames;
     std::map<uint32_t, ApiInfo> m_mapApis;

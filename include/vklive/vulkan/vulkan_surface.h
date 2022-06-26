@@ -63,6 +63,7 @@ struct VulkanSurface : Allocation
     vk::DescriptorSet samplerDescriptorSet;
 
     vk::Format format{ vk::Format::eUndefined };
+    
 };
 
 using MipData = ::std::pair<vk::Extent3D, vk::DeviceSize>;
@@ -99,5 +100,6 @@ void surface_stage_to_device(VulkanContext& ctx, VulkanSurface& surface, const v
 }
 
 void surface_create_from_file(VulkanContext& ctx, VulkanSurface& surface, const fs::path& filename, vk::Format format = vk::Format::eR8G8B8A8Unorm, vk::ImageUsageFlags imageUsageFlags = vk::ImageUsageFlagBits::eSampled, vk::ImageLayout imageLayout = vk::ImageLayout::eShaderReadOnlyOptimal, bool forceLinear = false);
+void surface_update_from_audio(VulkanContext& ctx, VulkanSurface& surface, bool& surfaceChanged);
 
 } // namespace vulkan
