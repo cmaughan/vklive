@@ -502,61 +502,65 @@ void surface_create_from_file(VulkanContext& ctx, VulkanSurface& surface, const 
 
 void surface_update_from_audio(VulkanContext& ctx, VulkanSurface& surface, bool& surfaceChanged)
 {
-    vk::Format format = vk::Format::eR32Sfloat;
-    vk::ImageUsageFlags imageUsageFlags = vk::ImageUsageFlagBits::eSampled;
-    vk::ImageLayout imageLayout = vk::ImageLayout::eShaderReadOnlyOptimal;
-
     auto& audioContext = Audio::GetAudioContext();
 
-    auto updateSurface = [&](auto width, auto height, std::vector<float>& data) {
-        /* if (surface.extent.width == width || surface.extent.height == height)
+    auto updateSurface = [&](auto width, auto height) {
+        if (surface.extent.width != width || surface.extent.height != height)
         {
-            return;
-        }*/
+            surface.extent.width = width;
+            surface.extent.height = height;
+            surface.extent.depth = 1;
+            surface.mipLevels = 1;
+            surface.layerCount = 1;
 
-        surface.extent.width = width;
-        surface.extent.height = height;
-        surface.extent.depth = 1;
-        surface.mipLevels = 1;
-        surface.layerCount = 1;
+            vk::Format format = vk::Format::eR32Sfloat;
+            vk::ImageUsageFlags imageUsageFlags = vk::ImageUsageFlagBits::eSampled;
+            vk::ImageLayout imageLayout = vk::ImageLayout::eShaderReadOnlyOptimal;
 
-        // Create optimal tiled target image
-        vk::ImageCreateInfo imageCreateInfo;
-        imageCreateInfo.imageType = vk::ImageType::e2D;
-        imageCreateInfo.format = format;
-        imageCreateInfo.mipLevels = surface.mipLevels;
-        imageCreateInfo.arrayLayers = 1;
-        imageCreateInfo.extent = surface.extent;
-        imageCreateInfo.usage = imageUsageFlags | vk::ImageUsageFlagBits::eTransferDst;
+            // Create optimal tiled target image
+            vk::ImageCreateInfo imageCreateInfo;
+            imageCreateInfo.imageType = vk::ImageType::e2D;
+            imageCreateInfo.format = format;
+            imageCreateInfo.mipLevels = surface.mipLevels;
+            imageCreateInfo.arrayLayers = 1;
+            imageCreateInfo.extent = surface.extent;
+            imageCreateInfo.usage = imageUsageFlags | vk::ImageUsageFlagBits::eTransferDst;
 
-        ctx.device.waitIdle();
+            // Need this?
+            ctx.device.waitIdle();
 
-        surface_stage_to_device(ctx, surface, imageCreateInfo, vk::MemoryPropertyFlagBits::eDeviceLocal, data);
+            surface_create(ctx, surface, imageCreateInfo, vk::MemoryPropertyFlagBits::eDeviceLocal);
 
-        // Add sampler
-        surface_create_sampler(ctx, surface);
+            // Add the staging buffer for transfers
+            surface.stagingBuffer = buffer_create_staging(ctx, width * height * sizeof(float));
 
-        // Create image view
-        static const vk::ImageUsageFlags VIEW_USAGE_FLAGS = vk::ImageUsageFlagBits::eSampled | vk::ImageUsageFlagBits::eStorage | vk::ImageUsageFlagBits::eColorAttachment | vk::ImageUsageFlagBits::eDepthStencilAttachment | vk::ImageUsageFlagBits::eInputAttachment;
+            // Add sampler for using this surface in a shader
+            surface_create_sampler(ctx, surface);
 
-        if (imageUsageFlags & VIEW_USAGE_FLAGS)
-        {
-            vk::ImageViewCreateInfo viewCreateInfo;
-            viewCreateInfo.viewType = vk::ImageViewType::e2D;
-            viewCreateInfo.image = surface.image;
-            viewCreateInfo.format = format;
-            viewCreateInfo.subresourceRange = { vk::ImageAspectFlagBits::eColor, 0, surface.mipLevels, 0, surface.layerCount };
-            surface.view = ctx.device.createImageView(viewCreateInfo);
+            // Create image view
+            static const vk::ImageUsageFlags VIEW_USAGE_FLAGS = vk::ImageUsageFlagBits::eSampled | vk::ImageUsageFlagBits::eStorage | vk::ImageUsageFlagBits::eColorAttachment | vk::ImageUsageFlagBits::eDepthStencilAttachment | vk::ImageUsageFlagBits::eInputAttachment;
+
+            if (imageUsageFlags & VIEW_USAGE_FLAGS)
+            {
+                vk::ImageViewCreateInfo viewCreateInfo;
+                viewCreateInfo.viewType = vk::ImageViewType::e2D;
+                viewCreateInfo.image = surface.image;
+                viewCreateInfo.format = format;
+                viewCreateInfo.subresourceRange = { vk::ImageAspectFlagBits::eColor, 0, surface.mipLevels, 0, surface.layerCount };
+                surface.view = ctx.device.createImageView(viewCreateInfo);
+            }
         }
-
-        surfaceChanged = true;
     };
-
+        
     ConsumerMemLock memLock(audioContext.audioInputAnalysis);
     auto& processData = memLock.Data();
     if (processData.activeChannels.empty())
     {
         // Ensure a blank surface
+        if (surface.extent.width == 0 || surface.extent.height == 0)
+        {
+            updateSurface(surface.extent.width, surface.extent.height);
+        }
         return;
     }
 
@@ -595,7 +599,7 @@ void surface_update_from_audio(VulkanContext& ctx, VulkanSurface& surface, bool&
         return;
     }
 
-    auto maxStride = std::min(spectrumSize, audioSize); 
+    auto maxStride = spectrumSize;
 
     // Stereo, Audio and Spectrum (4 rows total)
     uploadCache.resize(channels * 2 * maxStride);
@@ -606,7 +610,31 @@ void surface_update_from_audio(VulkanContext& ctx, VulkanSurface& surface, bool&
     }
 
     // Left/Right FFT and Audio (4 rows)
-    updateSurface(std::min(spectrumSize, audioSize), channels * 2, uploadCache);
+    updateSurface(spectrumSize, channels * 2);
+
+    // TODO: This is a little inefficient; need to use the scene command buffer, or a copy queue and sync...
+    // On the other hand, we aren't going for AAA game engine here.
+    utils_with_command_buffer(ctx, [&](const vk::CommandBuffer& copyCmd) {
+        debug_set_commandbuffer_name(ctx.device, copyCmd, "Buffer::StageAudioToDevice");
+        vk::ImageSubresourceRange range(vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1);
+
+        // Prepare for transfer
+        surface_set_layout(ctx, copyCmd, surface.image, vk::ImageLayout::eUndefined, vk::ImageLayout::eTransferDstOptimal, range);
+
+        // Prepare for transfer
+        std::vector<vk::BufferImageCopy> bufferCopyRegions;
+        {
+            vk::BufferImageCopy bufferCopyRegion;
+            bufferCopyRegion.imageSubresource.aspectMask = vk::ImageAspectFlagBits::eColor;
+            bufferCopyRegion.imageSubresource.layerCount = 1;
+            bufferCopyRegion.imageExtent = surface.extent;
+            bufferCopyRegions.push_back(bufferCopyRegion);
+        }
+        copyCmd.copyBufferToImage(surface.stagingBuffer.buffer, surface.image, vk::ImageLayout::eTransferDstOptimal, bufferCopyRegions);
+        
+        // Prepare for shader read
+        surface_set_layout(ctx, copyCmd, surface.image, vk::ImageLayout::eTransferDstOptimal, vk::ImageLayout::eShaderReadOnlyOptimal, range);
+    });
 }
 
 /*

@@ -7,6 +7,7 @@
 #include <vulkan/vulkan.hpp>
 #pragma warning(default : 26812)
 #include <vklive/vulkan/vulkan_context.h>
+#include <vklive/vulkan/vulkan_buffer.h>
 #include <vklive/file/file.h>
 
 struct Surface;
@@ -63,6 +64,8 @@ struct VulkanSurface : Allocation
     vk::DescriptorSet samplerDescriptorSet;
 
     vk::Format format{ vk::Format::eUndefined };
+
+    VulkanBuffer stagingBuffer;
     
 };
 
