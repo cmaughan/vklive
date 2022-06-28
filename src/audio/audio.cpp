@@ -383,13 +383,6 @@ bool audio_init(const AudioCB& fnCallback)
 
     ctx.m_audioValid = false;
     ctx.m_fnCallback = fnCallback;
-    ctx.audioAnalysisSettings.blendAudio = false;
-    ctx.audioAnalysisSettings.blendFFT = true;
-    ctx.audioAnalysisSettings.filterFFT = false;
-    ctx.audioAnalysisSettings.frames = 4096;
-    ctx.audioAnalysisSettings.audioDecibelRange = 75;
-    ctx.audioAnalysisSettings.spectrumBuckets = 256;
-    ctx.audioAnalysisSettings.normalizeAudio = false;
 
     // One duration initialization of the API and devices
     if (!ctx.m_initialized)

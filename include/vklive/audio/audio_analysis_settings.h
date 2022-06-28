@@ -11,12 +11,12 @@ namespace Audio
 
 struct AudioAnalysisSettings
 {
-    uint32_t frames = 1024;
+    uint32_t frames = 4096;
     float blendFactor = 10.0f;
     bool blendAudio = false;
     bool blendFFT = true;
+    bool filterFFT = true;
     bool normalizeAudio = false;
-    bool filterFFT = false;
     bool removeFFTJitter = false;
     uint32_t spectrumBuckets = 100;
     glm::uvec4 spectrumFrequencies = glm::uvec4(100, 500, 3000, 10000);

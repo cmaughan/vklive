@@ -17,7 +17,6 @@ namespace Audio
 void audio_analysis_update(AudioAnalysis& analysis, const float* data, uint32_t num);
 void audio_analysis_gen_linear_space(AudioAnalysis& analysis, uint32_t limit, uint32_t n);
 void audio_analysis_gen_log_space(AudioAnalysis& analysis, uint32_t limit, uint32_t n);
-// void audio_analysis_process();
 void audio_analysis_calculate_spectrum(AudioAnalysis& analysis);
 void audio_analysis_calculate_spectrum_bands(AudioAnalysis& analysis);
 void audio_analysis_calculate_audio(AudioAnalysis& analysis);
@@ -176,7 +175,7 @@ void audio_analysis_update(AudioAnalysis& analysis, const float* data, uint32_t 
         {
             analysis.fftOut[i] = analysis.fftOut[i] * scale;
         }
-        analysis.fftOut[0] = std::complex(analysis.fftOut[0].real(), 0.0f);
+        analysis.fftOut[0] = std::complex(0.0f /* analysis.fftOut[0].real()*/, 0.0f);
 
         // Convert to dB
         for (uint32_t i = 1; i < analysis.outputSamples; i++)
@@ -194,6 +193,9 @@ void audio_analysis_update(AudioAnalysis& analysis, const float* data, uint32_t 
             analysis.fftMag[i] = std::max(analysis.fftMag[i], 0.0f);
             analysis.fftMag[i] = std::min(analysis.fftMag[i], 1.0f);
         }
+            
+        analysis.fftMag[0] = 0.0f;
+        //std::min(analysis.fftMag[i], 1.0f);
 
         audio_analysis_calculate_spectrum(analysis);
     }
@@ -260,7 +262,7 @@ void audio_analysis_calculate_spectrum(AudioAnalysis& analysis)
     uint32_t maxSpectrumBucket = 0;
 
     auto& spectrum = analysis.spectrum[analysis.currentBuffer];
-    auto& spectrumOld = analysis.spectrum[1 - analysis.currentBuffer];
+    auto& spectrumBucketsOld = analysis.spectrumBuckets[1 - analysis.currentBuffer];
     auto& spectrumBuckets = analysis.spectrumBuckets[analysis.currentBuffer];
 
     for (uint32_t i = 0; i < analysis.outputSamples; i++)
@@ -318,18 +320,6 @@ void audio_analysis_calculate_spectrum(AudioAnalysis& analysis)
         }
     }
 
-    if (ctx.audioAnalysisSettings.blendFFT)
-    {
-        // Time in ms / blend duration in ms
-        auto samplesPerSecond = analysis.channel.sampleRate / (float)analysis.channel.frames;
-        auto blendFactor = 64.0f / samplesPerSecond;
-        for (uint32_t i = 0; i < analysis.outputSamples; i++)
-        {
-            // Blend with previous result
-            spectrum[i] = spectrum[i] * blendFactor + spectrumOld[i] * (1.0f - blendFactor);
-        }
-    }
-
     {
         // Make less buckets on a big window, but at least 8
         uint32_t buckets = std::min(analysis.outputSamples / 8, uint32_t(ctx.audioAnalysisSettings.spectrumBuckets));
@@ -341,7 +331,7 @@ void audio_analysis_calculate_spectrum(AudioAnalysis& analysis)
 
         // Linear space shows lower frequencies, log space shows all freqencies but focused
         // on the lower buckets more
-#define LINEAR_SPACE
+//#define LINEAR_SPACE
 #ifdef LINEAR_SPACE
         audio_analysis_gen_linear_space(analysis, spectrumSamples, buckets);
 #else
@@ -381,6 +371,20 @@ void audio_analysis_calculate_spectrum(AudioAnalysis& analysis)
         }
     }
     
+    if (ctx.audioAnalysisSettings.blendFFT &&
+        spectrumBuckets.size() == spectrumBucketsOld.size())
+    {
+        // Time in ms / blend duration in ms
+        auto deltaTimeFrames = analysis.channel.deltaTime * analysis.channel.frames;
+        auto blendFactor = 0.5f;
+
+        for (size_t i = 0; i < spectrumBuckets.size(); i++)
+        {
+            // Blend with previous result
+            spectrumBuckets[i] = spectrumBuckets[i] * blendFactor + spectrumBucketsOld[i] * (1.0f - blendFactor);
+        }
+    }
+
     audio_analysis_calculate_spectrum_bands(analysis);
 }
 
