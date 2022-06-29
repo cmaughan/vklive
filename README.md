@@ -24,11 +24,11 @@ An audio spectrum analysis; best seen live! This is from a ShaderToy example, pr
 ## Features
 - CTRL+ENTER to evaluate the project/shader you are viewing.
 - Can edit/save the files in modal VIM or Notepad style mode (CTRL+2 or CTRL+1).
-- Scene description for passes and geometry
+- Scene description for passes and geometry, rendertargets and textures.
 - Fragment, Vertex and Geometry Shaders have been tested so far.
 - Load/Save projects in different folders
 - All API objects are debug-labelled, including the ImGui ones, making it easy to diagnose errors in tools like NVIDIA Nsight, and find your way around.
-- Default project has background and foreground geometry and time input.
+- Default project has background and foreground geometry and time input.  Template examples show off features.
 
 ## TODO
 - More error checking of device creation problems.
@@ -51,7 +51,7 @@ build.bat OR 'cmake --build .' in the build folder
 ## Design
 So how does it work? Firstly, all text editing is handled by Zep.  It does the heavy lifting of showing tabs, editing text, flashing when you evaluate, syntax coloring, error popups, etc.
 The windows are created by SDL, and the UI is drawn by ImGui. The rendering engine is designed as a simple collection of C-like functions and structs.  There is a thread in the main application which can spot changes to the code, rebuild the vulkan pipeline and send the new state into an update queue if it works.  If it doesn't, the previous state is maintained until it is fixed.  The Vulkan validation layers catch all problems so far, which helps keep the app stable while the user tweaks things.
-The scenegraph is a simple language parsed by MPC, and controls the render passes.
+The scenegraph is a simple language parsed by MPC, and controls the render passes.  Shaders are now partially reflected, so that bindings can be dynamically built.
 I'll write more here when I get time ;)
 
 ## Built On
