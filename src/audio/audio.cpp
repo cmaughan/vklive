@@ -348,20 +348,19 @@ void audio_set_channels_rate(int outputChannels, int inputChannels, uint32_t out
         ctx.inputState.deltaTime = 1.0f / float(outputRate);
         ctx.inputState.channelCount = inputChannels;
 
-
         for (uint32_t i = 0; i < inputChannels; i++)
         {
         }
     }
-    //if (ctx.pSP)
+    // if (ctx.pSP)
     {
-      //  sp_destroy(&ctx.pSP);
-     //   ctx.pSP = nullptr;
+        //  sp_destroy(&ctx.pSP);
+        //   ctx.pSP = nullptr;
     }
 
-    //sp_create(&ctx.pSP);
-    //ctx.pSP->nchan = channels;
-   // ctx.pSP->sr = ctx.sampleRate;
+    // sp_create(&ctx.pSP);
+    // ctx.pSP->nchan = channels;
+    // ctx.pSP->sr = ctx.sampleRate;
 }
 
 void audio_destroy()
@@ -463,7 +462,7 @@ bool audio_init(const AudioCB& fnCallback)
     // The actual rate that got picked
     ctx.audioDeviceSettings.sampleRate = uint32_t(Pa_GetStreamInfo(ctx.m_pStream)->sampleRate);
 
-    audio_set_channels_rate(ctx.m_outputParams.channelCount,  ctx.m_inputParams.channelCount, ctx.audioDeviceSettings.sampleRate, ctx.audioDeviceSettings.sampleRate);
+    audio_set_channels_rate(ctx.m_outputParams.channelCount, ctx.m_inputParams.channelCount, ctx.audioDeviceSettings.sampleRate, ctx.audioDeviceSettings.sampleRate);
 
     ctx.m_audioValid = true;
     return true;
@@ -551,40 +550,38 @@ void audio_show_gui()
 {
     auto& ctx = audioContext;
 
-    bool show = true;
-    if (ImGui::Begin("Audio Settings", &show))
+    bool changed = false;
+    if (Combo("API", &ctx.audioDeviceSettings.apiIndex, ctx.m_apiNames))
     {
-        bool changed = false;
-        if (Combo("API", &ctx.audioDeviceSettings.apiIndex, ctx.m_apiNames))
-        {
-            ctx.m_changedDeviceCombo = true;
-        }
+        ctx.m_changedDeviceCombo = true;
+    }
 
-        if (ImGui::Checkbox("Enable Input", &audioContext.audioDeviceSettings.enableInput))
-        {
-            ctx.m_changedDeviceCombo = true;
-        }
+    if (ImGui::Checkbox("Enable Input", &audioContext.audioDeviceSettings.enableInput))
+    {
+        ctx.m_changedDeviceCombo = true;
+    }
 
-        if (ImGui::Checkbox("Enable Output", &audioContext.audioDeviceSettings.enableOutput))
-        {
-            ctx.m_changedDeviceCombo = true;
-        }
+    if (ImGui::Checkbox("Enable Output", &audioContext.audioDeviceSettings.enableOutput))
+    {
+        ctx.m_changedDeviceCombo = true;
+    }
 
-        auto& api = ctx.m_mapApis[audioContext.audioDeviceSettings.apiIndex];
-        if (Combo("Output", &audioContext.audioDeviceSettings.outputDevice, api.outDeviceNames))
-        {
-            ctx.m_changedDeviceCombo = true;
-        }
-        if (Combo("Input", &audioContext.audioDeviceSettings.inputDevice, api.inDeviceNames))
-        {
-            ctx.m_changedDeviceCombo = true;
-        }
+    auto& api = ctx.m_mapApis[audioContext.audioDeviceSettings.apiIndex];
+    if (Combo("Output", &audioContext.audioDeviceSettings.outputDevice, api.outDeviceNames))
+    {
+        ctx.m_changedDeviceCombo = true;
+    }
+    if (Combo("Input", &audioContext.audioDeviceSettings.inputDevice, api.inDeviceNames))
+    {
+        ctx.m_changedDeviceCombo = true;
+    }
 
-        if (ctx.m_changedDeviceCombo)
-        {
-            changed = true;
-        }
+    if (ctx.m_changedDeviceCombo)
+    {
+        changed = true;
+    }
 
+    auto getFrameIndex = [&](uint32_t frameSize) {
         int frameIndex = 0;
         for (auto& iFrame : frameSizes)
         {
@@ -599,209 +596,121 @@ void audio_show_gui()
         {
             frameIndex = defaultFrameIndex;
         }
+        return frameIndex;
+    };
 
-        if (Combo("Frame Size", &frameIndex, frameNames))
+    auto frameIndex = getFrameIndex(audioContext.audioDeviceSettings.frames);
+    if (Combo("Frame Size", &frameIndex, frameNames))
+    {
+        audioContext.audioDeviceSettings.frames = frameSizes[frameIndex];
+        changed = true;
+    }
+
+    audio_validate_rates();
+
+    int rateIndex = 0;
+    for (auto& iRate : ctx.m_currentRates)
+    {
+        if (iRate == audioContext.audioDeviceSettings.sampleRate)
         {
-            audioContext.audioDeviceSettings.frames = frameSizes[frameIndex];
+            break;
+        }
+        rateIndex++;
+    }
+
+    if (rateIndex >= ctx.m_currentRates.size())
+    {
+        rateIndex = 0;
+    }
+    if (Combo("Sample Rate", &rateIndex, ctx.m_currentRateNames))
+    {
+        audioContext.audioDeviceSettings.sampleRate = uint32_t(ctx.m_currentRates[rateIndex]);
+        changed = true;
+    }
+
+    AudioAnalysisSettings& analysisSettings = ctx.audioAnalysisSettings;
+
+    if (ctx.audioDeviceSettings.enableInput)
+    {
+        int index = 0; 
+        auto frameIndex = getFrameIndex(analysisSettings.frames);
+        if (Combo("Analysis Frames", &index, frameNames))
+        {
+            analysisSettings.frames = frameSizes[index];
             changed = true;
         }
 
-        audio_validate_rates();
-
-        int rateIndex = 0;
-        for (auto& iRate : ctx.m_currentRates)
+        // Note; negative DB
+        float dB = -analysisSettings.audioDecibelRange;
+        if (ImGui::SliderFloat("Decibel (DbFS)", &dB, -120.0f, 1.0f))
         {
-            if (iRate == audioContext.audioDeviceSettings.sampleRate)
-            {
-                break;
-            }
-            rateIndex++;
+            analysisSettings.audioDecibelRange = -dB;
         }
 
-        if (rateIndex >= ctx.m_currentRates.size())
+        float blend = analysisSettings.blendFactor;
+        if (ImGui::SliderFloat("Blend Time (ms)", &blend, 1.0f, 500.0f))
         {
-            rateIndex = 0;
-        }
-        if (Combo("Sample Rate", &rateIndex, ctx.m_currentRateNames))
-        {
-            audioContext.audioDeviceSettings.sampleRate = uint32_t(ctx.m_currentRates[rateIndex]);
-            changed = true;
+            analysisSettings.blendFactor = blend;
         }
 
-        if (changed)
+        bool blendAudio = analysisSettings.blendAudio;
+        if (ImGui::Checkbox("Blend Audio", &blendAudio))
         {
-            audio_init(nullptr);
+            analysisSettings.blendAudio = blendAudio;
         }
 
-        if (!ctx.m_audioValid)
+        bool blendFFT = analysisSettings.blendFFT;
+        if (ImGui::Checkbox("Blend FFT", &blendFFT))
         {
-            ImGui::TextColored(ImVec4(1.0f, 0.0f, 0.0f, 1.0f), "Invalid Audio Configuration!");
+            analysisSettings.blendFFT = blendFFT;
+        }
+
+        bool filterFFT = analysisSettings.filterFFT;
+        if (ImGui::Checkbox("Smooth FFT", &filterFFT))
+        {
+            analysisSettings.filterFFT = filterFFT;
+        }
+
+        bool removeJitter = analysisSettings.removeFFTJitter;
+        if (ImGui::Checkbox("Remove Jitter FFT", &removeJitter))
+        {
+            analysisSettings.removeFFTJitter = removeJitter;
         }
 
         /*
-        AudioAnalysisSettings analysisSettings;
-        if (m_spAnalysis)
+        auto freq = analysisSettings.spectrumFrequencies;
+        if (ImGui::DragIntRange4("Spectrum Bands", freq, 1.0f, 0, 48000))
         {
-            analysisSettings = m_spAnalysis->GetCurrentSettings();
+            analysisSettings.spectrumFrequencies = freq;
         }
+        */
 
-        int input = 0;
-        int output = 0;
-        for (auto& in : ctx.m_inputDevices)
+        auto gains = analysisSettings.spectrumGains;
+        if (ImGui::SliderFloat4("Band Gains", &gains.x, 0.0f, 1.0f))
         {
-            inputs.push_back(in.GetName());
-            if (maud.audioDeviceSettings.inputDevice == in.deviceIndex)
-            {
-                input = int(inputs.size() - 1);
-            }
+            analysisSettings.spectrumGains = gains;
         }
-        for (auto& out : m_outputDevices)
-        {
-            outputs.push_back(out.GetName());
-            if (maud.audioDeviceSettings.outputDevice == out.deviceIndex)
-            {
-                output = int(outputs.size() - 1);
-            }
-        }
-
-        int rate = 0;
-        std::vector<std::string> rates;
-        for (auto r : m_inputDevices[input].info.sampleRates)
-        {
-            rates.push_back(std::to_string(r) + "Hz");
-            if (r == maud.audioDeviceSettings.sampleRate)
-            {
-                rate = int(rates.size() - 1);
-            }
-        }
-
-        if (maud.audioDeviceSettings.enableInput)
-        {
-
-            // Frames from the card
-            int frame = maud.audioDeviceSettings.frames;
-            int analysisFrame = analysisSettings.frames;
-            std::vector<uint32_t> frames{ 256, 512, 1024, 2048, 4096 };
-            std::vector<std::string> frameNames;
-            for (auto& f : frames)
-            {
-                frameNames.push_back(std::to_string(f));
-                if (f == frame)
-                {
-                    frame = int(frameNames.size() - 1);
-                }
-                if (f == analysisFrame)
-                {
-                    analysisFrame = int(frameNames.size() - 1);
-                }
-            }
-
-            if (frame >= frames.size())
-            {
-                frame = 0;
-            }
-            if (analysisFrame >= frames.size())
-            {
-                analysisFrame = 0;
-            }
-
-            if (ImGui::Combo("Frames", &frame, frameNames))
-            {
-                maud.audioDeviceSettings.frames = frames[frame];
-                needReset = true;
-            }
-
-            if (ImGui::Combo("Analysis Frames", &analysisFrame, frameNames))
-            {
-                analysisSettings.frames = frames[analysisFrame];
-                needReset = true;
-            }
-
-            // Note; negative DB
-            float dB = -analysisSettings.audioDecibelRange;
-            if (ImGui::SliderFloat("Decibel (DbFS)", &dB, -120.0f, 1.0f))
-            {
-                analysisSettings.audioDecibelRange = -dB;
-            }
-
-            float blend = analysisSettings.blendFactor;
-            if (ImGui::SliderFloat("Blend Time (ms)", &blend, 1.0f, 500.0f))
-            {
-                analysisSettings.blendFactor = blend;
-            }
-
-            bool blendAudio = analysisSettings.blendAudio;
-            if (ImGui::Checkbox("Blend Audio", &blendAudio))
-            {
-                analysisSettings.blendAudio = blendAudio;
-            }
-
-            bool blendFFT = analysisSettings.blendFFT;
-            if (ImGui::Checkbox("Blend FFT", &blendFFT))
-            {
-                analysisSettings.blendFFT = blendFFT;
-            }
-
-            bool filterFFT = analysisSettings.filterFFT;
-            if (ImGui::Checkbox("Smooth FFT", &filterFFT))
-            {
-                analysisSettings.filterFFT = filterFFT;
-            }
-
-            bool removeJitter = analysisSettings.removeFFTJitter;
-            if (ImGui::Checkbox("Remove Jitter FFT", &removeJitter))
-            {
-                analysisSettings.removeFFTJitter = removeJitter;
-            }
-
-            auto freq = analysisSettings.spectrumFrequencies;
-            if (ImGui::DragIntRange4("Spectrum Bands", freq, 1.0f, 0, 48000))
-            {
-                analysisSettings.spectrumFrequencies = freq;
-            }
-
-            auto gains = analysisSettings.spectrumGains;
-            if (ImGui::SliderFloat4("Band Gains", &gains.x, 0.0f, 1.0f))
-            {
-                analysisSettings.spectrumGains = gains;
-            }
-        }
-
-        if (ImGui::Button("Reset"))
-        {
-            maud.audioDeviceSettings.sampleRate = 0;
-            maud.audioDeviceSettings.frames = 256;
-
-            analysisSettings.spectrumGains = NVec4f(1.0f);
-            analysisSettings.spectrumFrequencies = NVec4i(100, 500, 3000, 10000);
-            analysisSettings.frames = 2048;
-            analysisSettings.blendFactor = 10.0f;
-            analysisSettings.blendFFT = true;
-            analysisSettings.filterFFT = true;
-            analysisSettings.removeFFTJitter = true;
-            analysisSettings.blendAudio = true;
-            analysisSettings.audioDecibelRange = 70.0f;
-            needReset = true;
-        }
-
-        if (m_audioValid == false)
-        {
-            ImGui::TextColored(ImVec4(1.0f, 0.0f, 0.0f, 1.0f), "Invalid Audio Configuration!");
-        }
-
-        if (needReset)
-        {
-            audio_init(maud.audioDeviceSettings, analysisSettings, m_fnCallback);
-        }
-        else if (m_spAnalysis)
-        {
-            std::lock_guard<std::recursive_mutex> guard(maud.audio_mutex);
-            m_spAnalysis->UpdateSettings(analysisSettings);
-        }
-    */
     }
 
-    ImGui::End();
+    if (ImGui::Button("Reset"))
+    {
+        ctx.audioDeviceSettings = AudioDeviceSettings{};
+        ctx.audioAnalysisSettings = AudioAnalysisSettings{};
+        changed = true;
+    }
+
+    if (changed)
+    {
+        audio_init(nullptr);
+        
+        //std::lock_guard<std::recursive_mutex> guard(maud.audio_mutex);
+        //m_spAnalysis->UpdateSettings(analysisSettings);
+    }
+
+    if (!ctx.m_audioValid)
+    {
+        ImGui::TextColored(ImVec4(1.0f, 0.0f, 0.0f, 1.0f), "Invalid Audio Configuration!");
+    }
 }
 
 } // namespace Audio

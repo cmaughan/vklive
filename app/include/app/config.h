@@ -3,6 +3,8 @@
 #include <glm/glm.hpp>
 
 #include <vklive/file/file.h>
+#include <vklive/audio/audio_analysis_settings.h>
+#include <vklive/audio/audio_device_settings.h>
 
 enum class WindowState
 {
@@ -27,7 +29,8 @@ struct AppConfig
     // 0 = normal, 1 = maximized, 2 = minimized
     WindowState main_window_state = WindowState::Normal;
 
-
+    Audio::AudioAnalysisSettings audioAnalysisSettings;
+    Audio::AudioDeviceSettings audioDeviceSettings;
 };
 
 extern AppConfig appConfig;

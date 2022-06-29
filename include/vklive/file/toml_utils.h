@@ -1,53 +1,75 @@
 #pragma once
 
 #include <map> 
-#include <toml.hpp>
+#include <glm/glm.hpp>
+#include "toml++/toml.h"
 
-#include <mutils/file/file.h>
-#include <mutils/math/math.h>
+using namespace std::string_view_literals;
 
-namespace MUtils
+template<typename VecT, class T>
+VecT toml_read_vec2(const T& node, const VecT& def = VecT(0.0f))
 {
-
-std::map<std::string, const toml::table&> toml_get_subtables(const toml::value& loaded, std::string parentName, std::function<void(const std::string&, toml::table&)> cb);
-
-std::vector<float> toml_floats(const toml::value& val);
-std::vector<int> toml_ints(const toml::value& val);
-
-// TODO pass value and use that instead
-std::string toml_table_string(const toml::value& value, const char* pszTable, const char* pszEntry, const char* pszDefault = "");
-NVec3f toml_get_vec3(const toml::table& table, const char* pszName, const NVec3f& def = NVec3f(0.0f));
-NVec4f toml_get_vec4(const toml::table& table, const char* pszName, const NVec4f& def = NVec4f(0.0f));
-NVec4i toml_get_vec4i(const toml::table& table, const char* pszName, const NVec4i& def = NVec4i(0));
-
-const toml::table toml_get_table(const toml::table& table, const char* child);
-int toml_line(const toml::table& table, const char* pszName);
-
-toml::value toml_read(const fs::path& path);
-void toml_sanitize(std::string& text);
-int toml_extract_error_line(std::string err);
-
-template <typename T>
-void toml_set(toml::table& table, const char* pszName, const T& val = T{})
-{
-    auto itr = table.find(pszName);
-    if (itr != table.end())
+    const toml::array* pArray = node.as_array();
+    if (!pArray)
     {
-        //return toml::set<T>(itr->second, val);
-        assert(!"Implement me!");
+        return def; 
     }
-    table[pszName] = val;
+
+    VecT ret;
+    ret.x = (*pArray)[0].value_or(def.x);
+    ret.y = (*pArray)[1].value_or(def.y);
+    return ret;
 }
 
-template <typename T>
-T toml_get(const toml::table& table, const char* pszName, const T& val = T{})
+template<typename VecT, class T>
+VecT toml_read_vec3(const T& node, const VecT& def = VecT(0.0f))
 {
-    auto itr = table.find(pszName);
-    if (itr != table.end())
+    const toml::array* pArray = node.as_array();
+    if (!pArray)
     {
-        return toml::get<T>(itr->second);
+        return def; 
     }
-    return val;
+
+    VecT ret;
+    ret.x = (*pArray)[0].value_or(def.x);
+    ret.y = (*pArray)[1].value_or(def.y);
+    ret.z = (*pArray)[2].value_or(def.y);
+    return ret;
 }
 
-} // namespace MUtils
+template<typename VecT, class T>
+VecT toml_read_vec4(const T& node, const VecT& def = VecT(0.0f))
+{
+    const toml::array* pArray = node.as_array();
+    if (!pArray)
+    {
+        return def; 
+    }
+
+    VecT ret;
+    ret.x = (*pArray)[0].value_or(def.x);
+    ret.y = (*pArray)[1].value_or(def.y);
+    ret.z = (*pArray)[2].value_or(def.y);
+    ret.w = (*pArray)[3].value_or(def.y);
+    return ret;
+}
+
+template<class VecT>
+void toml_write_vec2(toml::table& table, const std::string& strEntry, const VecT& value)
+{
+    table.insert_or_assign(strEntry, toml::array{ value.x, value.y });
+}
+
+template<class VecT>
+void toml_write_vec3(toml::table& table, const std::string& strEntry, const VecT& value)
+{
+    table.insert_or_assign(strEntry, toml::array{ value.x, value.y, value.z });
+}
+
+template<class VecT>
+void toml_write_vec4(toml::table& table, const std::string& strEntry, const VecT& value)
+{
+    table.insert_or_assign(strEntry, toml::array{ value.x, value.y, value.z, value.w });
+}
+
+

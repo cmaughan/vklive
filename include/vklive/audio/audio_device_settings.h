@@ -1,8 +1,8 @@
 #pragma once
 
 #include <vector>
+#include <vklive/file/toml_utils.h>
 #include <vklive/logger/logger.h>
-#include <toml++/toml.h>
 
 #undef ERROR
 
@@ -22,22 +22,20 @@ struct AudioDeviceSettings
     uint32_t frames = 1024;          // default frames
 };
 
-/*
 inline toml::table audiodevice_save_settings(const AudioDeviceSettings& settings)
 {
     toml::table tab;
-    tab["api"] = int(settings.apiIndex);
-    tab["frames"] = int(settings.frames);
-    tab["sample_rate"] = int(settings.sampleRate);
+    tab.insert_or_assign("api", int(settings.apiIndex));
+    tab.insert_or_assign("frames", int(settings.frames));
+    tab.insert_or_assign("sample_rate", int(settings.sampleRate));
 
-    tab["output_enable"] = bool(settings.enableOutput);
-    tab["output_channels"] = int(settings.outputChannels);
-    tab["output_device"] = int(settings.outputDevice);
+    tab.insert_or_assign("output_enable", bool(settings.enableOutput));
+    tab.insert_or_assign("output_channels", int(settings.outputChannels));
+    tab.insert_or_assign("output_device", int(settings.outputDevice));
     
-    tab["input_enable"] = bool(settings.enableInput);
-    tab["input_channels"] = int(settings.inputChannels);
-    tab["input_device"] = int(settings.inputDevice);
-
+    tab.insert_or_assign("input_enable", bool(settings.enableInput));
+    tab.insert_or_assign("input_channels", int(settings.inputChannels));
+    tab.insert_or_assign("input_device", int(settings.inputDevice));
     return tab;
 }
 
@@ -48,28 +46,26 @@ inline AudioDeviceSettings audiodevice_load_settings(const toml::table& settings
     if (settings.empty())
         return deviceSettings;
 
-    // TODO: Make string keys to save duplication
+    // TODO: Make string keys to save duplication between load/save functions
     try
     {
-        deviceSettings.apiIndex = toml_get<int>(settings, "api", int(deviceSettings.apiIndex));
-        deviceSettings.frames = toml_get<int>(settings, "frames", int(deviceSettings.frames));
-        deviceSettings.sampleRate = toml_get<int>(settings, "sample_rate", int(deviceSettings.sampleRate));
+        deviceSettings.apiIndex = settings["api"].value_or(int(deviceSettings.apiIndex));
+        deviceSettings.frames = settings["frames"].value_or(int(deviceSettings.frames));
+        deviceSettings.sampleRate = settings["sample_rate"].value_or(deviceSettings.sampleRate);
 
-        deviceSettings.enableOutput = toml_get<bool>(settings, "output_enable", deviceSettings.enableOutput);
-        deviceSettings.outputChannels = toml_get<int>(settings, "output_channels", int(deviceSettings.outputChannels));
-        deviceSettings.outputDevice = toml_get<int>(settings, "output_device", int(deviceSettings.outputDevice));
+        deviceSettings.enableOutput = settings["output_enable"].value_or(deviceSettings.enableOutput);
+        deviceSettings.outputChannels = settings["output_channels"].value_or(int(deviceSettings.outputChannels));
+        deviceSettings.outputDevice = settings["output_device"].value_or(int(deviceSettings.outputDevice));
 
-        deviceSettings.enableInput = toml_get<bool>(settings, "input_enable", deviceSettings.enableInput);
-        deviceSettings.inputChannels = toml_get<int>(settings, "input_channels", int(deviceSettings.inputChannels));
-        deviceSettings.inputDevice = toml_get<int>(settings, "input_device", int(deviceSettings.inputDevice));
+        deviceSettings.enableInput = settings["input_enable"].value_or(deviceSettings.enableInput);
+        deviceSettings.inputChannels = settings["input_channels"].value_or(int(deviceSettings.inputChannels));
+        deviceSettings.inputDevice = settings["input_device"].value_or(int(deviceSettings.inputDevice));
     }
-    catch (toml::exception & ex)
+    catch (std::exception & ex)
     {
-        M_UNUSED(ex);
         LOG(ERROR, ex.what());
     }
     return deviceSettings;
 }
-*/
 
 } // Audio

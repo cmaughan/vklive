@@ -1,8 +1,7 @@
 #pragma once
 
-#include <glm/glm.hpp>
+#include <vklive/file/toml_utils.h>
 #include <vklive/logger/logger.h>
-#include <toml++/toml.h>
 
 #undef ERROR
 
@@ -24,28 +23,26 @@ struct AudioAnalysisSettings
     float audioDecibelRange = 70.0f;
 };
 
-/*
 inline AudioAnalysisSettings audioanalysis_load_settings(const toml::table& settings)
 {
     AudioAnalysisSettings analysisSettings;
-    
+
     if (settings.empty())
         return analysisSettings;
 
     try
     {
-        analysisSettings.frames = toml_get<int>(settings, "frames", int(analysisSettings.frames));
-        analysisSettings.blendFactor = toml_get<float>(settings, "blend_factor", analysisSettings.blendFactor);
-        analysisSettings.blendAudio = toml_get<bool>(settings, "blend_audio", analysisSettings.blendAudio);
-        analysisSettings.blendFFT = toml_get<bool>(settings, "blend_fft", analysisSettings.blendFFT);
-        analysisSettings.filterFFT = toml_get<bool>(settings, "filter_fft", analysisSettings.filterFFT);
-        analysisSettings.removeFFTJitter = toml_get<bool>(settings, "dejitter_fft", analysisSettings.removeFFTJitter);
-        analysisSettings.spectrumFrequencies = toml_get_vec4i(settings, "spectrum_frequencies", analysisSettings.spectrumFrequencies);
-        analysisSettings.spectrumGains = toml_get_vec4(settings, "spectrum_gains", analysisSettings.spectrumGains);
+        analysisSettings.frames = settings["frames"].value_or(analysisSettings.frames);
+        analysisSettings.blendFactor = settings["blend_factor"].value_or(analysisSettings.blendFactor);
+        analysisSettings.blendAudio = settings["blend_audio"].value_or(analysisSettings.blendAudio);
+        analysisSettings.blendFFT = settings["blend_fft"].value_or(analysisSettings.blendFFT);
+        analysisSettings.filterFFT = settings["filter_fft"].value_or(analysisSettings.filterFFT);
+        analysisSettings.removeFFTJitter = settings["dejitter_fft"].value_or(analysisSettings.removeFFTJitter);
+        analysisSettings.spectrumFrequencies = toml_read_vec4(settings["spectrum_frequencies"], analysisSettings.spectrumFrequencies);
+        analysisSettings.spectrumGains = toml_read_vec4(settings["spectrum_gains"], analysisSettings.spectrumGains);
     }
-    catch (toml::exception & ex)
+    catch (std::exception& ex)
     {
-        M_UNUSED(ex);
         LOG(ERROR, ex.what());
     }
     return analysisSettings;
@@ -53,21 +50,21 @@ inline AudioAnalysisSettings audioanalysis_load_settings(const toml::table& sett
 
 inline toml::table audioanalysis_save_settings(const AudioAnalysisSettings& settings)
 {
-    toml::table tab;
-    tab["frames"] = int(settings.frames);
-    tab["blend_factor"] = settings.blendFactor;
-    tab["blend_audio"] =settings.blendAudio;
-    tab["blend_fft"] = settings.blendFFT;
-    tab["filter_fft"] = settings.filterFFT;
-    tab["dejitter_fft"] = settings.removeFFTJitter;
-
     auto freq = settings.spectrumFrequencies;
     auto gain = settings.spectrumGains;
-    tab["spectrum_frequencies"] = { freq.x, freq.y, freq.z, freq.w };
-    tab["spectrum_gains"] = { gain.x, gain.y, gain.z, gain.w };
+
+    auto tab = toml::table {
+        { "frames", int(settings.frames) },
+        { "blend_factor", settings.blendFactor },
+        { "blend_audio", settings.blendAudio },
+        { "blend_fft", settings.blendFFT },
+        { "filter_fft", settings.filterFFT },
+        { "dejitter_fft", settings.removeFFTJitter },
+        { "spectrum_frequencies", toml::array{ freq.x, freq.y, freq.z, freq.w } },
+        { "spectrum_gains", toml::array{ gain.x, gain.y, gain.z, gain.w } }
+    };
 
     return tab;
 }
-*/
 
-} // Audio
+} // namespace Audio

@@ -137,6 +137,7 @@ set(VK_SOURCES
     src/camera.cpp
     src/file/file.cpp
     src/file/runtree.cpp
+    src/file/toml_utils.cpp
     src/imgui/imgui_sdl.cpp
     src/model.cpp
     src/pass.cpp
@@ -156,6 +157,7 @@ set(VK_SOURCES
     include/vklive/camera.h
     include/vklive/file/file.h
     include/vklive/file/runtree.h
+    include/vklive/file/toml_utils.h
     include/vklive/imgui/imgui_sdl.h
     include/vklive/model.h
     include/vklive/pass.h

@@ -42,14 +42,24 @@ void show_audio_popup()
     ImGui::SetNextWindowSize(ImVec2(dpi * 500, dpi * 500), ImGuiCond_Appearing);
     if (ImGui::BeginPopup("Audio", NULL))
     {
-        Audio::audio_show_gui();
+        bool show = true;
+        if (ImGui::Begin("Audio Settings", &show))
+        {
+            Audio::audio_show_gui();
 
-        if (ImGui::Button("OK"))
+            if (ImGui::Button("OK"))
+            {
+                show = false;
+            }
+        }
+        ImGui::End();
+        ImGui::EndPopup();
+       
+        if (!show)
         {
             popupType = PopupType::None;
             ImGui::CloseCurrentPopup();
         }
-        ImGui::EndPopup();
     }
 }
 

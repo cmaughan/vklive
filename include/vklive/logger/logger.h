@@ -38,7 +38,7 @@ struct Logger
     LT level = LT::WARNING;
 };
 
-extern Logger logger;
+extern Logger vklogger;
 
 class Log
 {
@@ -49,7 +49,7 @@ public:
     Log(LT type)
     {
         msglevel = type;
-        if (logger.headers && msglevel >= logger.level)
+        if (vklogger.headers && msglevel >= vklogger.level)
         {
             operator<<("[" + getLabel(type) + "] ");
         }
@@ -71,7 +71,7 @@ public:
     template <class T>
     Log& operator<<(const T& msg)
     {
-        if (disabled || msglevel < logger.level)
+        if (disabled || msglevel < vklogger.level)
             return *this;
         out << msg;
         opened = true;

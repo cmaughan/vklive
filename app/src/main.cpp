@@ -37,7 +37,7 @@
 #include <windows.h>
 #endif
 
-Logger logger{ false, LT::DBG };
+Logger vklogger{ false, LT::DBG };
 bool Log::disabled = false;
 
 Controller controller;
@@ -113,6 +113,10 @@ int main(int argc, char** argv)
     config_load(settings_path);
 
     auto imSettingsPath = file_init_settings("VkLive", runtree_find_path("imgui.ini"), fs::path("settings") / "imgui.ini").string();
+
+    // Set the audio config from the loaded config. We copy it back when closing the app
+    Audio::GetAudioContext().audioAnalysisSettings = appConfig.audioAnalysisSettings;
+    Audio::GetAudioContext().audioDeviceSettings = appConfig.audioDeviceSettings;
 
     // Project
     project_startup();
