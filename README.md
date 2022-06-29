@@ -18,7 +18,8 @@ Built for fun, and to update my GPU graphics knowledge.
 [![VkLive Overview](screenshots/video.png)](https://youtu.be/mebNIQt8pKE "VkLive Demo")
 
 ## Audio Input
-[![VkLive Audio](screenshots/audio_analysis.png)]
+An audio spectrum analysis; best seen live! This is from a ShaderToy example, provided as a template in the file menu:
+![VkLive Audio](screenshots/audio_analysis.png)
 
 ## Features
 - CTRL+ENTER to evaluate the project/shader you are viewing.
