@@ -14,8 +14,8 @@ vec2 distort(vec2 p, float power)
     float a  = atan(p.y, p.x);
     float r = length(p);
     r = pow(r, power);
-    return vec2(r * cos(a), r*sin(a));
-    //return vec2((a / PI), r*2.0-1.0);	// polar
+    //return vec2(r * cos(a), r*sin(a));
+    return vec2((a / PI), r*2.0-1.0);	// polar
 }
 
 // 2D LED Spectrum - Visualiser
@@ -30,8 +30,8 @@ void main()
     uv.y = 1.0f - uv.y;
    
      // distort
-    //float bass = texture( AudioAnalysis, vec2(0, 0) ).x * 1;
-    //uv = distort(uv*2.0-1.0, 0.5+bass)*0.5+0.5;
+    float bass = texture( AudioAnalysis, vec2(0, 0) ).x * 3;
+    uv = distort(uv*2.0-1.0, 0.5+bass)*0.5+0.5;
 
     // quantize coordinates
     const float bands = 200;
@@ -41,8 +41,8 @@ void main()
     p.y = floor(uv.y*segs)/segs;
 
     // read frequency data from first row of texture
-    float fft1  = texture( AudioAnalysis, vec2(p.x * 0.09, 0.26) ).x * 4.0;
-    float fft2  = texture( AudioAnalysis, vec2(p.x * 0.09, 0.0) ).x * 2.0;
+    float fft1  = texture( AudioAnalysis, vec2(p.x * 0.1, 0.26) ).x * 3.0;
+    float fft2  = texture( AudioAnalysis, vec2(p.x * 0.1, 0.0) ).x * 2.0;
 
     // led color
     vec3 color1 = mix(vec3(0.0, 2.0, 0.0), vec3(2.0, 0.0, 0.0), sqrt(uv.y * 2));
@@ -53,8 +53,8 @@ void main()
     fft1 = min(fft1, 1.0);
     fft2 = min(fft2, 1.0);
     // mask for bar graph
-    float mask1 = (p.y < (fft1 * .5)) ? 1.0 : 0.01;
-    float mask2 = (p.y - .5 < fft2 * .5) ? 1.0 : 0.01;
+    float mask1 = (p.y < (fft1 * .5)) ? 1.0 : 0.05;
+    float mask2 = (p.y - .5 < fft2 * .5) ? 1.0 : 0.05;
 
     // led shape
     vec2 d = fract((uv - p) *vec2(bands, segs)) - 0.5;
@@ -67,7 +67,10 @@ void main()
     float wave = texture( AudioAnalysis, vec2(uv.x * .5, 0.75) ).x;
     vec3 waveColor = vec3(0.001, 0.01, 0.04) / abs(wave - uv.y + 0.5);
 
-    ledColor += waveColor;
+    float wave2 = texture( AudioAnalysis, vec2(uv.x * .5, 0.55) ).x;
+    vec3 waveColor2 = vec3(0.04, 0.01, 0.001) / abs(wave - uv.y + 0.3);
+
+    ledColor += waveColor + waveColor2;
 
     // output final color
     fragColor = vec4(ledColor, 1.0);
