@@ -9,11 +9,16 @@ I've been building live editing tools for years, but they always got too big and
 Currently, you can edit a simple description of your scene in terms of passes and geometry, then you can edit the shader files in your project folder.  The main selling point is the easy UI, and great error feedback when editing shaders.
 Mostly the code is c-like, with structs and functions.  It should be relatively easy to follow.  The ImGui bits are ported to Vulkan hpp, which might be useful to some; it is certainly more manageable this way.
 
+Audio input is now supported, and the audio data is converted to a frequency spectrum and uploaded as a texture containing right/left stereo spectrum and right/left audio.  See the example template to play with it.
+
 If you like live coding, shaders, shadertoy, or are learning how to use Vulkan to render, then this might be a fun tool for you to play with.  If you make a nice project, please send it along, or add a screenshot to the screenshot thread!
 Built for fun, and to update my GPU graphics knowledge.
 
 ## Video Overview
 [![VkLive Overview](screenshots/video.png)](https://youtu.be/mebNIQt8pKE "VkLive Demo")
+
+## Audio Input
+[![VkLive Audio](screenshots/audio_analysis.png)]
 
 ## Features
 - CTRL+ENTER to evaluate the project/shader you are viewing.
@@ -25,11 +30,9 @@ Built for fun, and to update my GPU graphics knowledge.
 - Default project has background and foreground geometry and time input.
 
 ## TODO
-- Texture support (yes, not there yet, so no reading pass targets.  next on the list...)
 - More error checking of device creation problems.
 - More flexible UBO.  You can't change the UBO yet (eventually you will get an automatically built UBO based on your spec)
 - Ray tracing support.
-- Audio input to an audio spectrum texture, for live coding to music.
 - Low DPI/Mac DPI.  You may not have a good experience on a low DPI setup, and on Mac there are tweaks required too.
 
 ## Build
@@ -68,4 +71,5 @@ unofficial-concurrentqueue - Concurrent lock/free queue for thread interactions
 tinyfiledialogs - File dialogs that look OS specific and more standard
 unofficial-nativefiledialog - File dialogs that look OS specific and more standard
 mpc - The parser used in the scene graph file
+kissfft - For spectrum analysis of audio
 
