@@ -52,14 +52,16 @@ void show_audio_popup()
                 show = false;
             }
         }
-        ImGui::End();
-        ImGui::EndPopup();
-       
+        
         if (!show)
         {
             popupType = PopupType::None;
             ImGui::CloseCurrentPopup();
         }
+
+        ImGui::End();
+        ImGui::EndPopup();
+       
     }
 }
 
