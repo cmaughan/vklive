@@ -6,6 +6,7 @@
 #include <complex>
 #include <atomic>
 
+#include <concurrentqueue/concurrentqueue.h>
 #include <vklive/logger/logger.h>
 
 #include <vklive/memory.h>
@@ -21,6 +22,11 @@ union SDL_Event;
 
 namespace Audio
 {
+
+struct AudioBundle
+{
+    std::vector<float> data;
+};
 
 struct AudioSettings
 {
@@ -72,7 +78,6 @@ struct AudioAnalysis
     std::vector<std::complex<float>> fftOut;
     std::vector<float> fftMag;
     std::vector<float> window;
-    bool fftConfigured = false;
 
     AudioChannelState channel;
 
@@ -94,10 +99,17 @@ struct AudioAnalysis
 
     glm::vec4 spectrumBands = glm::vec4(0.0);
 
+    bool fftConfigured = false;
     bool audioActive = false;
+    std::atomic_bool quitThread = true;
+    std::atomic_bool exited = true;
+    std::thread analysisThread;
 
     std::vector<float> spectrumPartitions;
     std::pair<uint32_t, uint32_t> lastSpectrumPartitions = { 0, 0 };
+
+    // Bundles pending processing
+    moodycamel::ConcurrentQueue<std::shared_ptr<AudioBundle>> processBundles;
 };
 
 struct ChannelProcessResults
@@ -138,6 +150,9 @@ struct AudioContext
     PaStreamParameters m_inputParams;
     PaStreamParameters m_outputParams;
     PaStream* m_pStream = nullptr;
+    
+    // Bundles of audio data passed out of the audio thread to analysis
+    moodycamel::ConcurrentQueue<std::shared_ptr<AudioBundle>> spareBundles;
 };
 
 AudioContext& GetAudioContext();
@@ -150,5 +165,8 @@ inline glm::uvec4 Div(const glm::uvec4& val, uint32_t div)
 bool audio_init(const AudioCB& fnCallback);
 void audio_destroy();
 void audio_show_gui();
+
+std::shared_ptr<AudioBundle> audio_get_bundle();
+void audio_retire_bundle(std::shared_ptr<AudioBundle>& pBundle);
 
 } // namespace Audio

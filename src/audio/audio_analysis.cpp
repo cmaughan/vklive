@@ -72,6 +72,55 @@ void audio_analysis_destroy(AudioAnalysis& analysis)
     }
 }
 
+void audio_analysis_stop(AudioAnalysis& analysis)
+{
+    if (!analysis.exited)
+    {
+        analysis.quitThread = true;
+        analysis.analysisThread.join();
+    }
+}
+
+bool audio_analysis_start(AudioAnalysis& analysis, const AudioChannelState& state)
+{
+    // Stop the thread
+    audio_analysis_stop(analysis);
+
+    // Setup analysis
+    audio_analysis_init(analysis, state);
+
+    // Kick off the thread
+    auto pAnalysis = &analysis;
+    analysis.exited = false;
+    analysis.quitThread = false;
+    analysis.analysisThread = std::move(std::thread([=]() {
+        const auto wakeUpDelta = std::chrono::milliseconds(10);
+        for (;;)
+        {
+            // First check for quit
+            if (pAnalysis->quitThread.load())
+            {
+                break;
+            }
+
+            std::shared_ptr<AudioBundle> spData;
+            if (!pAnalysis->processBundles.try_dequeue(spData))
+            {
+                // Sleep
+                std::this_thread::sleep_for(wakeUpDelta);
+                continue;
+            }
+
+            audio_analysis_update(*pAnalysis, *spData);
+
+            audio_retire_bundle(spData);
+
+        }
+        pAnalysis->exited = true;
+    }));
+    return true;
+}
+
 bool audio_analysis_init(AudioAnalysis& analysis, const AudioChannelState& state)
 {
     auto& ctx = GetAudioContext();
@@ -103,7 +152,7 @@ bool audio_analysis_init(AudioAnalysis& analysis, const AudioChannelState& state
     return true;
 }
 
-void audio_analysis_update(AudioAnalysis& analysis, const float* data, uint32_t num, uint32_t stride)
+void audio_analysis_update(AudioAnalysis& analysis, AudioBundle& bundle)
 {
     // PROFILE_SCOPE(Audio_Analysis);
     auto& ctx = GetAudioContext();
@@ -119,15 +168,16 @@ void audio_analysis_update(AudioAnalysis& analysis, const float* data, uint32_t 
     auto& audioBuffer = analysis.audio[analysis.currentBuffer];
 
 #ifdef _DEBUG
-    for (size_t i = 0; i < num; i++)
+    for (auto& val : bundle.data)
     {
-        assert(std::isfinite(data[i * stride]));
+        assert(std::isfinite(val));
     }
 #endif
 
-    auto floatsToAdd = (num / stride);
+    auto floatsToAdd = bundle.data.size();
     auto floatsToMove = audioBuffer.size() - floatsToAdd;
- 
+
+    // Sliding input buffer
     if (floatsToAdd > 0)
     {
         const float* pSource;
@@ -141,14 +191,8 @@ void audio_analysis_update(AudioAnalysis& analysis, const float* data, uint32_t 
         }
 
         pDest = (float*)&audioBuffer[floatsToMove];
-        pSource = data;
-
-        // Copy with stride
-        for (uint32_t count = 0; count < floatsToAdd; count++)
-        {
-            *pDest++ = *pSource;
-            pSource += stride;
-        }
+        pSource = (float*)&bundle.data[0];
+        memcpy(&audioBuffer[floatsToMove], &bundle.data[0], sizeof(float) * floatsToAdd);
     }
 
     audio_analysis_calculate_audio(analysis);
@@ -193,9 +237,9 @@ void audio_analysis_update(AudioAnalysis& analysis, const float* data, uint32_t 
             analysis.fftMag[i] = std::max(analysis.fftMag[i], 0.0f);
             analysis.fftMag[i] = std::min(analysis.fftMag[i], 1.0f);
         }
-            
+
         analysis.fftMag[0] = 0.0f;
-        //std::min(analysis.fftMag[i], 1.0f);
+        // std::min(analysis.fftMag[i], 1.0f);
 
         audio_analysis_calculate_spectrum(analysis);
     }
@@ -272,8 +316,8 @@ void audio_analysis_calculate_spectrum(AudioAnalysis& analysis)
 
         // Magnitude * 2 because we are half the spectrum,
         // divided by the total of the hamming window to compenstate
-        //spectrum[i] = (analysis.fftMag[i] * 2.0f) / analysis.totalWin;
-        //spectrum[i] = std::max(spectrum[i], std::numeric_limits<float>::min());
+        // spectrum[i] = (analysis.fftMag[i] * 2.0f) / analysis.totalWin;
+        // spectrum[i] = std::max(spectrum[i], std::numeric_limits<float>::min());
         spectrum[i] = analysis.fftMag[i];
 
         // assert(std::isfinite(spectrum[i]));
@@ -285,12 +329,12 @@ void audio_analysis_calculate_spectrum(AudioAnalysis& analysis)
         }
 
         // Log based on a reference value of 1
-        //spectrum[i] = 20 * std::log10(spectrum[i] / ref);
+        // spectrum[i] = 20 * std::log10(spectrum[i] / ref);
 
         // Normalize by moving up and dividing
         // Decibels are now positive from 0->1;
-        //spectrum[i] /= ctx.audioAnalysisSettings.audioDecibelRange;
-        //spectrum[i] += 1.0f; // ctx.audioAnalysisSettings.audioDecibelRange;
+        // spectrum[i] /= ctx.audioAnalysisSettings.audioDecibelRange;
+        // spectrum[i] += 1.0f; // ctx.audioAnalysisSettings.audioDecibelRange;
         spectrum[i] = std::clamp(spectrum[i], 0.0f, 1.0f);
 
         if (i != 0)
@@ -370,9 +414,8 @@ void audio_analysis_calculate_spectrum(AudioAnalysis& analysis)
             }
         }
     }
-    
-    if (ctx.audioAnalysisSettings.blendFFT &&
-        spectrumBuckets.size() == spectrumBucketsOld.size())
+
+    if (ctx.audioAnalysisSettings.blendFFT && spectrumBuckets.size() == spectrumBucketsOld.size())
     {
         // Time in ms / blend duration in ms
         auto deltaTimeFrames = analysis.channel.deltaTime * analysis.channel.frames;
@@ -491,12 +534,12 @@ spectumMag[512] //populate after FFT
 fft.forward(realSignal,imagSignal)
 spectrumLength = realSignal.length / 2
 for (int i = 0; i <= spectrum.Length - 1; i++) {
-	float magnitude = log10(sqrt(pow(realSignal[i], 2) + pow(imagSignal[i], 2)));
-	spectumMag[i]= magnitude;
+    float magnitude = log10(sqrt(pow(realSignal[i], 2) + pow(imagSignal[i], 2)));
+    spectumMag[i]= magnitude;
 }
 //normalize spectumMag[] between 0 to 1 using min and max values from spectumMag[]
 min = spectumMag[].MinValue;
 max = spectumMag[].MaxValue;
 for (int i = 0; i <= spectrumMag.length - 1; i++) {
-	spectrumMag[i] = (spectrumMag[i] - min) / (max - min);
+    spectrumMag[i] = (spectrumMag[i] - min) / (max - min);
     */

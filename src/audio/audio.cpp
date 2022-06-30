@@ -34,6 +34,22 @@ AudioContext& GetAudioContext()
     return audioContext;
 }
 
+std::shared_ptr<AudioBundle> audio_get_bundle()
+{
+    std::shared_ptr<AudioBundle> bundle;
+    if (audioContext.spareBundles.try_dequeue(bundle))
+    {
+        return bundle;
+    }
+
+    return std::make_shared<AudioBundle>();
+}
+
+void audio_retire_bundle(std::shared_ptr<AudioBundle>& pBundle)
+{
+    audioContext.spareBundles.enqueue(pBundle);
+}
+
 // This tick() function handles sample computation only.  It will be
 // called automatically when the system needs a new buffer of audio
 // samples.
@@ -90,9 +106,24 @@ int audio_tick(const void* inputBuffer, void* outputBuffer, unsigned long nBuffe
             if (results.activeChannels.size() <= i)
             {
                 results.activeChannels.push_back(std::make_shared<AudioAnalysis>());
-                audio_analysis_init(*results.activeChannels[i], ctx.inputState);
+                audio_analysis_start(*results.activeChannels[i], ctx.inputState);
             }
-            audio_analysis_update(*results.activeChannels[i], ((const float*)inputBuffer) + i, (uint32_t)nBufferFrames, ctx.inputState.channelCount);
+
+            // Copy the audio data into a processing bundle and add it to the queue
+            auto pBundle = audio_get_bundle();
+            pBundle->data.resize(nBufferFrames);
+
+            // Copy with stride
+            auto stride = ctx.inputState.channelCount;
+            auto pSource = ((const float*)inputBuffer) + i;
+            for (uint32_t count = 0; count < nBufferFrames; count++)
+            {
+                pBundle->data[count] = *pSource; 
+                pSource += stride;
+            }
+
+            // Forward the bundle to the processor 
+            results.activeChannels[i]->processBundles.enqueue(pBundle);
         }
     }
 
@@ -329,6 +360,7 @@ void audio_set_channels_rate(int outputChannels, int inputChannels, uint32_t out
     // I don't know if these can be different from a device point of view; so for now they always match
     assert(outputRate == inputRate);
 
+    /*
     {
         ProducerMemLock memLock(ctx.audioOutputAnalysis);
         auto& results = memLock.Data();
@@ -342,6 +374,7 @@ void audio_set_channels_rate(int outputChannels, int inputChannels, uint32_t out
             }
         }
     }
+    */
 
     {
         ctx.inputState.sampleRate = outputRate;
@@ -373,7 +406,20 @@ void audio_destroy()
         Pa_StopStream(ctx.m_pStream);
         Pa_CloseStream(ctx.m_pStream);
     }
+
     Pa_Terminate();
+
+    // Stop the analysis
+    for (int i = 0; i < 2; i++)
+    {
+        ProducerMemLock memLock(ctx.audioInputAnalysis);
+        auto& results = memLock.Data();
+        for (auto& analysis : results.activeChannels)
+        {
+            audio_analysis_stop(*analysis);
+        }
+        results.activeChannels.clear();
+    }
 }
 
 bool audio_init(const AudioCB& fnCallback)
@@ -632,7 +678,7 @@ void audio_show_gui()
 
     if (ctx.audioDeviceSettings.enableInput)
     {
-        int index = 0; 
+        int index = 0;
         auto frameIndex = getFrameIndex(analysisSettings.frames);
         if (Combo("Analysis Frames", &index, frameNames))
         {
@@ -702,9 +748,9 @@ void audio_show_gui()
     if (changed)
     {
         audio_init(nullptr);
-        
-        //std::lock_guard<std::recursive_mutex> guard(maud.audio_mutex);
-        //m_spAnalysis->UpdateSettings(analysisSettings);
+
+        // std::lock_guard<std::recursive_mutex> guard(maud.audio_mutex);
+        // m_spAnalysis->UpdateSettings(analysisSettings);
     }
 
     if (!ctx.m_audioValid)
