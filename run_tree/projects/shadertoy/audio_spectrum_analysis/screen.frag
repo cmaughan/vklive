@@ -29,9 +29,9 @@ void main()
     vec2 uv = gl_FragCoord.xy / ubo.iResolution.xy;
     uv.y = 1.0f - uv.y;
    
-     // distort
-    float bass = texture( AudioAnalysis, vec2(0, 0) ).x * 3;
-    uv = distort(uv*2.0-1.0, 0.5+bass)*0.5+0.5;
+    // distort
+    //float bass = texture( AudioAnalysis, vec2(0, 0) ).x * 3;
+    //uv = distort(uv*2.0-1.0, 0.5+bass)*0.5+0.5;
 
     // quantize coordinates
     const float bands = 200;
