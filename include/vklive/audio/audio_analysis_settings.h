@@ -11,9 +11,9 @@ namespace Audio
 struct AudioAnalysisSettings
 {
     uint32_t frames = 4096;
-    float blendFactor = 10.0f;
-    bool blendAudio = false;
+    float blendFactor = 100.0f;
     bool blendFFT = true;
+    bool logPartitions = true;
     bool filterFFT = true;
     bool normalizeAudio = false;
     bool removeFFTJitter = false;
@@ -34,8 +34,8 @@ inline AudioAnalysisSettings audioanalysis_load_settings(const toml::table& sett
     {
         analysisSettings.frames = settings["frames"].value_or(analysisSettings.frames);
         analysisSettings.blendFactor = settings["blend_factor"].value_or(analysisSettings.blendFactor);
-        analysisSettings.blendAudio = settings["blend_audio"].value_or(analysisSettings.blendAudio);
         analysisSettings.blendFFT = settings["blend_fft"].value_or(analysisSettings.blendFFT);
+        analysisSettings.logPartitions = settings["log_partitions"].value_or(analysisSettings.logPartitions);
         analysisSettings.filterFFT = settings["filter_fft"].value_or(analysisSettings.filterFFT);
         analysisSettings.removeFFTJitter = settings["dejitter_fft"].value_or(analysisSettings.removeFFTJitter);
         analysisSettings.spectrumFrequencies = toml_read_vec4(settings["spectrum_frequencies"], analysisSettings.spectrumFrequencies);
@@ -56,10 +56,10 @@ inline toml::table audioanalysis_save_settings(const AudioAnalysisSettings& sett
     auto tab = toml::table {
         { "frames", int(settings.frames) },
         { "blend_factor", settings.blendFactor },
-        { "blend_audio", settings.blendAudio },
         { "blend_fft", settings.blendFFT },
         { "filter_fft", settings.filterFFT },
         { "dejitter_fft", settings.removeFFTJitter },
+        { "log_partitions", settings.logPartitions },
         { "spectrum_frequencies", toml::array{ freq.x, freq.y, freq.z, freq.w } },
         { "spectrum_gains", toml::array{ gain.x, gain.y, gain.z, gain.w } }
     };

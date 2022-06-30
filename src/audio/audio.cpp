@@ -98,17 +98,8 @@ int audio_tick(const void* inputBuffer, void* outputBuffer, unsigned long nBuffe
 
     if (inputBuffer)
     {
-        ProducerMemLock memLock(ctx.audioInputAnalysis);
-        auto& results = memLock.Data();
         for (int i = 0; i < ctx.inputState.channelCount; i++)
         {
-            // TODO: This is currently a one-time malloc on the audio thread.  Need to fix.
-            if (results.activeChannels.size() <= i)
-            {
-                results.activeChannels.push_back(std::make_shared<AudioAnalysis>());
-                audio_analysis_start(*results.activeChannels[i], ctx.inputState);
-            }
-
             // Copy the audio data into a processing bundle and add it to the queue
             auto pBundle = audio_get_bundle();
             pBundle->data.resize(nBufferFrames);
@@ -118,12 +109,12 @@ int audio_tick(const void* inputBuffer, void* outputBuffer, unsigned long nBuffe
             auto pSource = ((const float*)inputBuffer) + i;
             for (uint32_t count = 0; count < nBufferFrames; count++)
             {
-                pBundle->data[count] = *pSource; 
+                pBundle->data[count] = *pSource;
                 pSource += stride;
             }
 
-            // Forward the bundle to the processor 
-            results.activeChannels[i]->processBundles.enqueue(pBundle);
+            // Forward the bundle to the processor
+            ctx.analysisChannels[i]->processBundles.enqueue(pBundle);
         }
     }
 
@@ -350,7 +341,7 @@ void audio_set_channels_rate(int outputChannels, int inputChannels, uint32_t out
 
     ctx.inputState.sampleRate = outputRate;
     ctx.inputState.deltaTime = 1.0f / float(outputRate);
-    ctx.inputState.channelCount = outputChannels;
+    ctx.inputState.channelCount = inputChannels;
     ctx.inputState.totalFrames = 0;
 
     // TODO: Figure out where and who sets this and how it is used
@@ -360,31 +351,15 @@ void audio_set_channels_rate(int outputChannels, int inputChannels, uint32_t out
     // I don't know if these can be different from a device point of view; so for now they always match
     assert(outputRate == inputRate);
 
-    /*
+    for (auto channel = 0; channel < inputChannels; channel++)
     {
-        ProducerMemLock memLock(ctx.audioOutputAnalysis);
-        auto& results = memLock.Data();
-
-        for (uint32_t i = 0; i < outputChannels; i++)
+        if (ctx.analysisChannels.size() <= channel)
         {
-            if (results.activeChannels.size() <= i)
-            {
-                results.activeChannels.push_back(std::make_shared<AudioAnalysis>());
-                audio_analysis_init(*results.activeChannels[i], ctx.outputState);
-            }
+            ctx.analysisChannels.push_back(std::make_shared<AudioAnalysis>());
+            audio_analysis_start(*ctx.analysisChannels[channel], ctx.inputState);
         }
     }
-    */
 
-    {
-        ctx.inputState.sampleRate = outputRate;
-        ctx.inputState.deltaTime = 1.0f / float(outputRate);
-        ctx.inputState.channelCount = inputChannels;
-
-        for (uint32_t i = 0; i < inputChannels; i++)
-        {
-        }
-    }
     // if (ctx.pSP)
     {
         //  sp_destroy(&ctx.pSP);
@@ -410,16 +385,11 @@ void audio_destroy()
     Pa_Terminate();
 
     // Stop the analysis
-    for (int i = 0; i < 2; i++)
+    for (auto& analysis : ctx.analysisChannels)
     {
-        ProducerMemLock memLock(ctx.audioInputAnalysis);
-        auto& results = memLock.Data();
-        for (auto& analysis : results.activeChannels)
-        {
-            audio_analysis_stop(*analysis);
-        }
-        results.activeChannels.clear();
+        audio_analysis_stop(*analysis);
     }
+    ctx.analysisChannels.clear();
 }
 
 bool audio_init(const AudioCB& fnCallback)
@@ -688,21 +658,21 @@ void audio_show_gui()
 
         // Note; negative DB
         float dB = -analysisSettings.audioDecibelRange;
-        if (ImGui::SliderFloat("Decibel (DbFS)", &dB, -120.0f, 1.0f))
+        if (ImGui::SliderFloat("Decibel (DbFS)", &dB, -120.0f, -1.0f))
         {
             analysisSettings.audioDecibelRange = -dB;
         }
 
         float blend = analysisSettings.blendFactor;
-        if (ImGui::SliderFloat("Blend Time (ms)", &blend, 1.0f, 500.0f))
+        if (ImGui::SliderFloat("Blend Time (ms)", &blend, 1.0f, 1000.0f))
         {
             analysisSettings.blendFactor = blend;
         }
 
-        bool blendAudio = analysisSettings.blendAudio;
-        if (ImGui::Checkbox("Blend Audio", &blendAudio))
+        bool logPartitions = analysisSettings.logPartitions;
+        if (ImGui::Checkbox("Log Frequency Partitions", &logPartitions))
         {
-            analysisSettings.blendAudio = blendAudio;
+            analysisSettings.logPartitions = logPartitions;
         }
 
         bool blendFFT = analysisSettings.blendFFT;
@@ -717,11 +687,13 @@ void audio_show_gui()
             analysisSettings.filterFFT = filterFFT;
         }
 
+        /*
         bool removeJitter = analysisSettings.removeFFTJitter;
         if (ImGui::Checkbox("Remove Jitter FFT", &removeJitter))
         {
             analysisSettings.removeFFTJitter = removeJitter;
         }
+        */
 
         /*
         auto freq = analysisSettings.spectrumFrequencies;

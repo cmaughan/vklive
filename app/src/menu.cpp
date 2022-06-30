@@ -4,13 +4,13 @@
 
 #include <app/menu.h>
 
+#include <vklive/IDevice.h>
+#include <vklive/audio/audio.h>
 #include <vklive/file/file.h>
 #include <vklive/file/runtree.h>
 #include <vklive/scene.h>
 #include <vklive/string/string_utils.h>
 #include <vklive/time/timer.h>
-#include <vklive/IDevice.h>
-#include <vklive/audio/audio.h>
 
 #include <config_app.h>
 
@@ -28,7 +28,7 @@ enum class PopupType
     Audio
 };
 PopupType popupType = PopupType::None;
-}
+} // namespace
 
 void show_audio_popup()
 {
@@ -40,28 +40,24 @@ void show_audio_popup()
 
     // TODO: Center
     ImGui::SetNextWindowSize(ImVec2(dpi * 500, dpi * 500), ImGuiCond_Appearing);
-    if (ImGui::BeginPopup("Audio", NULL))
+    if (ImGui::BeginPopup("Audio", ImGuiWindowFlags_Popup))
     {
         bool show = true;
-        if (ImGui::Begin("Audio Settings", &show))
-        {
-            Audio::audio_show_gui();
+        Audio::audio_show_gui();
 
-            if (ImGui::Button("OK"))
-            {
-                show = false;
-            }
+        if (ImGui::Button("OK"))
+        {
+            show = false;
         }
-        
+
         if (!show)
         {
             popupType = PopupType::None;
             ImGui::CloseCurrentPopup();
         }
 
-        ImGui::End();
+        // ImGui::End();
         ImGui::EndPopup();
-       
     }
 }
 
@@ -223,7 +219,7 @@ void menu_show()
             ImGui::EndMenu();
         }
 
-    //ImGui::SetNextWindowPosCenter(ImGuiCond_Appearing);
+        // ImGui::SetNextWindowPosCenter(ImGuiCond_Appearing);
         if (ImGui::BeginMenu("Settings"))
         {
             if (ImGui::MenuItem("Audio..."))
@@ -345,14 +341,13 @@ void menu_show()
     }
 
     switch (popupType)
-    {    
+    {
     default:
         break;
     case PopupType::Audio:
         ImGui::OpenPopup("Audio");
         break;
     };
-        
+
     show_audio_popup();
 }
-

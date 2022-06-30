@@ -5,6 +5,7 @@
 #include <portaudio.h>
 #include <complex>
 #include <atomic>
+#include <functional>
 
 #include <concurrentqueue/concurrentqueue.h>
 #include <vklive/logger/logger.h>
@@ -70,6 +71,17 @@ struct AudioChannelState
     double deltaTime = 1.0f / (double)sampleRate;
 };
 
+static const uint32_t AnalysisSwapBuffers = 2;
+struct AudioAnalysisData
+{
+    // Double buffer the data
+    std::vector<float> spectrumBuckets[AnalysisSwapBuffers];
+    std::vector<float> spectrum[AnalysisSwapBuffers];
+    std::vector<float> audio[AnalysisSwapBuffers];
+    uint32_t currentBuffer = 0;
+    std::vector<float> frameCache;
+};
+
 struct AudioAnalysis
 {
     // FFT
@@ -80,15 +92,6 @@ struct AudioAnalysis
     std::vector<float> window;
 
     AudioChannelState channel;
-
-    // Double buffer the data
-    static const uint32_t SwapBuffers = 2;
-    std::vector<float> spectrumBuckets[SwapBuffers];
-    std::vector<float> spectrum[SwapBuffers];
-    std::vector<float> audio[SwapBuffers];
-    uint32_t currentBuffer = 0;
-
-    std::vector<float> frameCache;
 
     uint32_t outputSamples = 0; // The FFT output frames
 
@@ -107,14 +110,12 @@ struct AudioAnalysis
 
     std::vector<float> spectrumPartitions;
     std::pair<uint32_t, uint32_t> lastSpectrumPartitions = { 0, 0 };
+    bool logPartitions = true;
 
+    PNL_CL_Memory<AudioAnalysisData, std::mutex> analysisData;
+    
     // Bundles pending processing
     moodycamel::ConcurrentQueue<std::shared_ptr<AudioBundle>> processBundles;
-};
-
-struct ChannelProcessResults
-{
-    std::vector<std::shared_ptr<AudioAnalysis>> activeChannels;
 };
 
 struct AudioContext
@@ -134,8 +135,7 @@ struct AudioContext
 
     // Audio analysis information. Processed outside of audio thread, consumed in UI,
     // so use system mutex, we don't need to spin
-    PNL_CL_Memory<ChannelProcessResults, std::mutex> audioInputAnalysis;
-    PNL_CL_Memory<ChannelProcessResults, std::mutex> audioOutputAnalysis;
+    std::vector<std::shared_ptr<AudioAnalysis>> analysisChannels;
     AudioAnalysisSettings audioAnalysisSettings;
 
     uint64_t m_sampleTime = 0;

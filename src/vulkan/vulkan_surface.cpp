@@ -552,9 +552,7 @@ void surface_update_from_audio(VulkanContext& ctx, VulkanSurface& surface, bool&
         }
     };
         
-    ConsumerMemLock memLock(audioContext.audioInputAnalysis);
-    auto& processData = memLock.Data();
-    if (processData.activeChannels.empty())
+    if (audioContext.analysisChannels.empty())
     {
         // Ensure a blank surface
         if (surface.extent.width == 0 || surface.extent.height == 0)
@@ -565,61 +563,36 @@ void surface_update_from_audio(VulkanContext& ctx, VulkanSurface& surface, bool&
     }
 
     static std::vector<float> uploadCache;
-    uint32_t currentSpectrum = 0;
-    uint32_t currentAudio = 0;
-    const float* spectrum[2] = {nullptr, nullptr};
-    const float* audio[2] = {nullptr, nullptr};
-    auto spectrumSize = 0;
-    auto audioSize = 0;
-    uint32_t channels = processData.activeChannels.size();
-    for (auto& pData : processData.activeChannels)
+
+    size_t bufferWidth = 512; // default width if no data
+    auto channels = audioContext.analysisChannels.size();
+    for (int channel = 0; channel < channels; channel++)
     {
-        auto& buckets = Audio::audio_analysis_get_spectrum_buckets(*pData);
-        if (!buckets.empty())
+        auto& analysis = audioContext.analysisChannels[channel];
+        
+        ConsumerMemLock memLock(analysis->analysisData);
+        auto& processData = memLock.Data();
+        auto currentBuffer = processData.currentBuffer;
+
+        auto& spectrum = processData.spectrumBuckets[currentBuffer];
+        auto& audio = processData.audio[currentBuffer];
+
+        // Stereo, Audio and Spectrum (4 rows total)
+        if (spectrum.size() != 0)
         {
-            spectrum[currentSpectrum++] = &buckets[0];
-            spectrumSize = int(buckets.size());
+            bufferWidth = spectrum.size();
+            uploadCache.resize(audioContext.analysisChannels.size() * 2 * spectrum.size());
+
+            memcpy(&uploadCache[channel * spectrum.size()], &spectrum[0], spectrum.size() * sizeof(float));
+           
+            // Copy audio, note that we always make the audio at least as big as the spectrum
+            assert(audio.size() >= spectrum.size());
+            memcpy(&uploadCache[(channel + channels) * spectrum.size()], &audio[0], spectrum.size() * sizeof(float));
         }
     }
-
-    if (currentSpectrum == 1)
-    {
-        spectrum[currentSpectrum] = spectrum[currentSpectrum - 1];
-    }
-
-    for (auto& pData : processData.activeChannels)
-    {
-        auto& audioBuffer = Audio::audio_analysis_get_audio(*pData);
-        if (!audioBuffer.empty())
-        {
-            audio[currentAudio++] = &audioBuffer[0];
-            audioSize = int(audioBuffer.size());
-        }
-    }
-
-    if (currentAudio == 1)
-    {
-        audio[currentAudio] = audio[currentAudio - 1];
-    }
-
-    auto maxStride = std::max(spectrumSize, audioSize);
-
-    // Stereo, Audio and Spectrum (4 rows total)
-    uploadCache.resize(channels * 2 * maxStride);
-    for (auto channel = 0; channel < channels; channel++)
-    {
-        if (spectrum[channel] != nullptr && spectrumSize != 0)
-        {
-            memcpy(&uploadCache[channel * spectrumSize], spectrum[channel], spectrumSize * sizeof(float));
-        }
-        if (audio[channel] != nullptr && audioSize != 0)
-        {
-            memcpy(&uploadCache[(channel + channels) * audioSize], audio[channel], audioSize * sizeof(float));
-        }
-    }
-
+   
     // Left/Right FFT and Audio (4 rows)
-    updateSurface(maxStride, channels * 2);
+    updateSurface(bufferWidth, channels * 2);
 
     utils_copy_to_memory(ctx, surface.stagingBuffer.memory, uploadCache);
 
