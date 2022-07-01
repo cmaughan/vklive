@@ -14,8 +14,6 @@
 namespace Audio
 {
 
-//bool audio_analysis_init(AudioAnalysis& analysis, AudioAnalysisData& analysisData, const AudioChannelState& state);
-//void audio_analysis_update(AudioAnalysis& analysis, AudioBundle& bundle);
 void audio_analysis_gen_linear_space(AudioAnalysis& analysis, uint32_t limit, uint32_t n);
 void audio_analysis_gen_log_space(AudioAnalysis& analysis, uint32_t limit, uint32_t n);
 void audio_analysis_calculate_spectrum(AudioAnalysis& analysis, AudioAnalysisData& analysisData);
@@ -39,32 +37,35 @@ inline std::vector<float> audio_analysis_create_window(uint32_t size)
 }
 } // namespace
 
-const uint32_t audio_analysis_get_width(AudioAnalysis& analysis)
+void audio_analysis_create_all()
 {
-    return uint32_t(analysis.outputSamples);
-}
+    auto& ctx = Audio::GetAudioContext();
 
-void audio_analysis_clear(AudioAnalysis& analysis)
-{
-    analysis.audioActive = false;
-}
-
-void audio_analysis_destroy(AudioAnalysis& analysis)
-{
-    if (analysis.cfg)
+    // Initialize the analysis
+    for (auto channel = 0; channel < ctx.inputState.channelCount; channel++)
     {
-        free(analysis.cfg);
-        analysis.cfg = nullptr;
+        if (ctx.analysisChannels.size() <= channel)
+        {
+            ctx.analysisChannels.push_back(std::make_shared<AudioAnalysis>());
+            audio_analysis_start(*ctx.analysisChannels[channel], ctx.inputState);
+        }
     }
 }
 
-void audio_analysis_stop(AudioAnalysis& analysis)
+void audio_analysis_destroy_all()
 {
-    if (!analysis.exited)
+    auto& ctx = Audio::GetAudioContext();
+
+    for (auto& analysis : ctx.analysisChannels)
     {
-        analysis.quitThread = true;
-        analysis.analysisThread.join();
+        audio_analysis_stop(*analysis);
+        if (analysis->cfg)
+        {
+            kiss_fft_free(analysis->cfg);
+            analysis->cfg = nullptr;
+        }
     }
+    ctx.analysisChannels.clear();
 }
 
 bool audio_analysis_start(AudioAnalysis& analysis, const AudioChannelState& state)
@@ -98,11 +99,19 @@ bool audio_analysis_start(AudioAnalysis& analysis, const AudioChannelState& stat
             audio_analysis_update(*pAnalysis, *spData);
 
             audio_retire_bundle(spData);
-
         }
         pAnalysis->exited = true;
     }));
     return true;
+}
+
+void audio_analysis_stop(AudioAnalysis& analysis)
+{
+    if (!analysis.exited)
+    {
+        analysis.quitThread = true;
+        analysis.analysisThread.join();
+    }
 }
 
 bool audio_analysis_init(AudioAnalysis& analysis, AudioAnalysisData& analysisData)
@@ -210,7 +219,9 @@ void audio_analysis_update(AudioAnalysis& analysis, AudioBundle& bundle)
         {
             analysis.fftOut[i] = analysis.fftOut[i] * scale;
         }
-        analysis.fftOut[0] = std::complex(0.0f /* analysis.fftOut[0].real()*/, 0.0f);
+
+        // Sample 0 has the sum of all terms and isn't useful to us.
+        analysis.fftOut[0] = std::complex(0.0f, 0.0f);
 
         // Convert to dB
         for (uint32_t i = 1; i < analysis.outputSamples; i++)
@@ -400,7 +411,7 @@ void audio_analysis_calculate_spectrum(AudioAnalysis& analysis, AudioAnalysisDat
 
     if (ctx.audioAnalysisSettings.blendFFT && spectrumBuckets.size() == spectrumBucketsOld.size())
     {
-        // Time in seconds 
+        // Time in seconds
         auto deltaTimeFrame = analysis.channel.deltaTime * analysis.channel.frames;
 
         // Blend factor is blend time / time in seconds
@@ -425,22 +436,20 @@ void audio_analysis_calculate_spectrum_bands(AudioAnalysis& analysis, AudioAnaly
     // PROFILE_SCOPE(Analysis_Bands);
     auto& ctx = GetAudioContext();
 
-    auto samplesPerSecond = analysis.channel.sampleRate / (float)analysis.channel.frames;
-    auto blendFactor = 64.0f / samplesPerSecond;
+    auto blendFactor = 1.0f;
     auto bands = glm::vec4(0.0f);
 
-    // Calculate the bucket offsets for each of the frequency bands in teh course partitions.
-    auto frequencyPerBucket = float(analysis.channel.sampleRate) / float(analysis.channel.frames);
+    // Calculate frequency per FFT sample
+    auto frequencyPerBucket = float(analysis.channel.sampleRate) / float(analysisData.spectrumBuckets[analysisData.currentBuffer].size());
     auto spectrumOffsets = Div(ctx.audioAnalysisSettings.spectrumFrequencies, (int)frequencyPerBucket) + glm::uvec4(1, 1, 1, 0);
 
-    for (uint32_t i = 0; i < analysis.outputSamples; i++)
+    for (uint32_t sample = 0; sample < analysisData.spectrumBuckets[analysisData.currentBuffer].size(); sample++)
     {
         for (uint32_t index = 0; index < 4; index++)
         {
-            if (i < uint32_t(spectrumOffsets[index]))
+            if (sample < uint32_t(spectrumOffsets[index]))
             {
-                bands[index] += analysisData.spectrum[analysisData.currentBuffer][i];
-
+                bands[index] += analysisData.spectrumBuckets[analysisData.currentBuffer][index];
                 break;
             }
         }
@@ -458,7 +467,7 @@ void audio_analysis_calculate_spectrum_bands(AudioAnalysis& analysis, AudioAnaly
     bands = bands * ctx.audioAnalysisSettings.spectrumGains;
 
     // Blend for smoother result
-    analysis.spectrumBands = bands * blendFactor + analysis.spectrumBands * (1.0f - blendFactor);
+    analysis.spectrumBands.store(bands * blendFactor + analysis.spectrumBands.load() * (1.0f - blendFactor));
 }
 
 // Generate a sequentially increasing space of numbers.
@@ -511,4 +520,3 @@ void audio_analysis_gen_linear_space(AudioAnalysis& analysis, uint32_t limit, ui
 }
 
 } // namespace Audio
-

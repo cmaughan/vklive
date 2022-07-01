@@ -16,6 +16,8 @@
 #include <vklive/vulkan/vulkan_uniform.h>
 #include <vklive/vulkan/vulkan_utils.h>
 
+#include <vklive/audio/audio.h>
+
 namespace vulkan
 {
 
@@ -811,10 +813,19 @@ void vulkan_scene_render(VulkanContext& ctx, RenderContext& renderContext, Scene
         pVulkanPass->vsUBO.iTimeDelta = (pVulkanPass->vsUBO.iTime == 0.0f) ? 0.0f : elapsed - pVulkanPass->vsUBO.iTime;
         pVulkanPass->vsUBO.iTime = elapsed;
         pVulkanPass->vsUBO.iFrameRate = elapsed != 0.0 ? (1.0f / elapsed) : 0.0;
-        pVulkanPass->vsUBO.iSampleRate = 22000.0f; // Audio
         pVulkanPass->vsUBO.iGlobalTime = elapsed;
         pVulkanPass->vsUBO.iResolution = glm::vec4(size.x, size.y, 1.0, 0.0);
-        pVulkanPass->vsUBO.iMouse = glm::vec4(0.0f);
+        pVulkanPass->vsUBO.iMouse = glm::vec4(0.0f); // TODO: Mouse
+
+        // Audio
+        auto& audioCtx = Audio::GetAudioContext();
+        pVulkanPass->vsUBO.iSampleRate = audioCtx.audioDeviceSettings.sampleRate;
+        auto channels = std::min(audioCtx.analysisChannels.size(), (size_t)2);
+        for (int channel = 0; channel < channels; channel++)
+        {
+            // Lock free atomic
+            pVulkanPass->vsUBO.iSpectrumBands[channel] = audioCtx.analysisChannels[channel]->spectrumBands;
+        }
 
         // TODO: year, month, day, seconds since EPOCH
         pVulkanPass->vsUBO.iDate = glm::vec4(0.0f);

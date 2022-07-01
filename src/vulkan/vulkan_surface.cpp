@@ -572,7 +572,7 @@ void surface_update_from_audio(VulkanContext& ctx, VulkanSurface& surface, bool&
         
         ConsumerMemLock memLock(analysis->analysisData);
         auto& processData = memLock.Data();
-        auto currentBuffer = processData.currentBuffer;
+        auto currentBuffer = 1 - processData.currentBuffer;
 
         auto& spectrum = processData.spectrumBuckets[currentBuffer];
         auto& audio = processData.audio[currentBuffer];

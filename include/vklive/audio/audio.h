@@ -100,7 +100,7 @@ struct AudioAnalysis
     float currentMaxSpectrum;
     uint32_t maxSpectrumIndex;
 
-    glm::vec4 spectrumBands = glm::vec4(0.0);
+    std::atomic<glm::vec4> spectrumBands = glm::vec4(0.0);
 
     bool fftConfigured = false;
     bool audioActive = false;

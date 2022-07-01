@@ -139,6 +139,7 @@ set(VK_SOURCES
     src/file/runtree.cpp
     src/file/toml_utils.cpp
     src/imgui/imgui_sdl.cpp
+    src/imgui/imgui_utils.cpp
     src/model.cpp
     src/pass.cpp
     src/process/process.cpp
@@ -159,6 +160,7 @@ set(VK_SOURCES
     include/vklive/file/runtree.h
     include/vklive/file/toml_utils.h
     include/vklive/imgui/imgui_sdl.h
+    include/vklive/imgui/imgui_utils.h
     include/vklive/model.h
     include/vklive/pass.h
     include/vklive/process/process.h

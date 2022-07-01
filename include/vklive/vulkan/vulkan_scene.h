@@ -71,6 +71,7 @@ struct VulkanPass
         alignas(16) glm::vec4 iResolution;  // Resolution of current target
         alignas(16) glm::vec4 iMouse;       // Mouse coords in pixels
         alignas(16) glm::vec4 iDate;        // Year, Month, Day, Seconds since epoch
+        alignas(16) glm::vec4 iSpectrumBands[2]; // 4 Audio spectrum bands, configured in the UI.
     
         // Note originally an array of 4 floats; std140 alignment makes this tricky
         alignas(16) glm::vec4 iChannelTime; // Time for an input channel

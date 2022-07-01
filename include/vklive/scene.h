@@ -129,10 +129,11 @@ struct Scene
     bool valid = true;
 };
 
-enum AssetType
+enum class AssetType
 {
     None,
-    Texture
+    Texture,
+    Model
 };
 
 std::shared_ptr<Scene> scene_build(const fs::path& root);

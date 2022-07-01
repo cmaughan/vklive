@@ -16,6 +16,7 @@ layout(set = 0, binding = 0) uniform UBO
     vec4 iResolution;  // Resolution of current target
     vec4 iMouse;       // Mouse coords in pixels
     vec4 iDate;        // Year, Month, Day, Seconds since epoch
+    vec4 iSpectrumBands[2]; // 4 spectrum bands, configured in the Audio UI
         
     vec4 iChannelTime; // Time for an input channel
 

@@ -432,23 +432,22 @@ std::shared_ptr<Scene> scene_build(const fs::path& root)
                     auto pGeomNameNode = getChild(pGeometryNode, T_IDENT);
                     auto pPathNameNode = getChild(getChild(pGeometryNode, T_PATH), T_PATH_NAME);
 
-                    // Path
-                    auto geomPath = root / pPathNameNode->contents;
 
                     std::shared_ptr<Geometry> spGeom;
-
+                    auto geomPath = fs::path(pPathNameNode->contents);
                     if (geomPath.filename() == "screen_rect")
                     {
                         spGeom = std::make_shared<Geometry>(GeometryType::Rect);
                     }
                     else
                     {
-                        if (!fs::exists(geomPath))
+                        auto foundPath = scene_find_asset(*spScene, geomPath, AssetType::Model);
+                        if (foundPath.empty() || !fs::exists(foundPath))
                         {
                             addError(std::string("Geometry missing: " + geomPath.filename().string()), pGeometryNode->state.row);
                             continue;
                         }
-                        spGeom = std::make_shared<Geometry>(geomPath);
+                        spGeom = std::make_shared<Geometry>(foundPath);
                     }
 
                     // Shaders
@@ -637,16 +636,22 @@ fs::path scene_find_asset(Scene& scene, const fs::path& path, AssetType type)
         scene.root / path,
     };
 
-    if (type == AssetType::Texture)
+    std::map<AssetType, std::string> subTypePaths = {
+        { AssetType::Texture, "textures" },
+        { AssetType::Model, "models" },
+    };
+
+    auto itr = subTypePaths.find(type);
+    if (itr != subTypePaths.end())
     {
-        trialPaths.push_back(scene.root / "textures" / path);
+        trialPaths.push_back(scene.root / itr->second / path);
     }
 
     trialPaths.push_back(runtree_path() / path);
     
-    if (type == AssetType::Texture)
+    if (itr != subTypePaths.end())
     {
-        trialPaths.push_back(runtree_path() / "textures" / path);
+        trialPaths.push_back(runtree_path() / itr->second / path);
     }
 
     for (auto& test : trialPaths)
