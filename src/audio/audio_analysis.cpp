@@ -174,7 +174,7 @@ void audio_analysis_update(AudioAnalysis& analysis, AudioBundle& bundle)
     }
 #endif
 
-    auto floatsToAdd = bundle.data.size();
+    auto floatsToAdd = std::min(bundle.data.size(), audioBuffer.size());
     auto floatsToMove = audioBuffer.size() - floatsToAdd;
 
     // Sliding input buffer
@@ -349,10 +349,8 @@ void audio_analysis_calculate_spectrum(AudioAnalysis& analysis, AudioAnalysisDat
     }
 
     {
-        // Make less buckets on a big window, but at least 8
-        uint32_t buckets = std::min(analysis.outputSamples / 8, uint32_t(ctx.audioAnalysisSettings.spectrumBuckets));
-        buckets = std::max(buckets, uint32_t(4));
-        buckets = 512;
+        uint32_t buckets = std::min(analysis.outputSamples, uint32_t(ctx.audioAnalysisSettings.spectrumBuckets));
+        buckets = std::max(buckets, 4u);
 
         // Quantize into bigger buckets; filtering helps smooth the graph, and gives a more pleasant effect
         uint32_t spectrumSamples = uint32_t(spectrum.size());
@@ -478,13 +476,18 @@ void audio_analysis_calculate_spectrum_bands(AudioAnalysis& analysis, AudioAnaly
 void audio_analysis_gen_log_space(AudioAnalysis& analysis, uint32_t limit, uint32_t n)
 {
     auto& ctx = GetAudioContext();
-    if (analysis.lastSpectrumPartitions == std::make_pair(limit, n) && !analysis.spectrumPartitions.empty())
+    SpectrumPartitionSettings settings;
+    settings.limit = limit;
+    settings.n = n;
+    settings.sharpness = ctx.audioAnalysisSettings.spectrumSharpness;
+
+    if (analysis.lastSpectrumPartitions == settings)
     {
         return;
     }
 
     // Remember what we did last
-    analysis.lastSpectrumPartitions = std::make_pair(limit, n);
+    analysis.lastSpectrumPartitions = settings;
 
     analysis.spectrumPartitions.clear();
 
@@ -492,8 +495,7 @@ void audio_analysis_gen_log_space(AudioAnalysis& analysis, uint32_t limit, uint3
     uint32_t lastValue = 0;
     for (float fVal = 0.0f; fVal <= 1.0f; fVal += 1.0f / float(n))
     {
-        const float curveSharpness = 4.0f;
-        auto step = uint32_t(limit * std::pow(fVal, curveSharpness));
+        auto step = uint32_t(limit * std::pow(fVal, ctx.audioAnalysisSettings.spectrumSharpness));
         step = std::max(step, lastValue + 1);
         lastValue = step;
         analysis.spectrumPartitions.push_back(float(step));
@@ -504,18 +506,24 @@ void audio_analysis_gen_log_space(AudioAnalysis& analysis, uint32_t limit, uint3
 void audio_analysis_gen_linear_space(AudioAnalysis& analysis, uint32_t limit, uint32_t n)
 {
     auto& ctx = GetAudioContext();
-    if (analysis.lastSpectrumPartitions == std::make_pair(limit, n) && !analysis.spectrumPartitions.empty())
+    
+    SpectrumPartitionSettings settings;
+    settings.limit = limit;
+    settings.n = n;
+    settings.sharpness = ctx.audioAnalysisSettings.spectrumSharpness;
+
+    if (analysis.lastSpectrumPartitions == settings)
     {
         return;
     }
 
     // Remember what we did last
-    analysis.lastSpectrumPartitions = std::make_pair(limit, n);
+    analysis.lastSpectrumPartitions = settings;
 
     analysis.spectrumPartitions.resize(n);
     for (uint32_t i = 0; i < n; i++)
     {
-        analysis.spectrumPartitions[i] = (float(n) / (float(limit)));
+        analysis.spectrumPartitions[i] = float(limit) * (float(i) / (float(n)));
     }
 }
 

@@ -648,6 +648,13 @@ void audio_show_gui()
             analysisSettings.frames = frameSizes[frameIndex];
             audioResetRequired = true;
         }
+        
+        auto spectrumBucketsIndex = getFrameIndex(analysisSettings.spectrumBuckets);
+        if (Combo("Spectrum Buckets", &spectrumBucketsIndex, frameNames))
+        {
+            analysisSettings.spectrumBuckets = frameSizes[spectrumBucketsIndex];
+            audioResetRequired = true;
+        }
 
         // Note; negative DB
         float dB = -analysisSettings.audioDecibelRange;
@@ -670,6 +677,8 @@ void audio_show_gui()
             // No need to reset the device
             analysisSettings.logPartitions = logPartitions;
         }
+        
+        ImGui::SliderFloat("Spectrum Log Curve", &analysisSettings.spectrumSharpness, 2.0f, 100.0f);
 
         bool blendFFT = analysisSettings.blendFFT;
         if (ImGui::Checkbox("Blend FFT", &blendFFT))
@@ -713,12 +722,12 @@ void audio_show_gui()
         audioResetRequired = true;
     }
 
+    // Ensure sensible
+    audio_analysis_validate_settings(analysisSettings);
+
     if (audioResetRequired)
     {
         audio_init(nullptr);
-
-        // std::lock_guard<std::recursive_mutex> guard(maud.audio_mutex);
-        // m_spAnalysis->UpdateSettings(analysisSettings);
     }
 
     if (!ctx.m_audioValid)

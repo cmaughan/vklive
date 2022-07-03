@@ -22,6 +22,11 @@ void surface_unmap(VulkanContext& ctx, VulkanSurface& img)
 
 void surface_destroy(VulkanContext& ctx, VulkanSurface& img)
 {
+    if (img.stagingBuffer.buffer)
+    {
+        buffer_destroy(ctx, img.stagingBuffer);
+    }
+
     if (img.sampler)
     {
         ctx.device.destroySampler(img.sampler);
@@ -507,6 +512,7 @@ void surface_update_from_audio(VulkanContext& ctx, VulkanSurface& surface, bool&
     auto updateSurface = [&](auto width, auto height) {
         if (surface.extent.width != width || surface.extent.height != height)
         {
+            surfaceChanged = true;
             surface.extent.width = width;
             surface.extent.height = height;
             surface.extent.depth = 1;
@@ -565,8 +571,11 @@ void surface_update_from_audio(VulkanContext& ctx, VulkanSurface& surface, bool&
     static std::vector<float> uploadCache;
 
     size_t bufferWidth = 512; // default width if no data
-    auto channels = audioContext.analysisChannels.size();
-    for (int channel = 0; channel < channels; channel++)
+    const auto Channels = std::max(audioContext.analysisChannels.size(), size_t(1));
+    const auto BufferTypes = 2; // Spectrum + Audio
+    const auto BufferHeight = Channels * BufferTypes;
+
+    for (int channel = 0; channel < Channels; channel++)
     {
         auto& analysis = audioContext.analysisChannels[channel];
         
@@ -574,25 +583,31 @@ void surface_update_from_audio(VulkanContext& ctx, VulkanSurface& surface, bool&
         auto& processData = memLock.Data();
         auto currentBuffer = 1 - processData.currentBuffer;
 
-        auto& spectrum = processData.spectrumBuckets[currentBuffer];
+        auto& spectrumBuckets = processData.spectrumBuckets[currentBuffer];
         auto& audio = processData.audio[currentBuffer];
 
         // Stereo, Audio and Spectrum (4 rows total)
-        if (spectrum.size() != 0)
+        if (spectrumBuckets.size() != 0)
         {
-            bufferWidth = spectrum.size();
-            uploadCache.resize(audioContext.analysisChannels.size() * 2 * spectrum.size());
+            bufferWidth = spectrumBuckets.size();
+            uploadCache.resize(BufferHeight * spectrumBuckets.size());
 
-            memcpy(&uploadCache[channel * spectrum.size()], &spectrum[0], spectrum.size() * sizeof(float));
+            memcpy(&uploadCache[channel * spectrumBuckets.size()], &spectrumBuckets[0], spectrumBuckets.size() * sizeof(float));
            
             // Copy audio, note that we always make the audio at least as big as the spectrum
-            assert(audio.size() >= spectrum.size());
-            memcpy(&uploadCache[(channel + channels) * spectrum.size()], &audio[0], spectrum.size() * sizeof(float));
+            assert(audio.size() >= spectrumBuckets.size());
+            memcpy(&uploadCache[(channel + Channels) * spectrumBuckets.size()], &audio[0], spectrumBuckets.size() * sizeof(float));
+        }
+        else
+        {
+            // Make sure upload cache matches: it's OK that it might be empty
+            uploadCache.resize(bufferWidth * BufferHeight, 0.0f);
+            memset(&uploadCache[0], 0, uploadCache.size() * sizeof(float));
         }
     }
    
     // Left/Right FFT and Audio (4 rows)
-    updateSurface(bufferWidth, channels * 2);
+    updateSurface(bufferWidth, Channels * BufferTypes);
 
     utils_copy_to_memory(ctx, surface.stagingBuffer.memory, uploadCache);
 

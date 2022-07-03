@@ -82,6 +82,18 @@ struct AudioAnalysisData
     std::vector<float> frameCache;
 };
 
+struct SpectrumPartitionSettings
+{
+    uint32_t limit = 0;
+    uint32_t n = 0;
+    float sharpness = 1.0f;
+};
+
+inline bool operator==(const SpectrumPartitionSettings& a, const SpectrumPartitionSettings& b)
+{
+    return ((a.limit == b.limit) && (a.n == b.n) && (a.sharpness == b.sharpness));
+}
+
 struct AudioAnalysis
 {
     // FFT
@@ -109,7 +121,7 @@ struct AudioAnalysis
     std::thread analysisThread;
 
     std::vector<float> spectrumPartitions;
-    std::pair<uint32_t, uint32_t> lastSpectrumPartitions = { 0, 0 };
+    SpectrumPartitionSettings lastSpectrumPartitions;
     bool logPartitions = true;
 
     PNL_CL_Memory<AudioAnalysisData, std::mutex> analysisData;

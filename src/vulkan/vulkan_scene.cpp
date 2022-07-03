@@ -1,4 +1,5 @@
 #include <fmt/format.h>
+#include <atomic>
 
 #include <vklive/logger/logger.h>
 
