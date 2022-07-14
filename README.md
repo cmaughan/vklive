@@ -26,6 +26,9 @@ An audio spectrum analysis; best seen live! This is from a ShaderToy example, pr
 - Can edit/save the files in modal VIM or Notepad style mode (CTRL+2 or CTRL+1).
 - Scene description for passes and geometry, rendertargets and textures.
 - Fragment, Vertex and Geometry Shaders have been tested so far.
+- Can declare rendertargets, write to them, and sample them in later passes.
+- Can declare textures and read them in shaders
+- A special texture name 'AudioAnalysis' represents the audio input data.
 - Load/Save projects in different folders
 - All API objects are debug-labelled, including the ImGui ones, making it easy to diagnose errors in tools like NVIDIA Nsight, and find your way around.
 - Default project has background and foreground geometry and time input.  Template examples show off features.

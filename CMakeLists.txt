@@ -210,6 +210,10 @@ target_precompile_headers(vklive
     include/vklive/vulkan/vulkan_context.h
 )
 
+if("${CMAKE_SYSTEM_NAME}" STREQUAL "Linux")
+    target_link_libraries(vklive PUBLIC atomic)
+endif()
+
 if(WIN32)
 # Symbols for release builds on windows
 target_compile_options(vklive PRIVATE "$<$<CONFIG:Release>:/Zi>")

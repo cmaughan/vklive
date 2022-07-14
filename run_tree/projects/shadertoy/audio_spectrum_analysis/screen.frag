@@ -14,8 +14,8 @@ vec2 distort(vec2 p, float power)
     float a  = atan(p.y, p.x);
     float r = length(p);
     r = pow(r, power);
-    return vec2(r * cos(a), r*sin(a));
-    //return vec2((a / PI), r*2.0-1.0);	// polar
+   // return vec2(r * cos(a), r*sin(a));
+    return vec2((a / PI), r*2.0-1.0);	// polar
 }
 
 // 2D LED Spectrum - Visualiser
