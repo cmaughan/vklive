@@ -8,6 +8,7 @@
 using namespace std::chrono;
 
 timer globalTimer;
+uint32_t globalFrameCount = 0;
 
 double timer_to_seconds(uint64_t value)
 {

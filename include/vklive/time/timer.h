@@ -35,6 +35,7 @@ struct timerT
 using timer = timerT<>;
 using utc_timer = timerT<std::chrono::system_clock>;
 extern timer globalTimer;
+extern uint32_t globalFrameCount;
 
 template<class T>
 uint64_t timer_get_time_now(timerT<T>& timer)

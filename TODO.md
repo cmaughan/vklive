@@ -2,29 +2,35 @@ TODO
 ----
 
 ## General
-- Ping-Pong option (10)
-- Create UBO for each frame?
-- Icon (1)
-- Restart menu option to restart clocks, frame count, and do default clear once
+- Rework scene a bit to dynamically build everything each frame (and then cache afterwards if necessary)
+    - Ping-Pong option (10)
+    - Create UBO for each frame
+
+- Supply model textures in a descriptor
+
 - Blend operations/Alpha, and other render state
-- Cleanup scene dynamic state setup
+
+- Option to one-off clear a surface, and with restart menu
+    - Restart menu option should do default clear once
 
 - Fix Fixed Parameters:
     iMouse (x,y screen)
     iDate (year, month, day, seconds since EPOCH)
     fragOffset (audio)
 
-- Check low DPI (5)
+- App Icon
 
-## Project Support
-- [Need to think about this stuff some more]
-- Auto create missing shaders (1)
+- Auto create missing shaders
     - Make a function which walks through the components of a working project/scene and rebuilds what is necessary
     - This function will also update visible edited shaders and make new ones when the user compiles the scenegraph file, using default templates
-- Handle loading from an empty folder using above
+    - Handle loading from an empty folder using this approach
+
+- Support Volume and Cubemap textures
+
+- Check low DPI; need a machine to do this on
 
 ## Mac
-- Get correct documents folder (1)
+- Get correct documents folder; I don't think this is correctly located yet
 
 ## Linux
 - Test on linux machine
@@ -35,6 +41,7 @@ TODO
 -   target write/read
 -   texture/shapes
 -   geometry shader
+-   ping pong example
 
 Bugs
 ----
@@ -58,17 +65,20 @@ Fridge
 - Default shapes, sphere, torus, etc. (5)
 - Variable panel for user tweakables (20)
 - User layouts for imgui windows (10)
-- Support Tesselation shaders (5)
 - Cubemap/Volume (10)
  
 # Zep
-- Highlight multiple lines and tab
-- Wordwrapping on word boundaries (10)
+- Highlight multiple lines and tab for faster block indenting (10)
+- Wordwrapping on word boundaries (20)
 
 Freezer
 -------
+# Rendering
+- Support Tesselation shaders (5)
+
 # Mac
 - Make a native menu for more consistency?
 - Metal renderer
+
 # PC
 - DX12

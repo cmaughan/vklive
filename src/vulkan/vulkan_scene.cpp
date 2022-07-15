@@ -813,6 +813,7 @@ void vulkan_scene_render(VulkanContext& ctx, RenderContext& renderContext, Scene
         auto elapsed = timer_get_elapsed_seconds(globalTimer);
         pVulkanPass->vsUBO.iTimeDelta = (pVulkanPass->vsUBO.iTime == 0.0f) ? 0.0f : elapsed - pVulkanPass->vsUBO.iTime;
         pVulkanPass->vsUBO.iTime = elapsed;
+        pVulkanPass->vsUBO.iFrame = globalFrameCount;
         pVulkanPass->vsUBO.iFrameRate = elapsed != 0.0 ? (1.0f / elapsed) : 0.0;
         pVulkanPass->vsUBO.iGlobalTime = elapsed;
         pVulkanPass->vsUBO.iResolution = glm::vec4(size.x, size.y, 1.0, 0.0);

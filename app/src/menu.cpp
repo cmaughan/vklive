@@ -280,6 +280,12 @@ void menu_show()
                 ImGui::EndMenu();
             }
 
+            if (ImGui::MenuItem("Restart Scene"))
+            {
+                globalFrameCount = 0;
+                timer_restart(globalTimer);
+            }
+
             ImGui::EndMenu();
         }
 
@@ -322,11 +328,12 @@ void menu_show()
             lastTime = time;
         }
 
-        auto strSceneData = fmt::format("FPS: {:.0f}", fps);
+        auto strSceneData = fmt::format(" FPS: {:.0f} Frame: {}", fps, globalFrameCount);
         if (ImGui::BeginMenu(strSceneData.c_str()))
         {
             ImGui::EndMenu();
         }
+        
 
         ImGui::EndMainMenuBar();
 

@@ -388,6 +388,7 @@ int main(int argc, char** argv)
                 // Device lost, reset.
                 continue;
             }
+            globalFrameCount++;
         }
 
         // Just show it
