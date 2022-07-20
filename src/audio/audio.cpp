@@ -194,7 +194,7 @@ void audio_dump_devices()
         }
         for (int i = 0; i < info.NumInDevices(); i++)
         {
-            if (info.NumOutDevices() >= i && info.inDeviceApiIndices[i] == info.outDeviceApiIndices[i])
+            if ((info.NumOutDevices() > i) && info.inDeviceApiIndices[i] == info.outDeviceApiIndices[i])
             {
                 // Same device, don't double report
                 continue;
