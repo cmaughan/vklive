@@ -8,7 +8,7 @@
             "type": "lldb",
             "request": "launch",
             "name": "Debug",
-            "program": "${workspaceFolder}/<your program>",
+            "program": "${workspaceFolder}/build/Rezonality",
             "args": [],
             "cwd": "${workspaceFolder}"
         }

@@ -43,6 +43,7 @@ bool context_init(VulkanContext& ctx)
         std::cout << std::endl;
     }
 
+    std::cout << "Layer Properties:" << std::endl;
     for (auto const& l : layerProperties)
     {
         std::cout << l.layerName << std::endl;
@@ -50,31 +51,37 @@ bool context_init(VulkanContext& ctx)
 
     ctx.layerNames.clear();
 
+    vk::InstanceCreateFlags flags;
+
+    // initialize the vk::ApplicationInfo structure
+    vk::ApplicationInfo applicationInfo(AppName.c_str(), 1, EngineName.c_str(), 1, VK_API_VERSION_1_2);
+    
+#ifdef APPLE 
+    flags |= vk::InstanceCreateFlagBits::eEnumeratePortabilityKHR;
+    ctx.extensionNames.push_back("VK_KHR_portability_enumeration");
+#endif
+
 #ifdef IMGUI_VULKAN_DEBUG_REPORT
     ctx.layerNames.push_back("VK_LAYER_KHRONOS_validation");
     ctx.extensionNames.push_back("VK_EXT_debug_utils");
-    //ctx.extensionNames.push_back("VK_EXT_debug_report");
-#ifndef WIN32
-    ctx.extensionNames.push_back("VK_KHR_portability_enumeration");
 #endif
-    // initialize the vk::ApplicationInfo structure
-    vk::ApplicationInfo applicationInfo(AppName.c_str(), 1, EngineName.c_str(), 1, VK_API_VERSION_1_2);
 
-    vk::InstanceCreateFlags flags;
-#ifndef WIN32
-    flags |= vk::InstanceCreateFlagBits::eEnumeratePortabilityKHR;
-#endif
     // create an Instance
     ctx.instance = vk::createInstance(vk::InstanceCreateInfo(flags, &applicationInfo, ctx.layerNames, ctx.extensionNames));
 
+#ifdef IMGUI_VULKAN_DEBUG_REPORT
     debug_init(ctx);
-    
-#else
-    // Create Vulkan Instance without any debug feature
-    ctx.instance = vk::createInstance(vk::InstanceCreateInfo({}, &applicationInfo, ctx.layerNames, ctx.extensionNames));
 #endif
 
     ctx.physicalDevice = ctx.instance.enumeratePhysicalDevices().front();
+    for (auto& device : ctx.instance.enumeratePhysicalDevices())
+    {
+        if ((VkPhysicalDeviceType)device.getProperties().deviceType == VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU)
+        {
+            //std::cerr << "Selected: " << device.getProperties().deviceName << "\n";
+            ctx.physicalDevice = device;
+        }
+    }
 
     ctx.physicalDevice.getMemoryProperties(&ctx.memoryProperties);
 
@@ -89,6 +96,8 @@ bool context_init(VulkanContext& ctx)
 #if WIN32
     features.geometryShader = true;
 #endif
+            
+    //std::cerr << "Creating Device...";
     ctx.device = utils_create_device(ctx.physicalDevice, ctx.graphicsQueue, utils_get_device_extensions(), &features);
 
     debug_set_device_name(ctx.device, ctx.device, "Context::Device");

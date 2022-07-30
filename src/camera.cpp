@@ -16,7 +16,7 @@ glm::quat utils_quat_from_vectors(glm::vec3 u, glm::vec3 v)
          * around an arbitrary orthogonal axis. Axis normalisation
          * can happen later, when we normalise the quaternion. */
         real_part = 0.0f;
-        w = abs(u.x) > abs(u.z) ? glm::vec3(-u.y, u.x, 0.f)
+        w = std::abs(u.x) > std::abs(u.z) ? glm::vec3(-u.y, u.x, 0.f)
                                 : glm::vec3(0.f, -u.z, u.y);
     }
     else
