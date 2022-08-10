@@ -1,3 +1,5 @@
+#include <vklive/logger/logger.h>
+
 #include "vklive/vulkan/vulkan_context.h"
 #include "vklive/vulkan/vulkan_imgui.h"
 #include "vklive/vulkan/vulkan_utils.h"
@@ -23,7 +25,7 @@ void check_vk_result(vk::Result err)
         return;
     }
 
-    std::cout << "[vulkan] Error: VkResult = " << err << std::endl;
+    LOG(DBG, "[vulkan] Error: VkResult = " << err);
 
     if (int(err) < 0)
     {

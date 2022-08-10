@@ -219,16 +219,16 @@ std::shared_ptr<VulkanShader> shader_create(VulkanContext& ctx, Scene& scene, Sh
     spShader->shaderCreateInfo.module = nullptr;
 
     fs::path compiler_path;
-    fs::path cross_path;
+    //fs::path cross_path;
 #ifdef WIN32
     compiler_path = runtree_find_path("bin/win/glslangValidator.exe");
-    cross_path = runtree_find_path("bin/win/spirv-cross.exe");
+    //cross_path = runtree_find_path("bin/win/spirv-cross.exe");
 #elif defined(APPLE)
     compiler_path = runtree_find_path("bin/mac/glslangValidator");
-    cross_path = runtree_find_path("bin/win/spriv-cross.exe");
-#elif defined(LINUX)
+    //cross_path = runtree_find_path("bin/win/spriv-cross.exe");
+#elif defined(__linux__)
     compiler_path = runtree_find_path("bin/linux/glslangValidator");
-    cross_path = runtree_find_path("bin/linux/spriv-cross.exe");
+    //cross_path = runtree_find_path("bin/linux/spriv-cross.exe");
 #endif
     std::string output;
     auto ret = run_process(

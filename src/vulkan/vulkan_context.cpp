@@ -5,6 +5,9 @@
 #include "vklive/vulkan/vulkan_utils.h"
 
 #include "SDL2/SDL_vulkan.h"
+
+#include "vklive/logger/logger.h"
+
 #define IMGUI_VULKAN_DEBUG_REPORT
 
 namespace vulkan
@@ -35,18 +38,17 @@ bool context_init(VulkanContext& ctx)
         extensionProperties.end(),
         [](vk::ExtensionProperties const& a, vk::ExtensionProperties const& b) { return strcmp(a.extensionName, b.extensionName) < 0; });
 
-    std::cout << "Instance Extensions:" << std::endl;
+    LOG(DBG, "Instance Extensions:");
     for (auto const& ep : extensionProperties)
     {
-        std::cout << ep.extensionName << ":" << std::endl;
-        std::cout << "\tVersion: " << ep.specVersion << std::endl;
-        std::cout << std::endl;
+        LOG(DBG, ep.extensionName << ":");
+        LOG(DBG, "\tVersion: " << ep.specVersion);
     }
 
-    std::cout << "Layer Properties:" << std::endl;
+    LOG(DBG, "Layer Properties:");
     for (auto const& l : layerProperties)
     {
-        std::cout << l.layerName << std::endl;
+        LOG(DBG, l.layerName);
     }
 
     ctx.layerNames.clear();
