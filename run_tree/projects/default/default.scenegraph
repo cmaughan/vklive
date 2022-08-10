@@ -1,7 +1,7 @@
 // Background
 
 surface: Noise {
-    path: Noise.png
+    path: noise.png
 }
 
 surface: A {
