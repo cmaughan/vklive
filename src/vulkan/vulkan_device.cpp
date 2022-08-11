@@ -8,7 +8,7 @@
 #include <vklive/vulkan/vulkan_imgui.h>
 #include <vklive/vulkan/vulkan_device.h>
 
-#include <vklive/imgui/imgui_sdl.h>
+#include <imgui/imgui_impl_sdl.h>
 
 // Thin wrapper around vulkan
 namespace vulkan
@@ -60,7 +60,7 @@ VulkanDevice::~VulkanDevice()
 
     SDL_DestroyWindow(ctx.window);
 
-    ImGui_SDL2_Shutdown();
+    ImGui_ImplSDL2_Shutdown();
     ImGui::DestroyContext();
 }
 

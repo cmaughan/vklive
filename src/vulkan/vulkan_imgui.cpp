@@ -10,7 +10,7 @@
 
 #include "vklive/file/runtree.h"
 
-#include "vklive/imgui/imgui_sdl.h"
+#include "imgui/imgui_impl_sdl.h"
 
 #include "config_app.h"
 
@@ -422,7 +422,7 @@ bool imgui_init(VulkanContext& ctx, const std::string& iniPath, bool viewports)
     }
 
     // Setup Platform/Renderer backends
-    ImGui_SDL2_InitForVulkan(ctx.window);
+    ImGui_ImplSDL2_InitForVulkan(ctx.window);
 
     // Setup backend capabilities flags
     io.BackendRendererUserData = (void*)&ctx;

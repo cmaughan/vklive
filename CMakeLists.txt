@@ -28,12 +28,11 @@ set(COMPANY "Rezonality")
 set(COPYRIGHT "Copyright (c) 2022 Rezonality")
 set(IDENTIFIER "com.rezonality.vklive")
 
-find_package(Freetype REQUIRED) # Better font rendering
+find_package(freetype CONFIG REQUIRED) # Better font rendering
 find_package(Vulkan REQUIRED) # Vulkan API
 find_package(assimp CONFIG REQUIRED) # Asset import for loading models
 find_package(clipp CONFIG REQUIRED) # Commandline parser for command line arguments
 find_package(fmt CONFIG REQUIRED) # String formatting library
-find_package(imgui REQUIRED) # ImGui API
 find_package(reproc++ REQUIRED) # Process launch library for loading shader compiler binary
 find_package(SDL2 REQUIRED) # SDL UI library for creating windows, etc.
 find_package(tomlplusplus CONFIG REQUIRED) # Toml file format parser for reading config files
@@ -117,6 +116,23 @@ set(CLIP_SOURCE
     ${EXTERNAL_DIR}/clip/image.cpp
     )
 
+set(IMGUI_SOURCE
+    ${EXTERNAL_DIR}/imgui/imconfig.h
+    ${EXTERNAL_DIR}/imgui/imgui.cpp
+    ${EXTERNAL_DIR}/imgui/imgui.h
+    ${EXTERNAL_DIR}/imgui/imgui_demo.cpp
+    ${EXTERNAL_DIR}/imgui/imgui_draw.cpp
+    ${EXTERNAL_DIR}/imgui/imgui_internal.h
+    ${EXTERNAL_DIR}/imgui/imgui_tables.cpp
+    ${EXTERNAL_DIR}/imgui/imgui_widgets.cpp
+    ${EXTERNAL_DIR}/imgui/imgui_freetype.cpp
+    ${EXTERNAL_DIR}/imgui/imstb_rectpack.h
+    ${EXTERNAL_DIR}/imgui/imstb_textedit.h
+    ${EXTERNAL_DIR}/imgui/imstb_truetype.h
+    ${EXTERNAL_DIR}/imgui/imgui_impl_sdl.cpp
+    ${EXTERNAL_DIR}/imgui/imgui_impl_sdl.h
+)
+
 if(WIN32)
     LIST(APPEND CLIP_SOURCE
         ${EXTERNAL_DIR}/clip/clip_win.cpp)
@@ -138,7 +154,7 @@ set(VK_SOURCES
     src/file/file.cpp
     src/file/runtree.cpp
     src/file/toml_utils.cpp
-    src/imgui/imgui_sdl.cpp
+    #src/imgui/imgui_sdl.cpp
     src/imgui/imgui_utils.cpp
     src/model.cpp
     src/pass.cpp
@@ -159,7 +175,7 @@ set(VK_SOURCES
     include/vklive/file/file.h
     include/vklive/file/runtree.h
     include/vklive/file/toml_utils.h
-    include/vklive/imgui/imgui_sdl.h
+    #include/vklive/imgui/imgui_sdl.h
     include/vklive/imgui/imgui_utils.h
     include/vklive/model.h
     include/vklive/pass.h
@@ -174,6 +190,7 @@ set(VK_SOURCES
 set(LIB_SOURCES
     ${VULKAN_SOURCES}
     ${VK_SOURCES}
+    ${IMGUI_SOURCE} 
     )
 
 set(APP_SOURCES 
@@ -199,7 +216,6 @@ add_library(vklive ${LIB_SOURCES})
 target_link_libraries(vklive
     PUBLIC
         Vulkan::Vulkan
-        imgui::imgui
         reproc++
         assimp::assimp
         fmt::fmt-header-only
@@ -312,3 +328,4 @@ endif()
 source_group (vklive//vulkan FILES ${VULKAN_SOURCES})
 source_group (vklive FILES ${VK_SOURCES})
 source_group (app FILES ${APP_SOURCES})
+source_group (imgui FILES ${IMGUI_SOURCES})

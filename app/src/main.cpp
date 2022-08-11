@@ -8,8 +8,8 @@
 #include <SDL2/SDL.h>
 #include <SDL2/SDL_vulkan.h>
 
-#include <imgui.h>
-#include <vklive/imgui/imgui_sdl.h>
+#include <imgui/imgui.h>
+#include <imgui/imgui_impl_sdl.h>
 
 #include <vklive/file/file.h>
 #include <vklive/time/timer.h>
@@ -186,7 +186,7 @@ int main(int argc, char** argv)
         SDL_Event event;
         while (SDL_PollEvent(&event))
         {
-            ImGui_SDL2_ProcessEvent(&event);
+            ImGui_ImplSDL2_ProcessEvent(&event);
             if (event.type == SDL_QUIT)
             {
                 done = true;
@@ -219,7 +219,7 @@ int main(int argc, char** argv)
         g_pDevice->ValidateSwapChain();
 
         // Start the Dear ImGui frame
-        ImGui_SDL2_NewFrame();
+        ImGui_ImplSDL2_NewFrame(g_pDevice->Context().window);
         ImGui::NewFrame();
 
         menu_show();
