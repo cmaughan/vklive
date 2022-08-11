@@ -290,7 +290,7 @@ vk::Device utils_create_device(vk::PhysicalDevice const& physicalDevice, uint32_
 
 std::vector<std::string> utils_get_device_extensions()
 {
-#ifdef APPLE
+#ifdef __APPLE__
     return { VK_KHR_SWAPCHAIN_EXTENSION_NAME, "VK_KHR_portability_subset" };
 #else
     return { VK_KHR_SWAPCHAIN_EXTENSION_NAME};

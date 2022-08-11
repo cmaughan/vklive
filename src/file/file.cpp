@@ -3,10 +3,6 @@
 #include <queue>
 #include <set>
 
-#ifdef APPLE
-#include <sysdir.h>
-#endif
-
 #ifndef WIN32
 #include <unistd.h>
 #endif

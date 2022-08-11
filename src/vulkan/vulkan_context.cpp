@@ -58,7 +58,7 @@ bool context_init(VulkanContext& ctx)
     // initialize the vk::ApplicationInfo structure
     vk::ApplicationInfo applicationInfo(AppName.c_str(), 1, EngineName.c_str(), 1, VK_API_VERSION_1_2);
     
-#ifdef APPLE 
+#ifdef __APPLE__
     flags |= vk::InstanceCreateFlagBits::eEnumeratePortabilityKHR;
     ctx.extensionNames.push_back("VK_KHR_portability_enumeration");
 #endif
