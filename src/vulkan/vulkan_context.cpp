@@ -5,6 +5,9 @@
 #include "vklive/vulkan/vulkan_utils.h"
 
 #include "SDL2/SDL_vulkan.h"
+
+#include "vklive/logger/logger.h"
+
 #define IMGUI_VULKAN_DEBUG_REPORT
 
 namespace vulkan
@@ -35,46 +38,52 @@ bool context_init(VulkanContext& ctx)
         extensionProperties.end(),
         [](vk::ExtensionProperties const& a, vk::ExtensionProperties const& b) { return strcmp(a.extensionName, b.extensionName) < 0; });
 
-    std::cout << "Instance Extensions:" << std::endl;
+    LOG(DBG, "Instance Extensions:");
     for (auto const& ep : extensionProperties)
     {
-        std::cout << ep.extensionName << ":" << std::endl;
-        std::cout << "\tVersion: " << ep.specVersion << std::endl;
-        std::cout << std::endl;
+        LOG(DBG, ep.extensionName << ":");
+        LOG(DBG, "\tVersion: " << ep.specVersion);
     }
 
+    LOG(DBG, "Layer Properties:");
     for (auto const& l : layerProperties)
     {
-        std::cout << l.layerName << std::endl;
+        LOG(DBG, l.layerName);
     }
 
     ctx.layerNames.clear();
 
+    vk::InstanceCreateFlags flags;
+
+    // initialize the vk::ApplicationInfo structure
+    vk::ApplicationInfo applicationInfo(AppName.c_str(), 1, EngineName.c_str(), 1, VK_API_VERSION_1_2);
+    
+#ifdef APPLE 
+    flags |= vk::InstanceCreateFlagBits::eEnumeratePortabilityKHR;
+    ctx.extensionNames.push_back("VK_KHR_portability_enumeration");
+#endif
+
 #ifdef IMGUI_VULKAN_DEBUG_REPORT
     ctx.layerNames.push_back("VK_LAYER_KHRONOS_validation");
     ctx.extensionNames.push_back("VK_EXT_debug_utils");
-    //ctx.extensionNames.push_back("VK_EXT_debug_report");
-#ifndef WIN32
-    ctx.extensionNames.push_back("VK_KHR_portability_enumeration");
 #endif
-    // initialize the vk::ApplicationInfo structure
-    vk::ApplicationInfo applicationInfo(AppName.c_str(), 1, EngineName.c_str(), 1, VK_API_VERSION_1_2);
 
-    vk::InstanceCreateFlags flags;
-#ifndef WIN32
-    flags |= vk::InstanceCreateFlagBits::eEnumeratePortabilityKHR;
-#endif
     // create an Instance
     ctx.instance = vk::createInstance(vk::InstanceCreateInfo(flags, &applicationInfo, ctx.layerNames, ctx.extensionNames));
 
+#ifdef IMGUI_VULKAN_DEBUG_REPORT
     debug_init(ctx);
-    
-#else
-    // Create Vulkan Instance without any debug feature
-    ctx.instance = vk::createInstance(vk::InstanceCreateInfo({}, &applicationInfo, ctx.layerNames, ctx.extensionNames));
 #endif
 
     ctx.physicalDevice = ctx.instance.enumeratePhysicalDevices().front();
+    for (auto& device : ctx.instance.enumeratePhysicalDevices())
+    {
+        if ((VkPhysicalDeviceType)device.getProperties().deviceType == VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU)
+        {
+            //std::cerr << "Selected: " << device.getProperties().deviceName << "\n";
+            ctx.physicalDevice = device;
+        }
+    }
 
     ctx.physicalDevice.getMemoryProperties(&ctx.memoryProperties);
 
@@ -89,6 +98,8 @@ bool context_init(VulkanContext& ctx)
 #if WIN32
     features.geometryShader = true;
 #endif
+            
+    //std::cerr << "Creating Device...";
     ctx.device = utils_create_device(ctx.physicalDevice, ctx.graphicsQueue, utils_get_device_extensions(), &features);
 
     debug_set_device_name(ctx.device, ctx.device, "Context::Device");

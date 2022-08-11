@@ -4,6 +4,8 @@
 #include <SDL2/SDL.h>
 #include <SDL2/SDL_vulkan.h>
 
+#include <vklive/logger/logger.h>
+
 #include "vklive/vulkan/vulkan_context.h"
 #include "vklive/vulkan/vulkan_utils.h"
 #include "vklive/vulkan/vulkan_framebuffer.h"
@@ -240,7 +242,7 @@ bool main_window_init(VulkanContext& ctx)
     vkGetPhysicalDeviceSurfaceSupportKHR(ctx.physicalDevice, ctx.graphicsQueue, wd->surface, &res);
     if (res != VK_TRUE)
     {
-        std::cout << "Error no WSI support on physical device 0\n";
+        LOG(DBG, "Error no WSI support on physical device 0");
         return false;
     }
 

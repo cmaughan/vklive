@@ -368,15 +368,15 @@ bool debug_init(VulkanContext& ctx)
     }
     catch (vk::SystemError& err)
     {
-        std::cout << "vk::SystemError: " << err.what() << std::endl;
+        LOG(DBG, "vk::SystemError: " << err.what());
     }
     catch (std::exception& err)
     {
-        std::cout << "std::exception: " << err.what() << std::endl;
+        LOG(DBG, "std::exception: " << err.what());
     }
     catch (...)
     {
-        std::cout << "unknown error\n";
+        LOG(DBG, "unknown error");
     }
     return 0;
 }

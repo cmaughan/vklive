@@ -3,8 +3,11 @@
 #include <queue>
 #include <set>
 
-#ifdef __APPLE__
+#ifdef APPLE
 #include <sysdir.h>
+#endif
+
+#ifndef WIN32
 #include <unistd.h>
 #endif
 
@@ -350,27 +353,35 @@ fs::path file_appdata_path()
 #else
 fs::path file_exe_path()
 {
-    // TODO Fix file stuff on linux
-    assert(!"Fixme");
-    return fs::path();
+    char result[PATH_MAX];
+    ssize_t count = readlink("/proc/self/exe", result, PATH_MAX);
+    return fs::path(std::string(result, (count > 0) ? count : 0));
 }
+
+fs::path home_path()
+{
+    auto homePath = fs::path(getenv("HOME"));
+    if (!fs::exists(homePath))
+    {
+        homePath = "/";
+    }
+    return homePath;
+}
+
 
 fs::path file_documents_path()
 {
-    assert(!"Fixme");
-    return fs::path();
+    return home_path();
 }
 
 fs::path file_roaming_path()
 {
-    assert(!"Fixme");
-    return fs::path();
+    return home_path() / "Settings";
 }
 
 fs::path file_appdata_path()
 {
-    assert(!"Fixme");
-    return fs::path();
+    return home_path() / "Settings";
 }
 #endif
 

@@ -291,7 +291,7 @@ std::shared_ptr<Scene> scene_build(const fs::path& root)
         if (mpc_parse_contents(spScene->sceneGraphPath.string().c_str(), parser.pSceneGraph, &r))
         {
             auto ast_current = (mpc_ast_t*)r.output;
-            mpc_ast_print((mpc_ast_t*)r.output);
+            //mpc_ast_print((mpc_ast_t*)r.output);
 
             auto childrenOf = [&](mpc_ast_t* entry, const std::string& val) {
                 std::vector<mpc_ast_t*> children;
@@ -376,7 +376,7 @@ std::shared_ptr<Scene> scene_build(const fs::path& root)
                 return pPathNameNode->contents;
             };
 
-            LOG(DBG, "Tag: " << ast_current->tag << " Contents: " << ast_current->contents);
+            //LOG(DBG, "Tag: " << ast_current->tag << " Contents: " << ast_current->contents);
 
             auto surfaces = childrenOf(ast_current, T_SURFACE);
             for (auto& pSurfaceNode : surfaces)
