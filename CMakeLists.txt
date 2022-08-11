@@ -57,6 +57,8 @@ if(MSVC)
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /MP")
 endif()
 
+include_directories(external/imgui)
+
 # Set this to use a lib instead of the single header build
 set (ZEP_LIB 1)
 add_definitions(-DIMGUI_DISABLE_INCLUDE_IMCONFIG_H)
@@ -244,6 +246,7 @@ target_include_directories(vklive
     PRIVATE
         ${CMAKE_BINARY_DIR}
         ${CMAKE_CURRENT_SOURCE_DIR}/external
+        ${CMAKE_CURRENT_SOURCE_DIR}/external/imgui
     )
 
 # App
