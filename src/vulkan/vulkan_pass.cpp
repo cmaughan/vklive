@@ -22,6 +22,16 @@ using namespace ranges;
 namespace vulkan
 {
 
+VulkanPassSwapFrameData& vulkan_pass_frame_data(VulkanContext& ctx, VulkanPass& vulkanPass)
+{
+    return vulkanPass.passFrameData[ctx.mainWindowData.frameIndex];
+}
+
+VulkanPassTargets& vulkan_pass_targets(VulkanPassSwapFrameData& passFrameData)
+{
+    return passFrameData.passTargets[globalFrameCount % 2];
+}
+
 std::shared_ptr<VulkanPass> vulkan_pass_create(VulkanScene& vulkanScene, Pass& pass)
 {
     auto spVulkanPass = std::make_shared<VulkanPass>(vulkanScene, pass);
@@ -616,8 +626,8 @@ void vulkan_pass_prepare_surfaces(VulkanContext& ctx, VulkanPassSwapFrameData& p
 // Ensure we have setup the buffers for this pass
 void vulkan_pass_prepare_uniforms(VulkanContext& ctx, VulkanPass& vulkanPass)
 {
-    auto& passFrameData = vulkanPass.passFrameData[ctx.mainWindowData.frameIndex];
-    auto& passTargets = passFrameData.passTargets[globalFrameCount % 2];
+    auto& passFrameData = vulkan_pass_frame_data(ctx, vulkanPass);
+    auto& passTargets = vulkan_pass_targets(passFrameData);
 
     if (!passFrameData.vsUniform.buffer)
     {
@@ -688,8 +698,8 @@ void vulkan_pass_prepare_uniforms(VulkanContext& ctx, VulkanPass& vulkanPass)
 
 void vulkan_pass_build_bindings(VulkanContext& ctx, VulkanScene& vulkanScene, VulkanPass& vulkanPass)
 {
-    auto& passFrameData = vulkanPass.passFrameData[ctx.mainWindowData.frameIndex];
-    auto& passTargets = passFrameData.passTargets[globalFrameCount % 2];
+    auto& passFrameData = vulkan_pass_frame_data(ctx, vulkanPass);
+    auto& passTargets = vulkan_pass_targets(passFrameData);
 
     // Build pointers to image infos for later
     std::map<std::string, vk::DescriptorImageInfo> imageInfos;
@@ -857,39 +867,11 @@ void vulkan_pass_prepare_pipeline(VulkanContext& ctx, VulkanPassSwapFrameData& f
     validation_set_shaders({});
 }
 
-bool vulkan_pass_begin(VulkanContext& ctx, VulkanPass& vulkanPass)
+// Transition samplers to read, if they are not already
+void vulkan_pass_transition_samplers(VulkanContext& ctx, VulkanPassSwapFrameData& passFrameData)
 {
-    // Data for rendering the pass at the current swap frame
-    auto& passFrameData = vulkanPass.passFrameData[ctx.mainWindowData.frameIndex];
-    auto& passTargets = passFrameData.passTargets[globalFrameCount % 2];
-    passFrameData.frameIndex = ctx.mainWindowData.frameIndex;
-    passFrameData.pVulkanPass = &vulkanPass;
-    passFrameData.debugName = fmt::format("{}:{}", vulkanPass.pass.name, ctx.mainWindowData.frameIndex);
-    passTargets.pFrameData = &passFrameData;
+    auto& vulkanPass = *passFrameData.pVulkanPass;
 
-    LOG(DBG, "");
-    LOG(DBG, "PassBegin: " << passFrameData.debugName << " Frame: " << ctx.mainWindowData.frameIndex << " Global Frame: " << globalFrameCount);
-    vulkan_pass_wait(ctx, passFrameData);
-
-    // Get command buffers ready if necessary
-    vulkan_pass_prepare_command_buffers(ctx, passFrameData);
-
-    // Get our targets ready
-    vulkan_pass_prepare_targets(ctx, passFrameData);
-
-    // Samplers/ Surfaces
-    vulkan_pass_prepare_surfaces(ctx, passFrameData);
-
-    // Renderpasses
-    vulkan_pass_prepare_renderpass(ctx, passTargets);
-
-    // Uniform buffers
-    vulkan_pass_prepare_uniforms(ctx, vulkanPass);
-
-    // Graphics pipeline
-    vulkan_pass_prepare_pipeline(ctx, passFrameData);
-
-    // Transition samplers to read
     for (auto& samplerName : passFrameData.pVulkanPass->pass.samplers)
     {
         auto pVulkanSurface = get_vulkan_surface(ctx, vulkanPass, samplerName, true);
@@ -898,19 +880,12 @@ bool vulkan_pass_begin(VulkanContext& ctx, VulkanPass& vulkanPass)
             surface_set_layout(ctx, passFrameData.commandBuffer, pVulkanSurface->image, vk::ImageLayout::eUndefined, vk::ImageLayout::eShaderReadOnlyOptimal);
         }
     }
+}
 
-    // Validation layer may set an error, meaning this scene is not valid!
-    // audio_destroy it, and reset the error trigger
-    auto& scene = vulkanPass.pass.scene;
-    if (validation_get_error_state() || !scene.valid)
-    {
-        vulkan_scene_destroy(ctx, vulkanPass.vulkanScene);
-        validation_clear_error_state();
-        return false;
-    }
-
-    LOG(DBG, "PassEnd: " << passFrameData.debugName << " Frame: " << ctx.mainWindowData.frameIndex << " Global Frame: " << globalFrameCount << "\n");
-    LOG(DBG, "");
+void vulkan_pass_submit(VulkanContext& ctx, VulkanPass& vulkanPass)
+{
+    auto& passFrameData = vulkan_pass_frame_data(ctx, vulkanPass);
+    auto& passTargets = vulkan_pass_targets(passFrameData);
 
     // Clear
     vk::ClearValue clearValues[2];
@@ -970,6 +945,62 @@ bool vulkan_pass_begin(VulkanContext& ctx, VulkanPass& vulkanPass)
     LOG(DBG, "Submit CommandBuffer: " << passFrameData.commandBuffer << ", Fence: " << &passFrameData.fence);
 
     ctx.queue.submit(vk::SubmitInfo{ 0, nullptr, nullptr, 1, &passFrameData.commandBuffer }, passFrameData.fence);
+}
+
+bool vulkan_pass_draw(VulkanContext& ctx, VulkanPass& vulkanPass)
+{
+    // Data for rendering the pass at the current swap frame
+    auto& passFrameData = vulkan_pass_frame_data(ctx, vulkanPass);
+    auto& passTargets = vulkan_pass_targets(passFrameData);
+
+    passFrameData.frameIndex = ctx.mainWindowData.frameIndex;
+    passFrameData.pVulkanPass = &vulkanPass;
+    passFrameData.debugName = fmt::format("{}:{}", vulkanPass.pass.name, ctx.mainWindowData.frameIndex);
+    passTargets.pFrameData = &passFrameData;
+
+    LOG(DBG, "");
+    LOG(DBG, "PassBegin: " << passFrameData.debugName << " Frame: " << ctx.mainWindowData.frameIndex << " Global Frame: " << globalFrameCount);
+
+    // Wait for the fence the last time we drew with this pass information
+    vulkan_pass_wait(ctx, passFrameData);
+
+    // Get command buffers ready if necessary
+    vulkan_pass_prepare_command_buffers(ctx, passFrameData);
+
+    // Get our targets ready
+    vulkan_pass_prepare_targets(ctx, passFrameData);
+
+    // Samplers/ Surfaces
+    vulkan_pass_prepare_surfaces(ctx, passFrameData);
+
+    // Renderpasses
+    vulkan_pass_prepare_renderpass(ctx, passTargets);
+
+    // Uniform buffers
+    vulkan_pass_prepare_uniforms(ctx, vulkanPass);
+
+    // Graphics pipeline
+    vulkan_pass_prepare_pipeline(ctx, passFrameData);
+
+    // Make sure that samplers can be read by the shaders they are bound to
+    vulkan_pass_transition_samplers(ctx, passFrameData);
+
+    // Validation layer may set an error, meaning this scene is not valid!
+    // audio_destroy it, and reset the error trigger
+    auto& scene = vulkanPass.pass.scene;
+    if (validation_get_error_state() || !scene.valid)
+    {
+        LOG(DBG, "!PASS INVALID!");
+        vulkan_scene_destroy(ctx, vulkanPass.vulkanScene);
+        validation_clear_error_state();
+        return false;
+    }
+
+    LOG(DBG, "PassEnd: " << passFrameData.debugName << " Frame: " << ctx.mainWindowData.frameIndex << " Global Frame: " << globalFrameCount << "\n");
+    LOG(DBG, "");
+
+    vulkan_pass_submit(ctx, vulkanPass);
+
     return true;
 }
 

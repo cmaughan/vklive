@@ -130,6 +130,6 @@ struct VulkanPass
 std::shared_ptr<VulkanPass> vulkan_pass_create(VulkanScene& vulkanScene, Pass& pass);
 void vulkan_pass_destroy(VulkanContext& ctx, VulkanPass& vulkanPass);
 void vulkan_pass_wait(VulkanContext& ctx, VulkanPassSwapFrameData& passData);
-bool vulkan_pass_begin(VulkanContext& ctx, VulkanPass& vulkanPass);
+bool vulkan_pass_draw(VulkanContext& ctx, VulkanPass& vulkanPass);
 
 }

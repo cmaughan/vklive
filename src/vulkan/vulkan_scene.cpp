@@ -192,7 +192,7 @@ void vulkan_scene_render(VulkanContext& ctx, VulkanScene& vulkanScene)
 
         for (auto& [name, pVulkanPass] : vulkanScene.passes)
         {
-            if (!vulkan_pass_begin(ctx, *pVulkanPass))
+            if (!vulkan_pass_draw(ctx, *pVulkanPass))
             {
                 // Scene not valid, might be deleted
                 return;
