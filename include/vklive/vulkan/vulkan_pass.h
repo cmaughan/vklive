@@ -101,8 +101,10 @@ struct VulkanPassSwapFrameData
     vk::PipelineLayout geometryPipelineLayout;
     std::map<uint32_t, VulkanBindingSet> mergedBindingSets;
 
+    bool builtDescriptors = false;
     std::vector<vk::DescriptorSet> descriptorSets;
-    std::vector<vk::DescriptorSetLayout> descriptorSetLayouts;
+    std::map<uint32_t, vk::DescriptorSetLayout> descriptorSetLayouts;
+    std::map<uint32_t, std::vector<vk::DescriptorSetLayoutBinding>> descriptorSetBindings;
 
     // In flight stuff
     bool inFlight = false;

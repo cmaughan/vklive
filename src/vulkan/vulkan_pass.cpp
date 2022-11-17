@@ -696,8 +696,75 @@ void vulkan_pass_prepare_uniforms(VulkanContext& ctx, VulkanPass& vulkanPass)
     utils_copy_to_memory(ctx, passFrameData.vsUniform.memory, ubo);
 }
 
-void vulkan_pass_build_bindings(VulkanContext& ctx, VulkanScene& vulkanScene, VulkanPass& vulkanPass)
+void vulkan_pass_build_descriptors(VulkanContext& ctx, VulkanPass& vulkanPass)
 {
+    VulkanScene& vulkanScene = vulkanPass.vulkanScene;
+    auto& passFrameData = vulkan_pass_frame_data(ctx, vulkanPass);
+    auto& passTargets = vulkan_pass_targets(passFrameData);
+
+    if (passFrameData.builtDescriptors)
+    {
+        return; 
+    }
+
+    passFrameData.builtDescriptors = true;
+
+    // Lookup the vulkan compiled shader stages that match the declared scene shaders
+    auto& stages = vulkanPass.vulkanScene.shaderStages;
+
+    auto f = [&](auto& p) { return stages.find(p) != stages.end(); };
+    auto t = [&](auto& p) { return &stages.find(p)->second->bindingSets; };
+    auto bindings = vulkanPass.pass.shaders | views::filter(f) | views::transform(t) | to<std::vector>();
+    passFrameData.mergedBindingSets = bindings_merge(bindings);
+
+    LOG(DBG, "  Pass: " << passFrameData.debugName << ", Merged Bindings:");
+    bindings_dump(passFrameData.mergedBindingSets, 4);
+
+    passFrameData.descriptorSetBindings.clear();
+    passFrameData.descriptorSetLayouts.clear();
+
+    for (auto& [set, bindingSet] : passFrameData.mergedBindingSets)
+    {
+        LOG(DBG, "Set: " << set);
+
+        auto& bindings = passFrameData.descriptorSetBindings[set];
+        auto& layout = passFrameData.descriptorSetLayouts[set];
+
+        bindings.clear();
+        layout = nullptr;
+
+        for (auto& [index, binding] : bindingSet.bindings)
+        {
+            auto itrMeta = bindingSet.bindingMeta.find(index);
+            if (itrMeta == bindingSet.bindingMeta.end())
+            {
+                scene_report_error(*vulkanScene.pScene, MessageSeverity::Error, fmt::format("Could not find binding for index: {}", index), itrMeta->second.shaderPath, itrMeta->second.line, itrMeta->second.range);
+                return;
+            }
+
+            bindings.push_back(binding);
+        }
+
+        if (!bindings.empty())
+        {
+            // build layout first
+            vk::DescriptorSetLayoutCreateInfo layoutInfo{};
+            layoutInfo.pNext = nullptr;
+            layoutInfo.pBindings = bindings.data();
+            layoutInfo.bindingCount = static_cast<uint32_t>(bindings.size());
+
+            auto descriptorSetLayout = descriptor_create_layout(ctx, vulkanScene.descriptorCache, layoutInfo);
+            debug_set_descriptorsetlayout_name(ctx.device, descriptorSetLayout, fmt::format("{}:{}", passFrameData.debugName, "Layout"));
+
+            layout = descriptorSetLayout;
+        }
+    }
+}
+
+void vulkan_pass_set_descriptors(VulkanContext& ctx, VulkanPass& vulkanPass)
+{
+    VulkanScene& vulkanScene = vulkanPass.vulkanScene;
+
     auto& passFrameData = vulkan_pass_frame_data(ctx, vulkanPass);
     auto& passTargets = vulkan_pass_targets(passFrameData);
 
@@ -717,17 +784,45 @@ void vulkan_pass_build_bindings(VulkanContext& ctx, VulkanScene& vulkanScene, Vu
         }
     }
 
-    passFrameData.descriptorSetLayouts.clear();
     passFrameData.descriptorSets.clear();
 
-    for (auto& [set, bindingSet] : passFrameData.mergedBindingSets)
-    {
-        LOG(DBG, "Set: " << set);
-        std::vector<vk::DescriptorSetLayoutBinding> flatBindingList;
-        std::vector<vk::WriteDescriptorSet> writes;
+    std::vector<vk::WriteDescriptorSet> writes;
 
-        for (auto& [index, binding] : bindingSet.bindings)
+    for (auto& [set, bindings] : passFrameData.descriptorSetBindings)
+    {
+        auto& layout = passFrameData.descriptorSetLayouts[set];
+        auto& bindingSet = passFrameData.mergedBindingSets[set];
+        if (!layout)
         {
+            continue;
+        }
+
+        if (bindings.empty())
+        {
+            continue;
+        }
+
+        // build layout first
+        vk::DescriptorSetLayoutCreateInfo layoutInfo{};
+        layoutInfo.pNext = nullptr;
+        layoutInfo.pBindings = bindings.data();
+        layoutInfo.bindingCount = static_cast<uint32_t>(bindings.size());
+
+        vk::DescriptorSet descriptorSet;
+        bool success = descriptor_allocate(ctx, vulkanScene.descriptorCache, &descriptorSet, layout);
+        if (!success)
+        {
+            scene_report_error(*vulkanScene.pScene, MessageSeverity::Error, fmt::format("Could not allocate descriptor"));
+            return;
+        };
+        debug_set_descriptorset_name(ctx.device, descriptorSet, fmt::format("{}:{}", passFrameData.debugName, "DescriptorSet"));
+            
+        passFrameData.descriptorSets.push_back(descriptorSet);
+
+        // Get bindings for this set
+        for (auto& binding : bindings)
+        {
+            auto index = binding.binding;
             auto itrMeta = bindingSet.bindingMeta.find(index);
             if (itrMeta == bindingSet.bindingMeta.end())
             {
@@ -735,15 +830,13 @@ void vulkan_pass_build_bindings(VulkanContext& ctx, VulkanScene& vulkanScene, Vu
                 return;
             }
 
-            flatBindingList.push_back(binding);
-
             // TODO: Binding count.  When is there more than 1 specified? An array in the shader?
             vk::WriteDescriptorSet newWrite{};
             newWrite.pNext = nullptr;
             newWrite.descriptorCount = 1;
             newWrite.descriptorType = binding.descriptorType;
             newWrite.dstBinding = index;
-            newWrite.dstSet = nullptr;
+            newWrite.dstSet = descriptorSet;
             newWrite.dstArrayElement = 0;
             newWrite.pBufferInfo = nullptr;
             newWrite.pTexelBufferView = nullptr;
@@ -772,40 +865,9 @@ void vulkan_pass_build_bindings(VulkanContext& ctx, VulkanScene& vulkanScene, Vu
             }
         }
 
-        if (!flatBindingList.empty())
+        if (!writes.empty())
         {
-            // build layout first
-            vk::DescriptorSetLayoutCreateInfo layoutInfo{};
-            layoutInfo.pNext = nullptr;
-            layoutInfo.pBindings = flatBindingList.data();
-            layoutInfo.bindingCount = static_cast<uint32_t>(flatBindingList.size());
-
-            auto descriptorSetLayout = descriptor_create_layout(ctx, vulkanScene.descriptorCache, layoutInfo);
-            vk::DescriptorSet descriptorSet;
-
-            // allocate descriptor
-            bool success = descriptor_allocate(ctx, vulkanScene.descriptorCache, &descriptorSet, descriptorSetLayout);
-            if (!success)
-            {
-                scene_report_error(*vulkanScene.pScene, MessageSeverity::Error, fmt::format("Could not allocate descriptor"));
-                return;
-            };
-
-            if (!writes.empty())
-            {
-                for (vk::WriteDescriptorSet& w : writes)
-                {
-                    w.dstSet = descriptorSet;
-                }
-
-                ctx.device.updateDescriptorSets(static_cast<uint32_t>(writes.size()), writes.data(), 0, nullptr);
-            }
-
-            debug_set_descriptorsetlayout_name(ctx.device, descriptorSetLayout, fmt::format("{}:{}", passFrameData.debugName, "Layout"));
-            debug_set_descriptorset_name(ctx.device, descriptorSet, fmt::format("{}:{}", passFrameData.debugName, "DescriptorSet"));
-
-            passFrameData.descriptorSetLayouts.push_back(descriptorSetLayout);
-            passFrameData.descriptorSets.push_back(descriptorSet);
+            ctx.device.updateDescriptorSets(static_cast<uint32_t>(writes.size()), writes.data(), 0, nullptr);
         }
     }
 }
@@ -823,7 +885,7 @@ void vulkan_pass_prepare_pipeline(VulkanContext& ctx, VulkanPassSwapFrameData& f
     auto& vulkanScene = frameData.pVulkanPass->vulkanScene;
     auto& vulkanPass = *frameData.pVulkanPass;
     auto& pass = frameData.pVulkanPass->pass;
-    auto& vulkanPassTargets = frameData.passTargets[globalFrameCount % 2];
+    auto& vulkanPassTargets = vulkan_pass_targets(frameData);
 
     // Get the shader stage info
     std::vector<vk::PipelineShaderStageCreateInfo> shaderStages;
@@ -836,26 +898,10 @@ void vulkan_pass_prepare_pipeline(VulkanContext& ctx, VulkanPassSwapFrameData& f
         }
     }
 
-    // Tell the validation which shaders are currently being used, for catching debug errors
-    // during geometry pipe creation
-    validation_set_shaders(pass.shaders);
-
-    // Lookup the vulkan compiled shader stages that match the declared scene shaders
-    auto& stages = vulkanPass.vulkanScene.shaderStages;
-
-    auto f = [&](auto& p) { return stages.find(p) != stages.end(); };
-    auto t = [&](auto& p) { return &stages.find(p)->second->bindingSets; };
-    auto bindings = vulkanPass.pass.shaders | views::filter(f) | views::transform(t) | to<std::vector>();
-    frameData.mergedBindingSets = bindings_merge(bindings);
-
-    LOG(DBG, "  Pass: " << frameData.debugName << ", Merged Bindings:");
-    bindings_dump(frameData.mergedBindingSets, 4);
-
     if (!shaderStages.empty())
     {
-        vulkan_pass_build_bindings(ctx, vulkanScene, vulkanPass);
-
-        frameData.geometryPipelineLayout = ctx.device.createPipelineLayout({ {}, frameData.descriptorSetLayouts });
+        auto layouts = frameData.descriptorSetLayouts | views::transform([](auto& p) { return p.second; }) | to<std::vector>();
+        frameData.geometryPipelineLayout = ctx.device.createPipelineLayout({ {}, layouts });
         debug_set_pipelinelayout_name(ctx.device, frameData.geometryPipelineLayout, fmt::format("GeomPipeLayout:" + frameData.debugName));
     }
 
@@ -863,8 +909,6 @@ void vulkan_pass_prepare_pipeline(VulkanContext& ctx, VulkanPassSwapFrameData& f
     debug_set_pipeline_name(ctx.device, frameData.geometryPipeline, fmt::format("GeomPipe:" + frameData.debugName));
 
     LOG(DBG, "Create GeometryPipe: " << frameData.geometryPipeline);
-
-    validation_set_shaders({});
 }
 
 // Transition samplers to read, if they are not already
@@ -967,6 +1011,9 @@ bool vulkan_pass_draw(VulkanContext& ctx, VulkanPass& vulkanPass)
     // Get command buffers ready if necessary
     vulkan_pass_prepare_command_buffers(ctx, passFrameData);
 
+    // Tell the validation which shaders are currently being used, for catching debug errors
+    validation_set_shaders(vulkanPass.pass.shaders);
+
     // Get our targets ready
     vulkan_pass_prepare_targets(ctx, passFrameData);
 
@@ -979,11 +1026,20 @@ bool vulkan_pass_draw(VulkanContext& ctx, VulkanPass& vulkanPass)
     // Uniform buffers
     vulkan_pass_prepare_uniforms(ctx, vulkanPass);
 
+    // Prepare bindings for this pass; may not have to recreate
+    vulkan_pass_build_descriptors(ctx, vulkanPass);
+
     // Graphics pipeline
     vulkan_pass_prepare_pipeline(ctx, passFrameData);
 
     // Make sure that samplers can be read by the shaders they are bound to
     vulkan_pass_transition_samplers(ctx, passFrameData);
+
+    // Build the actual descriptors, new each time
+    vulkan_pass_set_descriptors(ctx, vulkanPass);
+
+    // Not validating against these shaders
+    validation_set_shaders({});
 
     // Validation layer may set an error, meaning this scene is not valid!
     // audio_destroy it, and reset the error trigger
