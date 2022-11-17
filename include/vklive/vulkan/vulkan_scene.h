@@ -66,7 +66,7 @@ struct VulkanScene
     std::unordered_map<fs::path, std::shared_ptr<VulkanShader>> shaderStages;
     std::unordered_map<std::string, std::shared_ptr<VulkanPass>> passes;
 
-    DescriptorCache descriptorCache;
+    std::unordered_map<uint32_t, DescriptorCache> descriptorCache;
 };
 
 std::shared_ptr<VulkanScene> vulkan_scene_create(VulkanContext& ctx, Scene& scene);
@@ -75,6 +75,8 @@ VulkanScene* vulkan_scene_get(VulkanContext& ctx, Scene& scene);
 void vulkan_scene_destroy(VulkanContext& ctx, VulkanScene& scene);
 void vulkan_scene_render(VulkanContext& ctx, VulkanScene& vulkanScene);
 void vulkan_scene_prepare(VulkanContext& ctx, VulkanScene& vulkanScene);
+
+DescriptorCache& vulkan_descriptor_cache(VulkanContext& ctx, VulkanScene& vulkanScene);
 
 VulkanSurface* vulkan_scene_get_or_create_surface(VulkanScene& scene, const std::string& surface, uint64_t frameCount = 0, bool sampling = false);
 

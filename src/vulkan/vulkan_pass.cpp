@@ -753,7 +753,7 @@ void vulkan_pass_build_descriptors(VulkanContext& ctx, VulkanPass& vulkanPass)
             layoutInfo.pBindings = bindings.data();
             layoutInfo.bindingCount = static_cast<uint32_t>(bindings.size());
 
-            auto descriptorSetLayout = descriptor_create_layout(ctx, vulkanScene.descriptorCache, layoutInfo);
+            auto descriptorSetLayout = descriptor_create_layout(ctx, vulkan_descriptor_cache(ctx, vulkanScene), layoutInfo);
             debug_set_descriptorsetlayout_name(ctx.device, descriptorSetLayout, fmt::format("{}:{}", passFrameData.debugName, "Layout"));
 
             layout = descriptorSetLayout;
@@ -809,7 +809,7 @@ void vulkan_pass_set_descriptors(VulkanContext& ctx, VulkanPass& vulkanPass)
         layoutInfo.bindingCount = static_cast<uint32_t>(bindings.size());
 
         vk::DescriptorSet descriptorSet;
-        bool success = descriptor_allocate(ctx, vulkanScene.descriptorCache, &descriptorSet, layout);
+        bool success = descriptor_allocate(ctx, vulkan_descriptor_cache(ctx, vulkanScene), &descriptorSet, layout);
         if (!success)
         {
             scene_report_error(*vulkanScene.pScene, MessageSeverity::Error, fmt::format("Could not allocate descriptor"));
@@ -1007,6 +1007,8 @@ bool vulkan_pass_draw(VulkanContext& ctx, VulkanPass& vulkanPass)
 
     // Wait for the fence the last time we drew with this pass information
     vulkan_pass_wait(ctx, passFrameData);
+
+    descriptor_reset_pools(ctx, vulkan_descriptor_cache(ctx, vulkanPass.vulkanScene)); 
 
     // Get command buffers ready if necessary
     vulkan_pass_prepare_command_buffers(ctx, passFrameData);

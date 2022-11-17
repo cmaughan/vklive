@@ -130,10 +130,6 @@ bool descriptor_allocate(VulkanContext& ctx, DescriptorCache& cache, vk::Descrip
     return false;
 }
 
-void vulkan_descriptor_init(VulkanContext& ctx, DescriptorCache& cache)
-{
-}
-
 void vulkan_descriptor_cleanup(VulkanContext& ctx, DescriptorCache& cache)
 {
     // delete every pool held

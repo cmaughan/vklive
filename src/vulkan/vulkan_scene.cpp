@@ -30,6 +30,11 @@ using namespace ranges;
 namespace vulkan
 {
 
+DescriptorCache& vulkan_descriptor_cache(VulkanContext& ctx, VulkanScene& vulkanScene)
+{
+    return vulkanScene.descriptorCache[ctx.mainWindowData.frameIndex];
+}
+
 // Find the vulkan scene from the scene
 VulkanScene* vulkan_scene_get(VulkanContext& ctx, Scene& scene)
 {
@@ -73,9 +78,6 @@ std::shared_ptr<VulkanScene> vulkan_scene_create(VulkanContext& ctx, Scene& scen
     auto spVulkanScene = std::make_shared<VulkanScene>(&scene);
     ctx.mapVulkanScene[&scene] = spVulkanScene;
 
-    // This currently does nothing!
-    vulkan_descriptor_init(ctx, spVulkanScene->descriptorCache);
-
     // Load Models
     for (auto& [_, pGeom] : scene.models)
     {
@@ -115,7 +117,7 @@ void vulkan_scene_destroy(VulkanContext& ctx, VulkanScene& vulkanScene)
     ctx.device.waitIdle();
 
     // Descriptor
-    vulkan_descriptor_cleanup(ctx, vulkanScene.descriptorCache);
+    vulkan_descriptor_cleanup(ctx, vulkan_descriptor_cache(ctx, vulkanScene)); 
 
     // Pass
     for (auto& [name, pVulkanPass] : vulkanScene.passes)
