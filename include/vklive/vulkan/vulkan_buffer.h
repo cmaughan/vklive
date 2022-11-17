@@ -24,7 +24,7 @@ struct VulkanBuffer : public BufferAllocation
     vk::DescriptorBufferInfo descriptor;
 };
 
-void buffer_destroy(VulkanContext& ctx, VulkanBuffer& buffer);
+void vulkan_buffer_destroy(VulkanContext& ctx, VulkanBuffer& buffer);
 
 void* buffer_map(VulkanContext& ctx, VulkanBuffer& buffer, size_t offset = 0, VkDeviceSize size = VK_WHOLE_SIZE);
 

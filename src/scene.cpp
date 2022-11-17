@@ -226,6 +226,17 @@ fs::path scene_get_scenegraph(const fs::path& root, const std::vector<fs::path>&
     return sceneGraphPath;
 }
 
+Surface* scene_get_surface(Scene& scene, const std::string& surfaceName)
+{
+    auto itr = scene.surfaces.find(surfaceName);
+    if (itr == scene.surfaces.end())
+    {
+        return nullptr;
+    }
+
+    return itr->second.get();
+}
+
 std::vector<fs::path> scene_get_headers(const std::vector<fs::path>& files)
 {
     std::vector<fs::path> headers;
@@ -241,6 +252,8 @@ std::vector<fs::path> scene_get_headers(const std::vector<fs::path>& files)
 
 std::shared_ptr<Scene> scene_build(const fs::path& root)
 {
+    LOG(DBG, "scene_build: " << root.string());
+
     std::shared_ptr<Scene> spScene = std::make_shared<Scene>(root);
 
     auto files = file_gather_files(root);
@@ -248,7 +261,7 @@ std::shared_ptr<Scene> scene_build(const fs::path& root)
     spScene->sceneGraphPath = scene_get_scenegraph(root, files);
     spScene->headers = scene_get_headers(files);
     spScene->valid = true;
-
+    
     auto addError = [&](auto message, uint32_t lineIndex = 0, int32_t column = -1) {
         Message msg;
         msg.severity = MessageSeverity::Error;
@@ -276,9 +289,11 @@ std::shared_ptr<Scene> scene_build(const fs::path& root)
     // Default backbuffer and depth targets
     auto spDefaultColor = std::make_shared<Surface>("default_color");
     spDefaultColor->format = Format::Default;
+    spDefaultColor->isTarget = true;
     
     auto spDefaultDepth = std::make_shared<Surface>("default_depth");
     spDefaultDepth->format = Format::Default_Depth;
+    spDefaultDepth->isTarget = true;
 
     spScene->surfaces["default_color"] = spDefaultColor;
     spScene->surfaces["default_depth"] = spDefaultDepth;
@@ -424,10 +439,10 @@ std::shared_ptr<Scene> scene_build(const fs::path& root)
                 {
                     continue;
                 }
-                auto spPass = std::make_shared<Pass>(pPassNameNode->contents);
+                auto spPass = std::make_shared<Pass>(*spScene, pPassNameNode->contents);
 
-                auto geometries = childrenOf(pPassNode, T_GEOMETRY);
-                for (auto& pGeometryNode : geometries)
+                auto models = childrenOf(pPassNode, T_GEOMETRY);
+                for (auto& pGeometryNode : models)
                 {
                     auto pGeomNameNode = getChild(pGeometryNode, T_IDENT);
                     auto pPathNameNode = getChild(getChild(pGeometryNode, T_PATH), T_PATH_NAME);
@@ -437,7 +452,7 @@ std::shared_ptr<Scene> scene_build(const fs::path& root)
                     auto geomPath = fs::path(pPathNameNode->contents);
                     if (geomPath.filename() == "screen_rect")
                     {
-                        spGeom = std::make_shared<Geometry>(GeometryType::Rect);
+                        spGeom = std::make_shared<Geometry>(geomPath, GeometryType::Rect);
                     }
                     else
                     {
@@ -482,8 +497,8 @@ std::shared_ptr<Scene> scene_build(const fs::path& root)
                         getVector(pScaleNode, spGeom->loadScale, 1, 3);
                     }
 
-                    spScene->geometries[geomPath] = spGeom;
-                    spPass->geometries.push_back(geomPath);
+                    spScene->models[spGeom->path] = spGeom;
+                    spPass->models.push_back(spGeom->path);
                 }
 
                 // Clears
@@ -510,6 +525,11 @@ std::shared_ptr<Scene> scene_build(const fs::path& root)
                         if (itrFound == spScene->surfaces.end())
                         {
                             addError(fmt::format("Surface not found in pass: {}", target), pTargetNode->state.row, pTargetNode->state.col);
+                        }
+                        else
+                        {
+                            // Remember that we consider this a target
+                            itrFound->second->isTarget = true;
                         }
                     }
                     spPass->scriptTargetsLine = int(pTargetNode->state.row);
@@ -538,7 +558,7 @@ std::shared_ptr<Scene> scene_build(const fs::path& root)
                 }
 
                 // Complete the pass
-                if (spPass->geometries.empty())
+                if (spPass->models.empty())
                 {
                     addError(fmt::format("No geometries in pass: {}", spPass->name), pPassNode->state.row);
                 }
@@ -587,16 +607,10 @@ std::shared_ptr<Scene> scene_build(const fs::path& root)
         addError(fmt::format("Exception processing scenegraph: {}", ex.what()));
     }
 
-    /*
-    if (spScene->valid)
-    {
-        scenegraph_build(*spScene); 
-    }
-    */
     return spScene;
 }
 
-void scene_report_error(Scene& scene, const std::string& txt, const fs::path& path, int32_t line, const std::pair<int32_t, int32_t>& range)
+void scene_report_error(Scene& scene, MessageSeverity severity, const std::string& txt, const fs::path& path, int32_t line, const std::pair<int32_t, int32_t>& range)
 {
     Message msg;
     msg.text = txt;
@@ -613,14 +627,20 @@ void scene_report_error(Scene& scene, const std::string& txt, const fs::path& pa
     {
         msg.line = line;
     }
-    msg.severity = MessageSeverity::Error;
+    msg.severity = severity;
     msg.range = range;
 
     // Any error invalidates the scene
     scene.errors.push_back(msg);
-    scene.valid = false;
+
+    if (msg.severity >= MessageSeverity::Error)
+    {
+        scene.valid = false;
+    }
 };
 
+// Finds assets declared in the scene file, first looking in absolute path, then local project path,
+// then global assets
 fs::path scene_find_asset(Scene& scene, const fs::path& path, AssetType type)
 {
     if (path.is_absolute())
@@ -659,7 +679,7 @@ fs::path scene_find_asset(Scene& scene, const fs::path& path, AssetType type)
         if (fs::exists(test))
         {
             auto ret = fs::canonical(fs::absolute(test));
-            LOG(DBG, "Found asset at: " << ret.c_str());
+            LOG(DBG, "Found asset at: " << ret.string());
             return ret;
         }
     }

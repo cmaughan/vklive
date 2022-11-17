@@ -44,6 +44,9 @@ struct Surface
 
     // Has this image been rendered to during the frame?
     bool rendered = false;
+
+    // Is this declared a target?
+    bool isTarget = false;
 };
 
 enum class GeometryType
@@ -60,15 +63,16 @@ struct Geometry
     {
     }
 
-    Geometry(GeometryType t)
-        : type(t)
+    Geometry(const fs::path& p, GeometryType t)
+        : path(p),
+        type(t)
     {
     }
 
     fs::path path;
     glm::mat4 transform = glm::mat4(1.0f);
     glm::vec3 loadScale = glm::vec3(1.0f);
-    GeometryType type = GeometryType::Rect;
+    GeometryType type = GeometryType::Model;
 };
 
 struct Shader
@@ -81,20 +85,23 @@ struct Shader
     fs::path path;
 };
 
+struct Scene;
 struct Pass
 {
-    Pass(const std::string& n)
-        : name(n)
+    Pass(Scene& s, const std::string& n)
+        : name(n),
+          scene(s)
     {
     }
 
+    Scene& scene;
     bool hasClear = false;
     glm::vec4 clearColor = glm::vec4(0.0f, 0.0f, 0.0f, 1.0f);
     std::string name;
     std::vector<std::string> targets;
     std::vector<std::string> samplers;
     std::string depth;
-    std::vector<fs::path> geometries;
+    std::vector<fs::path> models;
     std::vector<fs::path> shaders;
 
     Camera camera;
@@ -115,7 +122,7 @@ struct Scene
 
     // Global objects
     std::map<std::string, std::shared_ptr<Surface>> surfaces;
-    std::map<fs::path, std::shared_ptr<Geometry>> geometries;
+    std::map<fs::path, std::shared_ptr<Geometry>> models;
     std::map<fs::path, std::shared_ptr<Shader>> shaders;
     std::map<std::string, std::shared_ptr<Pass>> passes;
     std::vector<Message> errors;
@@ -139,5 +146,6 @@ enum class AssetType
 std::shared_ptr<Scene> scene_build(const fs::path& root);
 void scene_destroy_parser();
 bool format_is_depth(const Format& fmt);
-void scene_report_error(Scene& scene, const std::string& txt, const fs::path& path = fs::path(), int32_t line = -1, const std::pair<int32_t, int32_t>& range = std::make_pair(-1, -1));
+void scene_report_error(Scene& scene, MessageSeverity severity, const std::string& txt, const fs::path& path = fs::path(), int32_t line = -1, const std::pair<int32_t, int32_t>& range = std::make_pair(-1, -1));
 fs::path scene_find_asset(Scene& scene, const fs::path& path, AssetType assetType = AssetType::None);
+Surface* scene_get_surface(Scene& scene, const std::string& surfacename);

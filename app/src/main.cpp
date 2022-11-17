@@ -2,7 +2,7 @@
 #include <mutex>
 #include <thread>
 
-#include <clipp.h>
+//#include <clipp.h> Awaiting c++ 20 update, or switch to something else.
 #include <tinyfiledialogs/tinyfiledialogs.h>
 
 #include <SDL2/SDL.h>
@@ -12,13 +12,12 @@
 #include <imgui/imgui_impl_sdl.h>
 
 #include <vklive/file/file.h>
-#include <vklive/time/timer.h>
 #include <vklive/file/runtree.h>
 #include <vklive/logger/logger.h>
-#include <vklive/threadpool/threadpool.h>
+#include <vklive/time/timer.h>
 
-#include <vklive/scene.h>
 #include <vklive/IDevice.h>
+#include <vklive/scene.h>
 
 #include <vklive/validation.h>
 
@@ -32,6 +31,9 @@
 #include <app/menu.h>
 #include <app/project.h>
 
+#include <range/v3/algorithm/for_each.hpp>
+#include <range/v3/view.hpp>
+
 #ifdef _WIN32
 // For console
 #include <windows.h>
@@ -40,8 +42,8 @@
 Logger vklogger{ false, LT::DBG };
 bool Log::disabled = false;
 
-Controller controller;
-using namespace clipp;
+Controller g_Controller;
+// using namespace clipp;
 
 // Global access to the device
 std::shared_ptr<IDevice> g_pDevice = nullptr;
@@ -57,11 +59,13 @@ extern std::shared_ptr<IDevice> create_vulkan_device(SDL_Window* pWindow, const 
 
 bool read_command_line(int argc, char** argv, int& exitCode)
 {
+    /*
     auto cli = group(opt_value("viewports", appConfig.viewports));
     if (argc != 0)
     {
         parse(argc, argv, cli);
     }
+    */
     return true;
 }
 
@@ -87,6 +91,40 @@ SDL_Window* init_sdl_window()
     return SDL_CreateWindow("Rezonality", xPos, yPos, xSize, ySize, windowFlags);
 }
 
+void save_state()
+{
+    // If not temporary, remember what we last looked at
+    if (g_Controller.spCurrentProject && !g_Controller.spCurrentProject->temporary)
+    {
+        // For reload next time
+        appConfig.project_root = g_Controller.spCurrentProject->rootPath;
+    }
+
+    // Window Config
+    if (g_pDevice)
+    {
+        int w, h, x, y;
+        SDL_GetWindowSize(g_pDevice->Context().window, &w, &h);
+        SDL_GetWindowPosition(g_pDevice->Context().window, &x, &y);
+        appConfig.main_window_pos = glm::vec2(x, y);
+        appConfig.main_window_size = glm::vec2(w, h);
+
+        auto flags = SDL_GetWindowFlags(g_pDevice->Context().window);
+        if (flags & SDL_WINDOW_MAXIMIZED)
+        {
+            appConfig.main_window_state = WindowState::Maximized;
+        }
+        else if (flags & SDL_WINDOW_MINIMIZED)
+        {
+            appConfig.main_window_state = WindowState::Minimized;
+        }
+        else
+        {
+            appConfig.main_window_state = WindowState::Normal;
+        }
+    }
+}
+
 int main(int argc, char** argv)
 {
 #ifdef _WIN32
@@ -109,10 +147,15 @@ int main(int argc, char** argv)
     runtree_init(SDL_GetBasePath(), VKLIVE_ROOT);
 
     // Get the settings
-    auto settings_path = file_init_settings("VkLive", runtree_find_path("settings.toml"), fs::path("settings") / "settings.toml");
+    auto settings_path = file_init_settings("VkLive",
+        runtree_find_path("settings.toml"),
+        fs::path("settings") / "settings.toml");
     config_load(settings_path);
 
-    auto imSettingsPath = file_init_settings("VkLive", runtree_find_path("imgui.ini"), fs::path("settings") / "imgui.ini").string();
+    auto imSettingsPath = file_init_settings("VkLive",
+        runtree_find_path("imgui.ini"),
+        fs::path("settings") / "imgui.ini")
+                              .string();
 
     // Set the audio config from the loaded config. We copy it back when closing the app
     Audio::GetAudioContext().audioAnalysisSettings = appConfig.audioAnalysisSettings;
@@ -130,7 +173,7 @@ int main(int argc, char** argv)
 
     timer_restart(globalTimer);
 
-    // Main device 
+    // Main device
     g_pDevice = vulkan::create_vulkan_device(init_sdl_window(), imSettingsPath, appConfig.viewports);
 
     Audio::audio_init(nullptr);
@@ -138,7 +181,7 @@ int main(int argc, char** argv)
     // This update thread generates a new scene, then returns it in a queue ready for 'swapping' with the existing one
     // if it is valid
     auto spQueue = std::make_shared<moodycamel::ConcurrentQueue<std::shared_ptr<Project>>>();
-    controller.spProjectQueue = std::make_shared<moodycamel::ConcurrentQueue<std::shared_ptr<Project>>>();
+    g_Controller.spProjectQueue = std::make_shared<moodycamel::ConcurrentQueue<std::shared_ptr<Project>>>();
 
     std::atomic_bool quit_thread = false;
     std::thread update_thread = std::thread([&]() {
@@ -152,27 +195,26 @@ int main(int argc, char** argv)
             }
 
             std::shared_ptr<Project> spProject;
-            if (!controller.spProjectQueue->try_dequeue(spProject))
+            if (!g_Controller.spProjectQueue->try_dequeue(spProject))
             {
                 // Sleep
                 std::this_thread::sleep_for(wakeUpDelta);
                 continue;
             }
 
-            LOG(INFO, "Scene initing");
-
             spProject->spScene = scene_build(spProject->rootPath);
 
             // May not be valid, but sent anyway
             g_pDevice->InitScene(*spProject->spScene);
 
+            // Queue the resulting initialized project & scene onto the UI thread
             spQueue->enqueue(spProject);
         }
     });
 
     // Startup, load the default project
     auto project = project_load(appConfig.project_root);
-    controller.spProjectQueue->enqueue(project);
+    g_Controller.spProjectQueue->enqueue(project);
 
     // Main loop
     bool done = false;
@@ -207,9 +249,9 @@ int main(int argc, char** argv)
         if (g_pDevice->Context().deviceState == DeviceState::Lost)
         {
             // Try to restart
-            if (project_has_scene(controller.spCurrentProject.get()))
+            if (project_has_scene(g_Controller.spCurrentProject.get()))
             {
-                g_pDevice->DestroyScene(*controller.spCurrentProject->spScene.get());
+                g_pDevice->DestroyScene(*g_Controller.spCurrentProject->spScene.get());
             }
             g_pDevice = vulkan::create_vulkan_device(init_sdl_window(), imSettingsPath, appConfig.viewports);
 
@@ -224,7 +266,7 @@ int main(int argc, char** argv)
 
         menu_show();
 
-        //ImGui::ShowDemoWindow();
+        // ImGui::ShowDemoWindow();
 
         static bool update = false;
         static bool z_init = false;
@@ -232,42 +274,48 @@ int main(int argc, char** argv)
         if (!z_init)
         {
             // Called once the fonts/device is guaranteed setup
-            zep_init(runtree_path(), Zep::NVec2f(1.0f, 1.0f), [&](Zep::ZepBuffer& buffer, const Zep::GlyphIterator& itr) {
-                // Flash the buffer
-                Zep::FlashType type = Zep::FlashType::Flash;
-                buffer.BeginFlash(0.75f, type, Zep::GlyphRange(buffer.Begin(), buffer.End()));
+            zep_init(runtree_path(),
+                Zep::NVec2f(1.0f, 1.0f),
+                [&](Zep::ZepBuffer& buffer, const Zep::GlyphIterator& itr) {
+                    // Flash the buffer
+                    Zep::FlashType type = Zep::FlashType::Flash;
 
-                // Save the buffers
-                if (buffer.HasFileFlags(Zep::FileFlags::Dirty))
-                {
-                    int64_t sz;
-                    buffer.Save(sz);
-                }
+                    buffer.BeginFlash(0.75f,
+                        type,
+                        Zep::GlyphRange(buffer.Begin(), buffer.End()));
 
-                if (project_scene_valid(controller.spCurrentProject.get()))
-                {
-                    auto updateFile = [](auto f) {
-                        auto shader = zep_get_editor().FindFileBuffer(f.string());
-                        if (shader && shader->HasFileFlags(Zep::FileFlags::Dirty))
-                        {
-                            int64_t sz;
-                            shader->Save(sz);
-                        }
-                    };
+                    // Save the buffers
+                    if (buffer.HasFileFlags(Zep::FileFlags::Dirty))
+                    {
+                        int64_t sz;
+                        buffer.Save(sz);
+                    }
 
-                    auto spScene = controller.spCurrentProject->spScene;
-                    std::for_each(spScene->shaders.begin(), spScene->shaders.end(), [=](auto f) { updateFile(f.first); });
-                    std::for_each(spScene->headers.begin(), spScene->headers.end(), [=](auto f) { updateFile(f); });
-                }
+                    if (project_scene_valid(g_Controller.spCurrentProject.get()))
+                    {
+                        auto spScene = g_Controller.spCurrentProject->spScene;
 
-                // Make a new project from the existing and queue it for loading
-                auto spProject = std::make_shared<Project>();
-                spProject->rootPath = controller.spCurrentProject->rootPath;
-                spProject->temporary = controller.spCurrentProject->temporary;
-                spProject->modified = true;
-                controller.spProjectQueue->enqueue(spProject);
-            });
+                        auto updateFile = [](const auto& f) {
+                            auto shader = zep_get_editor().FindFileBuffer(f.string());
+                            if (shader && shader->HasFileFlags(Zep::FileFlags::Dirty))
+                            {
+                                int64_t sz;
+                                shader->Save(sz);
+                            }
+                            return f;
+                        };
 
+                        ranges::for_each(spScene->shaders | ranges::views::keys, updateFile);
+                        ranges::for_each(spScene->headers, updateFile);
+                    }
+
+                    // Make a new project from the existing and queue it for loading
+                    auto spProject = std::make_shared<Project>();
+                    spProject->rootPath = g_Controller.spCurrentProject->rootPath;
+                    spProject->temporary = g_Controller.spCurrentProject->temporary;
+                    spProject->modified = true;
+                    g_Controller.spProjectQueue->enqueue(spProject);
+                });
 
             z_init = true;
         }
@@ -279,7 +327,8 @@ int main(int argc, char** argv)
 
             zep_clear_all_messages();
 
-            bool switchProject = (!controller.spCurrentProject || !fs::equivalent(controller.spCurrentProject->rootPath, spNewProject->rootPath));
+            // Are we switching to a different project?
+            bool switchProject = (!g_Controller.spCurrentProject || !fs::equivalent(g_Controller.spCurrentProject->rootPath, spNewProject->rootPath));
 
             // Do a 'pre-render'.  If this fails, then we will catch errors that might only happen during scene prepare
             if (project_scene_valid(spNewProject.get()))
@@ -293,16 +342,16 @@ int main(int argc, char** argv)
             {
                 g_pDevice->WaitIdle();
 
-                if (project_scene_valid(controller.spCurrentProject.get()))
+                if (project_scene_valid(g_Controller.spCurrentProject.get()))
                 {
-                    g_pDevice->DestroyScene(*controller.spCurrentProject->spScene);
+                    g_pDevice->DestroyScene(*g_Controller.spCurrentProject->spScene);
 
                     // Copy over the old info, if appropriate - this is temporary fix for cleaner solution later.
                     auto spNewScene = spNewProject->spScene;
                     for (auto& [name, pass] : spNewScene->passes)
                     {
-                        auto itrOrig = controller.spCurrentProject->spScene->passes.find(name);
-                        if (itrOrig != controller.spCurrentProject->spScene->passes.end())
+                        auto itrOrig = g_Controller.spCurrentProject->spScene->passes.find(name);
+                        if (itrOrig != g_Controller.spCurrentProject->spScene->passes.end())
                         {
                             pass->camera = itrOrig->second->camera;
                         }
@@ -310,7 +359,7 @@ int main(int argc, char** argv)
                 }
 
                 // Copy the new one
-                controller.spCurrentProject = spNewProject;
+                g_Controller.spCurrentProject = spNewProject;
 
                 // Back to a normal rendering state (see device lost comments)
                 g_pDevice->Context().deviceState = DeviceState::Normal;
@@ -321,15 +370,19 @@ int main(int argc, char** argv)
                 // its files.  There will be no render, but the user can fix stuff
                 if (switchProject)
                 {
-                    controller.spCurrentProject = spNewProject;
-                    zep_update_files(controller.spCurrentProject->rootPath, switchProject);
+                    g_Controller.spCurrentProject = spNewProject;
+                    zep_update_files(g_Controller.spCurrentProject->rootPath, switchProject);
                 }
+
+                // Otherwise, what we have is the same project, with the old render until it is fixed
+                // (stopping the scene from disappearing when the user makes an edit mistake)
             }
 
-            zep_update_files(controller.spCurrentProject->rootPath, switchProject);
+            // Update the sources in the editor
+            zep_update_files(g_Controller.spCurrentProject->rootPath, switchProject);
 
-            // Reset the errors
-            controller.spCurrentProject->projectMessages.clear();
+            // Reset the project messages (more global errors)
+            g_Controller.spCurrentProject->projectMessages.clear();
 
             // Report the errors, regardless
             for (auto& err : spNewProject->spScene->errors)
@@ -343,7 +396,7 @@ int main(int argc, char** argv)
             focusEditor = true;
         }
 
-        if (controller.spCurrentProject)
+        if (g_Controller.spCurrentProject)
         {
             // Some messages in the vulkan layer can be generated without any file context.
             // We might refine this later, but we collect the messages seperately and keep them for a 'project' message
@@ -357,18 +410,18 @@ int main(int argc, char** argv)
                 }
                 else
                 {
-                    if (controller.spCurrentProject->projectMessages.size() < 5)
+                    if (g_Controller.spCurrentProject->projectMessages.size() < 5)
                     {
-                        controller.spCurrentProject->projectMessages.push_back(msg);
+                        g_Controller.spCurrentProject->projectMessages.push_back(msg);
                     }
                 }
             }
 
-            if (!controller.spCurrentProject->projectMessages.empty())
+            if (!g_Controller.spCurrentProject->projectMessages.empty())
             {
                 if (ImGui::Begin("Messages"))
                 {
-                    for (auto& msg : controller.spCurrentProject->projectMessages)
+                    for (auto& msg : g_Controller.spCurrentProject->projectMessages)
                     {
                         ImGui::TextWrapped("%s", msg.text.c_str());
                         ImGui::Separator();
@@ -379,19 +432,25 @@ int main(int argc, char** argv)
         }
 
         // With a normal device state, draw the scene
-        if (g_pDevice->Context().deviceState == DeviceState::Normal && project_has_scene(controller.spCurrentProject.get()))
+        if (g_pDevice->Context().deviceState == DeviceState::Normal && project_has_scene(g_Controller.spCurrentProject.get()))
         {
+            validation_enable_messages(true);
+
             // Scene may not be valid, but we want to draw the window
-            g_pDevice->ImGui_Render_3D(*controller.spCurrentProject->spScene, appConfig.draw_on_background);
+            g_pDevice->ImGui_Render_3D(*g_Controller.spCurrentProject->spScene, appConfig.draw_on_background);
             if (g_pDevice->Context().deviceState == DeviceState::Lost)
             {
                 // Device lost, reset.
+                // Note: this currently shouldn't happen, and I haven't figured a workaround for it anyway
+                // - once the device is lost, only an .exe restart seems to work.
                 continue;
             }
             globalFrameCount++;
+
+            validation_enable_messages(false);
         }
 
-        // Just show it
+        // Show the editor
         zep_show(focusEditor);
         focusEditor = false;
 
@@ -420,10 +479,9 @@ int main(int argc, char** argv)
         {
             g_pDevice->Present();
         }
-        
+
         // We have been once through, no more messages until the user recompiles
         validation_enable_messages(false);
-
     }
 
     quit_thread = true;
@@ -432,40 +490,13 @@ int main(int argc, char** argv)
     // Cleanup
     zep_destroy();
 
-    // If not temporary, remember what we last looked at
-    if (controller.spCurrentProject && !controller.spCurrentProject->temporary)
-    {
-        appConfig.project_root = controller.spCurrentProject->rootPath;
-    }
-
-    // Window Config
-    {
-        int w, h, x, y;
-        SDL_GetWindowSize(g_pDevice->Context().window, &w, &h);
-        SDL_GetWindowPosition(g_pDevice->Context().window, &x, &y);
-        appConfig.main_window_pos = glm::vec2(x, y);
-        appConfig.main_window_size = glm::vec2(w, h);
-
-        auto flags = SDL_GetWindowFlags(g_pDevice->Context().window);
-        if (flags & SDL_WINDOW_MAXIMIZED)
-        {
-            appConfig.main_window_state = WindowState::Maximized;
-        }
-        else if (flags & SDL_WINDOW_MINIMIZED)
-        {
-            appConfig.main_window_state = WindowState::Minimized;
-        }
-        else
-        {
-            appConfig.main_window_state = WindowState::Normal;
-        }
-    }
+    save_state();
 
     config_save(settings_path);
 
-    if (project_has_scene(controller.spCurrentProject.get()))
+    if (project_has_scene(g_Controller.spCurrentProject.get()))
     {
-        g_pDevice->DestroyScene(*controller.spCurrentProject->spScene.get());
+        g_pDevice->DestroyScene(*g_Controller.spCurrentProject->spScene.get());
     }
     g_pDevice.reset();
 

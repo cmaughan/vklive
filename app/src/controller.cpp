@@ -21,7 +21,7 @@ void controller_load_project(const fs::path& projectPath)
     auto project = project_load(projectPath);
     if (project)
     {
-        controller.spProjectQueue->enqueue(project);
+        g_Controller.spProjectQueue->enqueue(project);
     }
 }
 
@@ -44,8 +44,8 @@ fs::path controller_open_project()
 fs::path controller_save_project_as()
 {
     // Can only copy existing folder/project
-    if (!controller.spCurrentProject || 
-        !fs::is_directory(controller.spCurrentProject->rootPath))
+    if (!g_Controller.spCurrentProject || 
+        !fs::is_directory(g_Controller.spCurrentProject->rootPath))
     {
         return fs::path(); 
     }
@@ -57,7 +57,7 @@ fs::path controller_save_project_as()
     if (pszPath)
     {
         auto p = fs::path(pszPath);
-        if (fs::equivalent(p, controller.spCurrentProject->rootPath) || !fs::is_directory(p))
+        if (fs::equivalent(p, g_Controller.spCurrentProject->rootPath) || !fs::is_directory(p))
         {
             // Already there.  empty path to say we didn't save
             LOG(DBG, "Not saving project to same folder / or doesn't exist");
@@ -75,8 +75,8 @@ fs::path controller_save_project_as()
             }
         }
 
-        LOG(DBG, "Copying project from: " + controller.spCurrentProject->rootPath.string() + " to: " << p.string());
-        if (!project_copy(*controller.spCurrentProject, p))
+        LOG(DBG, "Copying project from: " + g_Controller.spCurrentProject->rootPath.string() + " to: " << p.string());
+        if (!project_copy(*g_Controller.spCurrentProject, p))
         {
             tinyfd_messageBox("Error", "The project could not be copied!", "ok", "error", (int)BoxRet::No);
             return fs::path(); 
@@ -89,18 +89,18 @@ fs::path controller_save_project_as()
 
 bool controller_check_exit()
 {
-    if (!controller.spCurrentProject)
+    if (!g_Controller.spCurrentProject)
     {
         return true; 
     }
 
-    if (!controller.spCurrentProject->temporary)
+    if (!g_Controller.spCurrentProject->temporary)
     {
         return true;
     }
 
     // Temporary project was not modified
-    if (!controller.spCurrentProject->modified)
+    if (!g_Controller.spCurrentProject->modified)
     {
         return true; 
     }
@@ -122,7 +122,7 @@ bool controller_check_exit()
             {
                 // Force the update of the config, and remove the project so we ensure that the correct path is saved on exit!
                 appConfig.project_root = newPath;
-                controller.spCurrentProject.reset();
+                g_Controller.spCurrentProject.reset();
                 return true;
             }
 

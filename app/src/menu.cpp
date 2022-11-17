@@ -122,7 +122,7 @@ void menu_show()
                                 if (ImGui::MenuItem(name.c_str()))
                                 {
                                     auto spProject = project_load_to_temp(folder);
-                                    controller.spProjectQueue->enqueue(spProject);
+                                    g_Controller.spProjectQueue->enqueue(spProject);
                                 }
                             }
                         }
@@ -148,12 +148,12 @@ void menu_show()
                     auto pProject = project_load(newPath);
                     if (pProject)
                     {
-                        controller.spProjectQueue->enqueue(pProject);
+                        g_Controller.spProjectQueue->enqueue(pProject);
                     }
                 }
             }
 
-            if (ImGui::MenuItem("Save Project As...", "", nullptr, controller.spCurrentProject != nullptr))
+            if (ImGui::MenuItem("Save Project As...", "", nullptr, g_Controller.spCurrentProject != nullptr))
             {
                 auto newPath = controller_save_project_as();
                 if (!newPath.empty())
@@ -162,7 +162,7 @@ void menu_show()
                     if (pProject)
                     {
                         pProject->modified = false;
-                        controller.spProjectQueue->enqueue(pProject);
+                        g_Controller.spProjectQueue->enqueue(pProject);
                     }
                 }
             }
@@ -180,9 +180,9 @@ void menu_show()
 
         if (ImGui::BeginMenu("Assets"))
         {
-            if (controller.spCurrentProject && controller.spCurrentProject->spScene)
+            if (g_Controller.spCurrentProject && g_Controller.spCurrentProject->spScene)
             {
-                auto spScene = controller.spCurrentProject->spScene;
+                auto spScene = g_Controller.spCurrentProject->spScene;
                 // Assets->shader.vs
                 uint32_t items = 0;
                 if (!spScene->shaders.empty())
@@ -318,7 +318,7 @@ void menu_show()
         }
 
         // Display FPS on the menu
-        float time = timer_get_elapsed_seconds(globalTimer);
+        float time = globalElapsedSeconds;
 
         static auto lastTime = time;
         static auto fps = 0.0;

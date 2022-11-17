@@ -382,4 +382,20 @@ int utils_get_min_image_count_from_present_mode(vk::PresentModeKHR present_mode)
     assert(0);
     return 1;
 }
+
+vk::Format utils_format_to_vulkan(const Format& format)
+{
+    switch (format)
+    {
+    case Format::D32:
+    case Format::Default_Depth:
+        return vk::Format::eD32Sfloat;
+    case Format::Default:
+    case Format::R8G8B8A8UNorm:
+        return vk::Format::eR8G8B8A8Unorm;
+    }
+    assert(!"Unknown format?");
+    return vk::Format::eR8G8B8A8Unorm;
+}
+
 } // namespace vulkan

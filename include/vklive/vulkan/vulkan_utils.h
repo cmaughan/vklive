@@ -53,6 +53,8 @@ void utils_copy_to_memory(VulkanContext& ctx, const vk::DeviceMemory& memory, co
 
 uint32_t utils_memory_type(VulkanContext& ctx, vk::MemoryPropertyFlags properties, uint32_t type_bits);
 
+vk::Format utils_format_to_vulkan(const Format& format);
+
 // TODO
 vk::Viewport viewport(float width, float height, float minDepth = 0, float maxDepth = 1);
 vk::Viewport viewport(const glm::uvec2& size, float minDepth = 0, float maxDepth = 1);
@@ -62,4 +64,6 @@ vk::Rect2D rect2d(const glm::uvec2& size, const glm::ivec2& offset = glm::ivec2(
 vk::Rect2D rect2d(const vk::Extent2D& size, const vk::Offset2D& offset = vk::Offset2D());
 vk::ColorComponentFlags full_color_writemask();
 vk::ClearColorValue clear_color(const glm::vec4& v = glm::vec4(0));
+
+
 } // namespace vulkan

@@ -7,6 +7,8 @@
 #include "vklive/vulkan/vulkan_render.h"
 #include "vklive/vulkan/vulkan_utils.h"
 #include "vklive/vulkan/vulkan_scene.h"
+#include "vklive/logger/logger.h"
+#include "vklive/time/timer.h"
 
 #include "vklive/file/runtree.h"
 
@@ -38,19 +40,22 @@ void imgui_create_shaders(VulkanContext& ctx)
 
     VulkanShader data(nullptr);
 
+    // A bit of a hack for now; temporary scene required for shader create!
     Scene scene(runtree_path() / "shaders");
+    VulkanScene vulkanScene(&scene);
+
     Shader vertShader(runtree_find_path("shaders/imgui.vert"));
     Shader fragShader(runtree_find_path("shaders/imgui.frag"));
 
     // Create the shader modules
     if (!imgui->shaderModuleVert)
     {
-        auto spShader = shader_create(ctx, scene, vertShader);
+        auto spShader = vulkan_shader_create(ctx, vulkanScene, vertShader);
         imgui->shaderModuleVert = spShader->shaderCreateInfo.module;
     }
     if (!imgui->shaderModuleFrag)
     {
-        auto spShader = shader_create(ctx, scene, fragShader);
+        auto spShader = vulkan_shader_create(ctx, vulkanScene, fragShader);
         imgui->shaderModuleFrag = spShader->shaderCreateInfo.module;
     }
 }
@@ -304,10 +309,12 @@ void imgui_upload_font(VulkanContext& ctx)
             vk::Format::eR8G8B8A8Unorm,
             vk::ComponentMapping(vk::ComponentSwizzle::eIdentity),
             vk::ImageSubresourceRange(vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1)));
+
         debug_set_imageview_name(ctx.device, imgui->fontView, "ImGui::FontView");
 
         // Create the Descriptor Set:
         imgui->fontDescriptorSet = imgui_add_texture(ctx, imgui->fontSampler, imgui->fontView, vk::ImageLayout::eShaderReadOnlyOptimal, imgui->descriptorSetLayout);
+
         debug_set_descriptorset_name(ctx.device, imgui->fontDescriptorSet, "ImGui::FontDescriptorSet");
 
         // Create the Upload Buffer:
@@ -727,6 +734,7 @@ void imgui_render_3d(VulkanContext& ctx, Scene& scene, bool background)
     canvas_pos = minRect;
     canvas_size = ImVec2(maxRect.x - minRect.x, maxRect.y - minRect.y);
 
+    bool drawn = false;
     if (scene.valid)
     {
         vulkan::render(ctx, glm::vec4(canvas_pos.x, canvas_pos.y, canvas_size.x, canvas_size.y), scene);
@@ -734,25 +742,28 @@ void imgui_render_3d(VulkanContext& ctx, Scene& scene, bool background)
         if (ctx.deviceState == DeviceState::Normal)
         {
             // If we have a final target, and we rendered to it
-            auto spRender = render_context(ctx);
             auto pVulkanScene = vulkan_scene_get(ctx, scene);
             if (pVulkanScene)
             {
-                auto itrSurface = pVulkanScene->surfaces.find(scene.finalColorTarget->name);
+                // Find the thing we just rendered to
+                auto itrSurface = pVulkanScene->surfaces.find(SurfaceKey(scene.finalColorTarget->name, globalFrameCount));
                 if (itrSurface != pVulkanScene->surfaces.end() && scene.finalColorTarget->rendered && itrSurface->second->samplerDescriptorSet)
                 {
+                    LOG(DBG, "Drawing Surface Sampler: " << itrSurface->second->sampler);
                     pDrawList->AddImage((ImTextureID)itrSurface->second->samplerDescriptorSet,
                         ImVec2(canvas_pos.x, canvas_pos.y),
                         ImVec2(canvas_pos.x + canvas_size.x, canvas_pos.y + canvas_size.y));
-                }
-                else
-                {
-                    pDrawList->AddText(ImVec2(canvas_pos.x, canvas_pos.y), 0xFFFFFFFF, "No passes draw to the this buffer...");
+                    drawn = true;
                 }
             }
         }
     }
-
+    
+    if (!drawn)
+    {
+        pDrawList->AddText(ImVec2(canvas_pos.x, canvas_pos.y), 0xFFFFFFFF, "No passes draw to the this buffer...");
+    }
+    
     if (!background)
     {
         ImGui::End();

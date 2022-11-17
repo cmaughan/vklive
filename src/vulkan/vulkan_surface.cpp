@@ -20,11 +20,11 @@ void surface_unmap(VulkanContext& ctx, VulkanSurface& img)
     img.mapped = nullptr;
 }
 
-void surface_destroy(VulkanContext& ctx, VulkanSurface& img)
+void vulkan_surface_destroy(VulkanContext& ctx, VulkanSurface& img)
 {
     if (img.stagingBuffer.buffer)
     {
-        buffer_destroy(ctx, img.stagingBuffer);
+        vulkan_buffer_destroy(ctx, img.stagingBuffer);
     }
 
     if (img.sampler)
@@ -66,24 +66,28 @@ void surface_destroy(VulkanContext& ctx, VulkanSurface& img)
     }
 };
 
-void surface_create(VulkanContext& ctx, VulkanSurface& vulkanImage, const vk::ImageCreateInfo& imageCreateInfo, const vk::MemoryPropertyFlags& memoryPropertyFlags)
+void vulkan_surface_create(VulkanContext& ctx, VulkanSurface& vulkanSurface, const vk::ImageCreateInfo& imageCreateInfo, const vk::MemoryPropertyFlags& memoryPropertyFlags)
 {
-    surface_destroy(ctx, vulkanImage);
+    vulkan_surface_destroy(ctx, vulkanSurface);
 
-    vulkanImage.image = ctx.device.createImage(imageCreateInfo);
-    vulkanImage.format = imageCreateInfo.format;
-    vulkanImage.extent = imageCreateInfo.extent;
-    vk::MemoryRequirements memReqs = ctx.device.getImageMemoryRequirements(vulkanImage.image);
+    vulkanSurface.image = ctx.device.createImage(imageCreateInfo);
+    vulkanSurface.format = imageCreateInfo.format;
+    vulkanSurface.extent = imageCreateInfo.extent;
+    vk::MemoryRequirements memReqs = ctx.device.getImageMemoryRequirements(vulkanSurface.image);
     vk::MemoryAllocateInfo memAllocInfo;
-    memAllocInfo.allocationSize = vulkanImage.allocSize = memReqs.size;
+    memAllocInfo.allocationSize = vulkanSurface.allocSize = memReqs.size;
     memAllocInfo.memoryTypeIndex = utils_memory_type(ctx, memoryPropertyFlags, memReqs.memoryTypeBits);
-    vulkanImage.memory = ctx.device.allocateMemory(memAllocInfo);
-    ctx.device.bindImageMemory(vulkanImage.image, vulkanImage.memory, 0);
+    vulkanSurface.memory = ctx.device.allocateMemory(memAllocInfo);
+    ctx.device.bindImageMemory(vulkanSurface.image, vulkanSurface.memory, 0);
+
+    vulkanSurface.allocationState = VulkanAllocationState::Loaded;
+
+    vulkanSurface.generation++;
 }
 
-void surface_create(VulkanContext& ctx, VulkanSurface& vulkanImage, const glm::uvec2& size, vk::Format colorFormat, bool sampled, const std::string& name)
+void vulkan_surface_create(VulkanContext& ctx, VulkanSurface& vulkanSurface, const glm::uvec2& size, vk::Format colorFormat, bool sampled)
 {
-    surface_destroy(ctx, vulkanImage);
+    vulkan_surface_destroy(ctx, vulkanSurface);
 
     vk::ImageUsageFlags colorUsage = sampled ? vk::ImageUsageFlagBits::eSampled : vk::ImageUsageFlagBits();
 
@@ -99,9 +103,9 @@ void surface_create(VulkanContext& ctx, VulkanSurface& vulkanImage, const glm::u
     image.tiling = vk::ImageTiling::eOptimal;
     image.usage = vk::ImageUsageFlagBits::eColorAttachment | colorUsage;
     image.format = colorFormat;
-    surface_create(ctx, vulkanImage, image, vk::MemoryPropertyFlagBits::eDeviceLocal);
-    debug_set_image_name(ctx.device, vulkanImage.image, name + ":ColorImage");
-    debug_set_devicememory_name(ctx.device, vulkanImage.memory, name + ":ColorImageMemory");
+    vulkan_surface_create(ctx, vulkanSurface, image, vk::MemoryPropertyFlagBits::eDeviceLocal);
+    debug_set_image_name(ctx.device, vulkanSurface.image, vulkanSurface.debugName + ":ColorImage");
+    debug_set_devicememory_name(ctx.device, vulkanSurface.memory, vulkanSurface.debugName + ":ColorImageMemory");
 
     if (sampled)
     {
@@ -111,15 +115,19 @@ void surface_create(VulkanContext& ctx, VulkanSurface& vulkanImage, const glm::u
         colorImageView.subresourceRange.levelCount = 1;
         colorImageView.subresourceRange.layerCount = 1;
         colorImageView.format = colorFormat;
-        colorImageView.image = vulkanImage.image;
-        vulkanImage.view = ctx.device.createImageView(colorImageView);
-        debug_set_imageview_name(ctx.device, vulkanImage.view, name + ":ColorImageView");
+        colorImageView.image = vulkanSurface.image;
+        vulkanSurface.view = ctx.device.createImageView(colorImageView);
+        debug_set_imageview_name(ctx.device, vulkanSurface.view, vulkanSurface.debugName + ":ColorImageView");
     }
+    
+    vulkanSurface.allocationState = VulkanAllocationState::Loaded;
+
+    vulkanSurface.generation++;
 }
 
-void surface_create_depth(VulkanContext& ctx, VulkanSurface& vulkanImage, const glm::uvec2& size, vk::Format depthFormat, bool sampled, const std::string& name)
+void vulkan_surface_create_depth(VulkanContext& ctx, VulkanSurface& vulkanSurface, const glm::uvec2& size, vk::Format depthFormat, bool sampled)
 {
-    surface_destroy(ctx, vulkanImage);
+    vulkan_surface_destroy(ctx, vulkanSurface);
 
     vk::ImageUsageFlags depthUsage = vk::ImageUsageFlags();
 
@@ -138,9 +146,9 @@ void surface_create_depth(VulkanContext& ctx, VulkanSurface& vulkanImage, const 
     image.format = depthFormat;
     image.usage = vk::ImageUsageFlagBits::eDepthStencilAttachment | depthUsage;
 
-    surface_create(ctx, vulkanImage, image, vk::MemoryPropertyFlagBits::eDeviceLocal);
-    debug_set_image_name(ctx.device, vulkanImage.image, name + ":DepthImage");
-    debug_set_devicememory_name(ctx.device, vulkanImage.memory, name + ":DepthImageMemory");
+    vulkan_surface_create(ctx, vulkanSurface, image, vk::MemoryPropertyFlagBits::eDeviceLocal);
+    debug_set_image_name(ctx.device, vulkanSurface.image, vulkanSurface.debugName + ":DepthImage");
+    debug_set_devicememory_name(ctx.device, vulkanSurface.memory, vulkanSurface.debugName + ":DepthImageMemory");
 
     vk::ImageViewCreateInfo depthStencilView;
     depthStencilView.viewType = vk::ImageViewType::e2D;
@@ -148,15 +156,20 @@ void surface_create_depth(VulkanContext& ctx, VulkanSurface& vulkanImage, const 
     depthStencilView.subresourceRange.aspectMask = vk::ImageAspectFlagBits::eDepth;
     depthStencilView.subresourceRange.levelCount = 1;
     depthStencilView.subresourceRange.layerCount = 1;
-    depthStencilView.image = vulkanImage.image;
-    vulkanImage.view = ctx.device.createImageView(depthStencilView);
-    debug_set_imageview_name(ctx.device, vulkanImage.view, name + ":DepthImageView");
+    depthStencilView.image = vulkanSurface.image;
+    vulkanSurface.view = ctx.device.createImageView(depthStencilView);
+    debug_set_imageview_name(ctx.device, vulkanSurface.view, vulkanSurface.debugName + ":DepthImageView");
+    
+    vulkanSurface.allocationState = VulkanAllocationState::Loaded;
+
+    vulkanSurface.generation++;
 }
 
 void surface_create_sampler(VulkanContext& ctx, VulkanSurface& surface)
 {
     // Create sampler
     vk::SamplerCreateInfo samplerCreateInfo;
+    // TODO: Obey user options
     samplerCreateInfo.magFilter = vk::Filter::eLinear;
     samplerCreateInfo.minFilter = vk::Filter::eLinear;
     samplerCreateInfo.addressModeU = vk::SamplerAddressMode::eMirroredRepeat;
@@ -374,7 +387,7 @@ void surface_stage_to_device(VulkanContext& ctx, VulkanSurface& surface, vk::Ima
     VulkanBuffer staging = buffer_create_staging(ctx, size, data);
     imageCreateInfo.usage = imageCreateInfo.usage | vk::ImageUsageFlagBits::eTransferDst;
 
-    surface_create(ctx, surface, imageCreateInfo, memoryPropertyFlags);
+    vulkan_surface_create(ctx, surface, imageCreateInfo, memoryPropertyFlags);
 
     utils_with_command_buffer(ctx, [&](const vk::CommandBuffer& copyCmd) {
         debug_set_commandbuffer_name(ctx.device, copyCmd, "Buffer::StageToDevice");
@@ -409,7 +422,7 @@ void surface_stage_to_device(VulkanContext& ctx, VulkanSurface& surface, vk::Ima
         // Prepare for shader read
         surface_set_layout(ctx, copyCmd, surface.image, vk::ImageLayout::eTransferDstOptimal, layout, range);
     });
-    buffer_destroy(ctx, staging);
+    vulkan_buffer_destroy(ctx, staging);
 }
 
 void surface_stage_to_device(VulkanContext& ctx, VulkanSurface& surface, const vk::ImageCreateInfo& imageCreateInfo, const vk::MemoryPropertyFlags& memoryPropertyFlags, const gli::texture2d& tex2D, const vk::ImageLayout& layout)
@@ -424,13 +437,14 @@ void surface_stage_to_device(VulkanContext& ctx, VulkanSurface& surface, const v
     surface_stage_to_device(ctx, surface, imageCreateInfo, memoryPropertyFlags, (vk::DeviceSize)tex2D.size(), tex2D.data(), mips, layout);
 }
 
-void surface_create_from_file(VulkanContext& ctx, VulkanSurface& surface, const fs::path& filename, vk::Format format, vk::ImageUsageFlags imageUsageFlags, vk::ImageLayout imageLayout, bool forceLinear)
+bool surface_create_from_file(VulkanContext& ctx, VulkanSurface& vulkanSurface, const fs::path& filename, vk::Format format, vk::ImageUsageFlags imageUsageFlags, vk::ImageLayout imageLayout, bool forceLinear)
 {
-    surface_destroy(ctx, surface);
+    vulkan_surface_destroy(ctx, vulkanSurface);
 
     if (!fs::exists(filename))
     {
-        return;
+        vulkanSurface.allocationState = VulkanAllocationState::Failed;
+        return false;
     }
 
     std::shared_ptr<gli::texture2d> tex2Dptr;
@@ -443,53 +457,55 @@ void surface_create_from_file(VulkanContext& ctx, VulkanSurface& surface, const 
         if (!pTex)
         {
             // TODO: Error
-            return;
+            vulkanSurface.allocationState = VulkanAllocationState::Failed;
+            return false;
         }
 
-        surface.extent.width = static_cast<uint32_t>(pTex->extent().x);
-        surface.extent.height = static_cast<uint32_t>(pTex->extent().y);
-        surface.extent.depth = 1;
-        surface.mipLevels = static_cast<uint32_t>(pTex->levels());
-        surface.layerCount = 1;
+        vulkanSurface.extent.width = static_cast<uint32_t>(pTex->extent().x);
+        vulkanSurface.extent.height = static_cast<uint32_t>(pTex->extent().y);
+        vulkanSurface.extent.depth = 1;
+        vulkanSurface.mipLevels = static_cast<uint32_t>(pTex->levels());
+        vulkanSurface.layerCount = 1;
 
         // Create optimal tiled target image
         vk::ImageCreateInfo imageCreateInfo;
         imageCreateInfo.imageType = vk::ImageType::e2D;
         imageCreateInfo.format = format;
-        imageCreateInfo.mipLevels = surface.mipLevels;
+        imageCreateInfo.mipLevels = vulkanSurface.mipLevels;
         imageCreateInfo.arrayLayers = 1;
-        imageCreateInfo.extent = surface.extent;
+        imageCreateInfo.extent = vulkanSurface.extent;
         imageCreateInfo.usage = imageUsageFlags | vk::ImageUsageFlagBits::eTransferDst;
 
         // Will create the surface image
-        surface_stage_to_device(ctx, surface, imageCreateInfo, vk::MemoryPropertyFlagBits::eDeviceLocal, *pTex, imageLayout);
+        surface_stage_to_device(ctx, vulkanSurface, imageCreateInfo, vk::MemoryPropertyFlagBits::eDeviceLocal, *pTex, imageLayout);
+
     }
     else
     {
         int x, y, n;
         auto loaded = stbi_load_from_memory((const stbi_uc*)data.c_str(), int(data.size()), &x, &y, &n, 0);
 
-        surface.extent.width = static_cast<uint32_t>(x);
-        surface.extent.height = static_cast<uint32_t>(y);
-        surface.extent.depth = 1;
-        surface.mipLevels = 1;
-        surface.layerCount = 1;
+        vulkanSurface.extent.width = static_cast<uint32_t>(x);
+        vulkanSurface.extent.height = static_cast<uint32_t>(y);
+        vulkanSurface.extent.depth = 1;
+        vulkanSurface.mipLevels = 1;
+        vulkanSurface.layerCount = 1;
 
         // Create optimal tiled target image
         vk::ImageCreateInfo imageCreateInfo;
         imageCreateInfo.imageType = vk::ImageType::e2D;
         imageCreateInfo.format = format;
-        imageCreateInfo.mipLevels = surface.mipLevels;
+        imageCreateInfo.mipLevels = vulkanSurface.mipLevels;
         imageCreateInfo.arrayLayers = 1;
-        imageCreateInfo.extent = surface.extent;
+        imageCreateInfo.extent = vulkanSurface.extent;
         imageCreateInfo.usage = imageUsageFlags | vk::ImageUsageFlagBits::eTransferDst;
 
         // Will create the surface image
-        surface_stage_to_device(ctx, surface, imageCreateInfo, vk::MemoryPropertyFlagBits::eDeviceLocal, x * y * n, static_cast<const void*>(loaded));
+        surface_stage_to_device(ctx, vulkanSurface, imageCreateInfo, vk::MemoryPropertyFlagBits::eDeviceLocal, x * y * n, static_cast<const void*>(loaded));
     }
 
     // Add sampler
-    surface_create_sampler(ctx, surface);
+    surface_create_sampler(ctx, vulkanSurface);
 
     // Create image view
     static const vk::ImageUsageFlags VIEW_USAGE_FLAGS = vk::ImageUsageFlagBits::eSampled | vk::ImageUsageFlagBits::eStorage | vk::ImageUsageFlagBits::eColorAttachment | vk::ImageUsageFlagBits::eDepthStencilAttachment | vk::ImageUsageFlagBits::eInputAttachment;
@@ -498,11 +514,14 @@ void surface_create_from_file(VulkanContext& ctx, VulkanSurface& surface, const 
     {
         vk::ImageViewCreateInfo viewCreateInfo;
         viewCreateInfo.viewType = vk::ImageViewType::e2D;
-        viewCreateInfo.image = surface.image;
+        viewCreateInfo.image = vulkanSurface.image;
         viewCreateInfo.format = format;
-        viewCreateInfo.subresourceRange = { vk::ImageAspectFlagBits::eColor, 0, surface.mipLevels, 0, surface.layerCount };
-        surface.view = ctx.device.createImageView(viewCreateInfo);
+        viewCreateInfo.subresourceRange = { vk::ImageAspectFlagBits::eColor, 0, vulkanSurface.mipLevels, 0, vulkanSurface.layerCount };
+        vulkanSurface.view = ctx.device.createImageView(viewCreateInfo);
     }
+        
+    vulkanSurface.allocationState = VulkanAllocationState::Loaded;
+    return true;
 }
 
 void surface_update_from_audio(VulkanContext& ctx, VulkanSurface& surface, bool& surfaceChanged)
@@ -533,9 +552,9 @@ void surface_update_from_audio(VulkanContext& ctx, VulkanSurface& surface, bool&
             imageCreateInfo.usage = imageUsageFlags | vk::ImageUsageFlagBits::eTransferDst;
 
             // Need this?
-            ctx.device.waitIdle();
+            //ctx.device.waitIdle();
 
-            surface_create(ctx, surface, imageCreateInfo, vk::MemoryPropertyFlagBits::eDeviceLocal);
+            vulkan_surface_create(ctx, surface, imageCreateInfo, vk::MemoryPropertyFlagBits::eDeviceLocal);
 
             // Add the staging buffer for transfers
             surface.stagingBuffer = buffer_create_staging(ctx, width * height * sizeof(float));

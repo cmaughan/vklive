@@ -133,7 +133,7 @@ CODE
    - ESCAPE to revert text to its original value.
    - Controls are automatically adjusted for OSX to match standard OSX text editing operations.
  - General Keyboard controls: enable with ImGuiConfigFlags_NavEnableKeyboard.
- - General Gamepad controls: enable with ImGuiConfigFlags_NavEnableGamepad. Download controller mapping PNG/PSD at http://dearimgui.org/controls_sheets
+ - General Gamepad controls: enable with ImGuiConfigFlags_NavEnableGamepad. Download g_Controller mapping PNG/PSD at http://dearimgui.org/controls_sheets
 
 
  PROGRAMMER GUIDE

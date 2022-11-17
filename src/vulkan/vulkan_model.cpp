@@ -1,13 +1,45 @@
+#include <fmt/format.h>
+
 #include "vklive/vulkan/vulkan_model.h"
+
+#include <vklive/file/runtree.h>
 
 namespace vulkan
 {
-void model_load(VulkanContext& ctx, VulkanModel& model, const std::string& filename, const VertexLayout& layout, const ModelCreateInfo& createInfo, const int flags)
+
+// Vertex layout for this example
+VertexLayout g_vertexLayout{ {
+    Component::VERTEX_COMPONENT_POSITION,
+    Component::VERTEX_COMPONENT_UV,
+    Component::VERTEX_COMPONENT_COLOR,
+    Component::VERTEX_COMPONENT_NORMAL,
+} };
+
+
+void vulkan_model_load(VulkanContext& ctx,
+    VulkanModel& model,
+    const std::string& filename,
+    const VertexLayout& layout,
+    const ModelCreateInfo& createInfo,
+    const int flags)
 {
+    // Call the model class
     model_load(model, filename, layout, createInfo, flags);
 }
 
-void model_stage(VulkanContext& ctx, VulkanModel& model)
+void vulkan_model_load(VulkanContext& ctx,
+    VulkanModel& model,
+    const std::string& filename,
+    const VertexLayout& layout,
+    const glm::vec3& scale,
+    const int flags)
+{
+    vulkan_model_load(ctx, model, filename, layout, ModelCreateInfo{ glm::vec3(0.0f), scale, glm::vec2(1.0f) }, flags);
+}
+
+
+void vulkan_model_stage(VulkanContext& ctx,
+    VulkanModel& model)
 {
     if (!model.vertexData.empty() && !model.indices.buffer)
     {
@@ -16,17 +48,12 @@ void model_stage(VulkanContext& ctx, VulkanModel& model)
         model.vertices = buffer_stage_to_device(ctx, vk::BufferUsageFlagBits::eVertexBuffer, model.vertexData);
         model.indices = buffer_stage_to_device(ctx, vk::BufferUsageFlagBits::eIndexBuffer, model.indexData);
 
-        debug_set_buffer_name(ctx.device, (VkBuffer)model.vertices.buffer, "Model::Vertices");
-        debug_set_buffer_name(ctx.device, (VkBuffer)model.indices.buffer, "Model::Indices");
-        
-        debug_set_devicememory_name(ctx.device, model.vertices.memory, "Model::VerticesMemory");
-        debug_set_devicememory_name(ctx.device, model.indices.memory, "Model::IndicesMemory");
-    }
-}
+        debug_set_buffer_name(ctx.device, (VkBuffer)model.vertices.buffer, fmt::format("{}:Vertices", model.debugName));
+        debug_set_buffer_name(ctx.device, (VkBuffer)model.indices.buffer, fmt::format("{}:Indices", model.debugName));
 
-void model_load(VulkanContext& ctx, VulkanModel& model, const std::string& filename, const VertexLayout& layout, const glm::vec3& scale, const int flags)
-{
-    model_load(ctx, model, filename, layout, ModelCreateInfo{ glm::vec3(0.0f), scale, glm::vec2(1.0f) }, flags);
+        debug_set_devicememory_name(ctx.device, model.vertices.memory, fmt::format("{}:VerticesMemory", model.debugName));
+        debug_set_devicememory_name(ctx.device, model.indices.memory, fmt::format("{}:IndicesMemory", model.debugName));
+    }
 }
 
 vk::Format component_format(Component component)
@@ -50,9 +77,55 @@ vk::Format component_format(Component component)
     }
 }
 
-void model_destroy(VulkanContext& ctx, VulkanModel& model)
+void vulkan_model_destroy(VulkanContext& ctx, VulkanModel& model)
 {
-    buffer_destroy(ctx, model.vertices);
-    buffer_destroy(ctx, model.indices);
+    vulkan_buffer_destroy(ctx, model.vertices);
+    vulkan_buffer_destroy(ctx, model.indices);
 }
+
+std::shared_ptr<VulkanModel> vulkan_model_create(VulkanContext& ctx, 
+    VulkanScene& vulkanScene,
+    const Geometry& geom)
+{
+    auto spVulkanModel = std::make_shared<VulkanModel>(geom);
+
+    // The geometry may be user geom or a model loaded from run tree; so just check it is available
+    fs::path loadPath;
+    if (geom.type == GeometryType::Model)
+    {
+        loadPath = geom.path;
+    }
+    else if (geom.type == GeometryType::Rect)
+    {
+        loadPath = runtree_find_path("models/quad.obj");
+        if (loadPath.empty())
+        {
+            scene_report_error(*vulkanScene.pScene, MessageSeverity::Error,
+                fmt::format("Could not load default asset: {}", "runtree/models/quad.obj"));
+            return spVulkanModel;
+        }
+    }
+
+    vulkan_model_load(ctx, *spVulkanModel, loadPath.string(), g_vertexLayout, geom.loadScale);
+
+    // Success?
+    if (spVulkanModel->vertexData.empty())
+    {
+        auto txt = fmt::format("Could not load model: {}", loadPath.string());
+        if (!spVulkanModel->errors.empty())
+        {
+            txt += "\n" + spVulkanModel->errors;
+        }
+        scene_report_error(*vulkanScene.pScene, MessageSeverity::Error, txt);
+    }
+    else
+    {
+        // Store at original path, even though we may have subtituted geometry for preset paths
+        vulkanScene.models[geom.path] = spVulkanModel;
+    }
+
+    spVulkanModel->debugName = fmt::format("Model:{}", loadPath.filename().string());
+    return spVulkanModel;
+}
+
 } // namespace vulkan

@@ -1,94 +1,54 @@
 #pragma once
 
+#include <string>
+#include <unordered_map>
+#include <filesystem>
+#include <vklive/platform/platform.h>
 #include <vklive/scene.h>
-#include <vklive/vulkan/vulkan_context.h>
-#include <vklive/vulkan/vulkan_framebuffer.h>
-#include <vklive/vulkan/vulkan_model.h>
 #include <vklive/vulkan/vulkan_descriptor.h>
-#include <vklive/vulkan/vulkan_shader.h>
 
-#include <vklive/camera.h>
+struct Scene;
+
 namespace vulkan
 {
 
-struct RenderContext;
+struct VulkanPass;
+struct VulkanShader;
+struct VulkanModel;
+struct VulkanSurface;
 
-struct VulkanGeometry
+inline uint64_t frame_to_pingpong(uint64_t frame)
 {
-    VulkanGeometry(Geometry* pG)
-        : pGeometry(pG)
-    {
-    }
-    Geometry* pGeometry;
-    VulkanModel model;
-    std::string debugVertexName;
-    std::string debugIndexName;
-};
+    return frame % 2;
+}
 
-struct VulkanPass
+struct SurfaceKey
 {
-    VulkanPass(Pass* pP)
-        : pPass(pP)
+    SurfaceKey(const std::string& name, uint64_t globalFrameCount, bool sampling = false)
+        : targetName(name)
+        , pingPongIndex(frame_to_pingpong(globalFrameCount))
     {
+        if (sampling)
+        {
+            pingPongIndex = 1 - pingPongIndex;
+        }
     }
 
-    Pass* pPass;
+    std::string targetName; // As declared in the pass
+    uint64_t pingPongIndex; // Which pingpong buffer we are
 
-    VulkanFrameBuffer frameBuffer;
-
-    glm::uvec2 currentFrameBufferSize = glm::uvec2(0);
-    glm::uvec2 targetSize = glm::uvec2(0);
-
-    vk::RenderPass renderPass;
-    
-    vk::Pipeline geometryPipeline;
-    vk::PipelineLayout geometryPipelineLayout;
-
-    std::vector<vk::DescriptorSet> descriptorSets;
-    std::vector<vk::DescriptorSetLayout> descriptorSetLayouts;
-
-    std::map<uint32_t, VulkanBindingSet> mergedBindingSets;
-
-    VulkanBuffer vsUniform;
-
-    // Image and depth for this pass
-    std::vector<VulkanSurface*> colorImages;
-    VulkanSurface* pDepthImage = nullptr;
-
-    struct Channel {
-        alignas(16) glm::vec4 resolution;
-        alignas(4) float time;
-    };
-
-    struct UBO
+    bool operator==(const SurfaceKey& other) const
     {
-        alignas(4) float iTime;            // Elapsed 
-        alignas(4) float iGlobalTime;      // Elapsed (same as iTime)
-        alignas(4) float iTimeDelta;       // Delta since last frame
-        alignas(4) float iFrame;           // Number of frames drawn since begin
-        alignas(4) float iFrameRate;       // 1 / Elapsed
-        alignas(4) float iSampleRate;      // Sound sample rate
-        alignas(16) glm::vec4 iResolution;  // Resolution of current target
-        alignas(16) glm::vec4 iMouse;       // Mouse coords in pixels
-        alignas(16) glm::vec4 iDate;        // Year, Month, Day, Seconds since epoch
-        alignas(16) glm::vec4 iSpectrumBands[2]; // 4 Audio spectrum bands, configured in the UI.
+        return (targetName == other.targetName) && (pingPongIndex == other.pingPongIndex);
+    }
     
-        // Note originally an array of 4 floats; std140 alignment makes this tricky
-        alignas(16) glm::vec4 iChannelTime; // Time for an input channel
-
-        alignas(16) glm::vec4 iChannelResolution[4];    // Resolution for an input channel
-        alignas(16) glm::vec4 ifFragCoordOffsetUniform; // ?
-        alignas(16) glm::vec4 eye;                      // The eye in world space
-        
-        alignas(16) glm::mat4 model;                    // Transforms for camera based rendering
-        alignas(16) glm::mat4 view;
-        alignas(16) glm::mat4 projection;
-        alignas(16) glm::mat4 modelViewProjection;
-
-        Channel iChannel[4];                // Packed version
-        
+    struct HashFunction
+    {
+        size_t operator()(const SurfaceKey& k) const
+        {
+            return std::hash<std::string>()(k.targetName) ^ k.pingPongIndex;
+        }
     };
-    UBO vsUBO;
 };
 
 struct VulkanScene
@@ -98,26 +58,24 @@ struct VulkanScene
     {
     }
 
+    // Mappings from names to real vulkan objects
     Scene* pScene = nullptr;
-    std::map<std::string, std::shared_ptr<VulkanSurface>> surfaces;
-    std::map<fs::path, std::shared_ptr<VulkanGeometry>> geometries;
-    std::map<fs::path, std::shared_ptr<VulkanShader>> shaderStages;
-    std::map<std::string, std::shared_ptr<VulkanPass>> passes;
-  
-    DescriptorCache descriptorCache;
+    std::unordered_map<std::string, std::shared_ptr<VulkanSurface>> textureCacheMaybe;
+    std::unordered_map<SurfaceKey, std::shared_ptr<VulkanSurface>, SurfaceKey::HashFunction> surfaces;
+    std::unordered_map<fs::path, std::shared_ptr<VulkanModel>> models;
+    std::unordered_map<fs::path, std::shared_ptr<VulkanShader>> shaderStages;
+    std::unordered_map<std::string, std::shared_ptr<VulkanPass>> passes;
 
-    // In flight stuff
-    bool inFlight = false;
-    vk::CommandBuffer commandBuffer;
-    vk::CommandPool commandPool;
-    vk::Fence fence;
+    DescriptorCache descriptorCache;
 };
 
+std::shared_ptr<VulkanScene> vulkan_scene_create(VulkanContext& ctx, Scene& scene);
 VulkanScene* vulkan_scene_get(VulkanContext& ctx, Scene& scene);
-void vulkan_scene_init(VulkanContext& ctx, Scene& scene);
-void vulkan_scene_destroy(VulkanContext& ctx, Scene& scene);
-void vulkan_scene_render(VulkanContext& ctx, RenderContext& renderContext, Scene& scene);
-void vulkan_scene_prepare(VulkanContext& ctx, RenderContext& renderContext, Scene& scene);
-vk::Format vulkan_scene_format_to_vulkan(const Format& format);
+
+void vulkan_scene_destroy(VulkanContext& ctx, VulkanScene& scene);
+void vulkan_scene_render(VulkanContext& ctx, VulkanScene& vulkanScene);
+void vulkan_scene_prepare(VulkanContext& ctx, VulkanScene& vulkanScene);
+
+VulkanSurface* vulkan_scene_get_or_create_surface(VulkanScene& scene, const std::string& surface, uint64_t frameCount = 0, bool sampling = false);
 
 } // namespace vulkan

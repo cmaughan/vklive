@@ -2,9 +2,9 @@
 #include <set>
 
 #include <cstring>
+#include <fmt/format.h>
 #include <fstream>
 #include <sstream>
-#include <fmt/format.h>
 
 #include <spirv_reflect.h>
 
@@ -14,8 +14,8 @@
 #include <vklive/logger/logger.h>
 #include <vklive/process/process.h>
 #include <vklive/string/string_utils.h>
-#include <vklive/vulkan/vulkan_shader.h>
 #include <vklive/vulkan/vulkan_reflect.h>
+#include <vklive/vulkan/vulkan_shader.h>
 
 namespace vulkan
 {
@@ -143,7 +143,7 @@ bool shader_parse_output(const std::string& strOutput, const fs::path& shaderPat
                 addMessage.text.append(msg[i].text);
             }
         }
-        scene.errors.push_back(addMessage);
+        scene_report_error(scene, addMessage.severity, addMessage.text, addMessage.path, addMessage.line);
     }
     return errors;
 }
@@ -182,16 +182,18 @@ void shader_reflect(const std::string& spirv, VulkanShader& vulkanShader)
             VulkanBindingMeta meta;
             meta.name = bindingReflect.name;
             meta.shaderPath = vulkanShader.pShader->path;
-            // TODO: Can we provide the range here? 
+            // TODO: Can we provide the range here?
             // The reflection doesn't give us file offsets, so we would have to scan the file and find the declarations
             meta.line = 0;
             vulkanShader.bindingSets[set->set].bindingMeta[layout_binding.binding] = meta;
         }
     }
+    LOG(DBG, "Shader: " << vulkanShader.pShader->path.filename() << ", Bindings:");
+    bindings_dump(vulkanShader.bindingSets, 2);
     spvReflectDestroyShaderModule(&module);
 }
 
-std::shared_ptr<VulkanShader> shader_create(VulkanContext& ctx, Scene& scene, Shader& shader)
+std::shared_ptr<VulkanShader> vulkan_shader_create(VulkanContext& ctx, VulkanScene& vulkanScene, Shader& shader)
 {
     std::shared_ptr<VulkanShader> spShader = std::make_shared<VulkanShader>(&shader);
 
@@ -211,7 +213,7 @@ std::shared_ptr<VulkanShader> shader_create(VulkanContext& ctx, Scene& scene, Sh
     }
     else
     {
-        scene_report_error(scene, fmt::format("Unknown shader type: {}", shader.path.filename().string()));
+        scene_report_error(*vulkanScene.pScene, MessageSeverity::Error, fmt::format("Unknown shader type: {}", shader.path.filename().string()));
         return nullptr;
     }
 
@@ -219,16 +221,16 @@ std::shared_ptr<VulkanShader> shader_create(VulkanContext& ctx, Scene& scene, Sh
     spShader->shaderCreateInfo.module = nullptr;
 
     fs::path compiler_path;
-    //fs::path cross_path;
+    // fs::path cross_path;
 #ifdef WIN32
     compiler_path = runtree_find_path("bin/win/glslangValidator.exe");
-    //cross_path = runtree_find_path("bin/win/spirv-cross.exe");
+    // cross_path = runtree_find_path("bin/win/spirv-cross.exe");
 #elif defined(__APPLE__)
     compiler_path = runtree_find_path("bin/mac/glslangValidator");
-    //cross_path = runtree_find_path("bin/win/spriv-cross.exe");
+    // cross_path = runtree_find_path("bin/win/spriv-cross.exe");
 #elif defined(__linux__)
     compiler_path = runtree_find_path("bin/linux/glslangValidator");
-    //cross_path = runtree_find_path("bin/linux/spriv-cross.exe");
+    // cross_path = runtree_find_path("bin/linux/spriv-cross.exe");
 #endif
     std::string output;
     auto ret = run_process(
@@ -247,7 +249,7 @@ std::shared_ptr<VulkanShader> shader_create(VulkanContext& ctx, Scene& scene, Sh
         return nullptr;
     }
 
-    if (shader_parse_output(output, shader.path, scene))
+    if (shader_parse_output(output, shader.path, *vulkanScene.pScene))
     {
         return nullptr;
     }
@@ -257,10 +259,32 @@ std::shared_ptr<VulkanShader> shader_create(VulkanContext& ctx, Scene& scene, Sh
     shader_reflect(spirv, *spShader);
 
     // Create the shader modules
-    spShader->shaderCreateInfo.module = ctx.device.createShaderModule(vk::ShaderModuleCreateInfo({}, spirv.size(), (const uint32_t*)spirv.c_str()));
-    debug_set_shadermodule_name(ctx.device, spShader->shaderCreateInfo.module, std::string("Shader::Module::") + shader.path.filename().string());
+    spShader->shaderCreateInfo.module = ctx.device.createShaderModule(
+        vk::ShaderModuleCreateInfo({}, spirv.size(), (const uint32_t*)spirv.c_str()));
+
+    debug_set_shadermodule_name(ctx.device,
+        spShader->shaderCreateInfo.module,
+        std::string("Shader::Module::") + shader.path.filename().string());
+
+    if (spShader->shaderCreateInfo.module)
+    {
+        vulkanScene.shaderStages[shader.path] = spShader;
+        spShader->shaderCreateInfo.pName = "main";
+    }
+    else
+    {
+        scene_report_error(*vulkanScene.pScene, MessageSeverity::Error, fmt::format("Could not create shader: {}", shader.path.filename().string()));
+    }
+
     return spShader;
 }
 
-} // namespace vulkan
+void vulkan_shader_destroy(VulkanContext& ctx, VulkanShader& shader)
+{
+    if (shader.shaderCreateInfo.module)
+    {
+        ctx.device.destroyShaderModule(shader.shaderCreateInfo.module);
+    }
+}
 
+} // namespace vulkan

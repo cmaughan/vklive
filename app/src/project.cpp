@@ -152,7 +152,7 @@ bool project_copy(Project& project, const fs::path& destPath)
             }
         }
         
-        for (auto& geom : project.spScene->geometries)
+        for (auto& geom : project.spScene->models)
         {
             auto p = root / geom.first;
             if (fs::exists(p))

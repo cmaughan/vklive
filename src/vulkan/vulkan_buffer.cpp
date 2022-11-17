@@ -1,11 +1,11 @@
 #include "vklive/vulkan/vulkan_buffer.h"
-#include "vklive/vulkan/vulkan_utils.h"
-#include "vklive/vulkan/vulkan_debug.h"
 #include "vklive/vulkan/vulkan_command.h"
+#include "vklive/vulkan/vulkan_debug.h"
+#include "vklive/vulkan/vulkan_utils.h"
 
 namespace vulkan
 {
-void buffer_destroy(VulkanContext& ctx, VulkanBuffer& buffer)
+void vulkan_buffer_destroy(VulkanContext& ctx, VulkanBuffer& buffer)
 {
     if (!buffer.buffer)
     {
@@ -65,7 +65,7 @@ VulkanBuffer buffer_stage_to_device(VulkanContext& ctx, const vk::BufferUsageFla
         debug_set_commandbuffer_name(ctx.device, copyCmd, "Buffer::StageToDevice");
         copyCmd.copyBuffer(staging.buffer, result.buffer, vk::BufferCopy(0, 0, size));
     });
-    buffer_destroy(ctx, staging);
+    vulkan_buffer_destroy(ctx, staging);
     return result;
 }
 
@@ -91,9 +91,13 @@ VulkanBuffer buffer_create(VulkanContext& ctx, const vk::BufferUsageFlags& usage
     return result;
 }
 
-VulkanBuffer buffer_create_staging(VulkanContext& ctx, vk::DeviceSize size, const void* data)
+VulkanBuffer buffer_create_staging(VulkanContext& ctx,
+    vk::DeviceSize size, const void* data)
 {
-    auto result = buffer_create(ctx, vk::BufferUsageFlagBits::eTransferSrc, vk::MemoryPropertyFlagBits::eHostVisible | vk::MemoryPropertyFlagBits::eHostCoherent, size);
+    auto result = buffer_create(ctx,
+        vk::BufferUsageFlagBits::eTransferSrc,
+        vk::MemoryPropertyFlagBits::eHostVisible | vk::MemoryPropertyFlagBits::eHostCoherent, size);
+
     if (data != nullptr)
     {
         utils_copy_to_memory(ctx, result.memory, data, size);

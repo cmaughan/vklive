@@ -104,7 +104,7 @@ void CreateWindowSwapChain(VulkanContext& ctx, VulkanWindow* wd, int w, int h)
             img.image = swapImages[i];
             wd->frames[i].colorBuffers.push_back(img);
         
-            debug_set_image_name(ctx.device, swapImages[i], std::string("Window::SwapChain_Image_") + std::to_string(i) );
+            debug_set_image_name(ctx.device, swapImages[i], std::string("Window::SwapChain_Image:") + std::to_string(i) );
         }
     }
 
@@ -182,7 +182,7 @@ void CreateWindowSwapChain(VulkanContext& ctx, VulkanWindow* wd, int w, int h)
             VulkanSwapFrame* fd = &wd->frames[i];
             attachment[0] = fd->colorBuffers[0].view;
             fd->framebuffer = ctx.device.createFramebuffer(info);
-            debug_set_framebuffer_name(ctx.device, fd->framebuffer, std::string("Window::SwapChain_Framebuffer_") + std::to_string(i));
+            debug_set_framebuffer_name(ctx.device, fd->framebuffer, std::string("Window::SwapChain_Framebuffer:") + std::to_string(i));
         }
     }
 }
@@ -200,18 +200,19 @@ void CreateWindowCommandBuffers(VulkanContext& ctx, VulkanWindow* wd)
         fd->commandPool = ctx.device.createCommandPool(vk::CommandPoolCreateInfo(vk::CommandPoolCreateFlagBits::eResetCommandBuffer));
         fd->commandBuffer = ctx.device.allocateCommandBuffers(vk::CommandBufferAllocateInfo(fd->commandPool, vk::CommandBufferLevel::ePrimary, 1))[0];
         
-        debug_set_commandbuffer_name(ctx.device, fd->commandBuffer, std::string("VulkanWindow::CommandBuffer_") + std::to_string(i));
-        debug_set_commandpool_name(ctx.device, fd->commandPool, std::string("VulkanWindow::CommandPool_") + std::to_string(i));
+        debug_set_commandbuffer_name(ctx.device, fd->commandBuffer, std::string("VulkanWindow::CommandBuffer:") + std::to_string(i));
+        debug_set_commandpool_name(ctx.device, fd->commandPool, std::string("VulkanWindow::CommandPool:") + std::to_string(i));
 
         // fd->CommandBuffer.insertDebugUtilsLabelEXT(vk::DebugUtilsLabelEXT("My Command Buffer"));
         fd->fence = ctx.device.createFence(vk::FenceCreateInfo(vk::FenceCreateFlagBits::eSignaled));
-        debug_set_fence_name(ctx.device, fd->fence, std::string("VulkanWindow::Fence_") + std::to_string(i));
+        
+        debug_set_fence_name(ctx.device, fd->fence, std::string("VulkanWindow::Fence:") + std::to_string(i));
 
         fsd->imageAcquiredSemaphore = ctx.device.createSemaphore(vk::SemaphoreCreateInfo());
         fsd->renderCompleteSemaphore = ctx.device.createSemaphore(vk::SemaphoreCreateInfo());
         
-        debug_set_semaphore_name(ctx.device, fsd->imageAcquiredSemaphore, std::string("VulkanWindow::ImageAcquiredSemaphore_") + std::to_string(i));
-        debug_set_semaphore_name(ctx.device, fsd->renderCompleteSemaphore, std::string("VulkanWindow::RenderCompleteSemaphore_") + std::to_string(i));
+        debug_set_semaphore_name(ctx.device, fsd->imageAcquiredSemaphore, std::string("VulkanWindow::ImageAcquiredSemaphore:") + std::to_string(i));
+        debug_set_semaphore_name(ctx.device, fsd->renderCompleteSemaphore, std::string("VulkanWindow::RenderCompleteSemaphore:") + std::to_string(i));
     }
 }
 

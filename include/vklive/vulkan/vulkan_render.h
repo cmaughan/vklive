@@ -12,14 +12,9 @@
 namespace vulkan
 {
 struct VulkanModel;
-struct RenderContext : IContextData
-{
-    glm::uvec2 frameBufferSize;
-};
 
 void render_init(VulkanContext& ctx);
 void render_destroy(VulkanContext& ctx);
 void render(VulkanContext& ctx, const glm::vec4& rect, Scene& scene);
-std::shared_ptr<RenderContext> render_context(VulkanContext& ctx);
 
 } // namespace vulkan

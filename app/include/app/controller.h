@@ -10,7 +10,7 @@ struct Controller
     std::shared_ptr<moodycamel::ConcurrentQueue<std::shared_ptr<Project>>> spProjectQueue;
 };
 
-extern struct Controller controller;
+extern struct Controller g_Controller;
 
 bool controller_check_exit();
 fs::path controller_save_project_as();

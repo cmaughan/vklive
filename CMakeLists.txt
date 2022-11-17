@@ -46,19 +46,19 @@ find_package(gli CONFIG REQUIRED)
 find_package(portaudio CONFIG REQUIRED)
 find_path(STB_INCLUDE_DIRS "stb_c_lexer.h")
 find_package(unofficial-kissfft CONFIG REQUIRED)
+find_package(range-v3 CONFIG REQUIRED)
 
 # Set this if we are sitting on SDL
 add_definitions(-DZEP_USE_SDL)
 
 # Set this to get the default file system
 add_definitions(-DZEP_FEATURE_CPP_FILE_SYSTEM)
-
 if(MSVC)
     set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} /MP")
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /MP")
 else()
     set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -D_DEBUG -DDEBUG")
-    set(CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG} -D_DEBUG -DDEBUG")
+    set(CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG} -D_DEBUG -DDEBUG" )
 endif()
 
 include_directories(external/imgui)
@@ -76,22 +76,24 @@ set(VKLIVE_ROOT ${CMAKE_CURRENT_LIST_DIR})
 configure_file(${CMAKE_CURRENT_LIST_DIR}/cmake/config_app.h.cmake ${CMAKE_BINARY_DIR}/config_app.h)
 
 set(VULKAN_SOURCES
+    src/vulkan/vulkan_bindings.cpp
     src/vulkan/vulkan_buffer.cpp
     src/vulkan/vulkan_command.cpp
     src/vulkan/vulkan_context.cpp
     src/vulkan/vulkan_debug.cpp
-    src/vulkan/vulkan_device.cpp
     src/vulkan/vulkan_descriptor.cpp
+    src/vulkan/vulkan_device.cpp
     src/vulkan/vulkan_framebuffer.cpp
-    src/vulkan/vulkan_surface.cpp
     src/vulkan/vulkan_imgui.cpp
     src/vulkan/vulkan_imgui_viewports.cpp
     src/vulkan/vulkan_model.cpp
+    src/vulkan/vulkan_pass.cpp
     src/vulkan/vulkan_pipeline.cpp
     src/vulkan/vulkan_reflect.cpp
     src/vulkan/vulkan_render.cpp
     src/vulkan/vulkan_scene.cpp
     src/vulkan/vulkan_shader.cpp
+    src/vulkan/vulkan_surface.cpp
     src/vulkan/vulkan_uniform.cpp
     src/vulkan/vulkan_utils.cpp
     src/vulkan/vulkan_window.cpp
@@ -102,14 +104,15 @@ set(VULKAN_SOURCES
     include/vklive/vulkan/vulkan_descriptor.h
     include/vklive/vulkan/vulkan_device.h
     include/vklive/vulkan/vulkan_framebuffer.h
-    include/vklive/vulkan/vulkan_surface.h
     include/vklive/vulkan/vulkan_imgui.h
     include/vklive/vulkan/vulkan_model.h
+    include/vklive/vulkan/vulkan_pass.h
     include/vklive/vulkan/vulkan_pipeline.h
     include/vklive/vulkan/vulkan_reflect.h
     include/vklive/vulkan/vulkan_render.h
     include/vklive/vulkan/vulkan_scene.h
     include/vklive/vulkan/vulkan_shader.h
+    include/vklive/vulkan/vulkan_surface.h
     include/vklive/vulkan/vulkan_uniform.h
     include/vklive/vulkan/vulkan_utils.h
     include/vklive/vulkan/vulkan_window.h
@@ -226,6 +229,10 @@ target_link_libraries(vklive
         assimp::assimp
         fmt::fmt-header-only
         tomlplusplus::tomlplusplus
+        range-v3
+        range-v3-meta
+        range-v3::meta
+        range-v3-concepts
     )
 target_precompile_headers(vklive
   PRIVATE

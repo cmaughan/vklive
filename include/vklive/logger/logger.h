@@ -46,7 +46,7 @@ public:
     Log()
     {
     }
-    Log(LT type)
+    Log(LT type, uint32_t indent = 0)
     {
         msglevel = type;
         if (vklogger.headers && msglevel >= vklogger.level)
@@ -54,6 +54,11 @@ public:
             operator<<("[" + getLabel(type) + "] ");
         }
         out << "(T:" << std::this_thread::get_id() << ") ";
+
+        for (uint32_t i = 0; i < indent; i++)
+        {
+            out << " ";
+        }
     }
     ~Log()
     {
@@ -111,8 +116,10 @@ private:
 #ifndef LOG
 #ifdef _DEBUG
 #define LOG(a, b) Log(LT::a) << b
+#define LOG_INDENT(a, indent, b) Log(LT::a, indent) << b
 #else
 #define LOG(a, b)
+#define LOG_INDENT(a, indent, b)
 #endif
 #endif
 

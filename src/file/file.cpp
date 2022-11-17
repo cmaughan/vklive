@@ -3,7 +3,7 @@
 #include <queue>
 #include <set>
 
-#ifndef WIN32
+#ifndef _WIN32
 #include <unistd.h>
 #endif
 
@@ -16,7 +16,7 @@
 #include "vklive/logger/logger.h"
 #include "vklive/string/string_utils.h"
 
-#ifdef WIN32
+#ifdef _WIN32
 #include "shlobj.h"
 #endif
 #undef ERROR

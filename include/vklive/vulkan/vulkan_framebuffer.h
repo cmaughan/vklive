@@ -5,12 +5,9 @@
 
 namespace vulkan
 {
-struct VulkanFrameBuffer
-{
-    vk::Framebuffer framebuffer;
-};
+struct VulkanPassTargets;
 
-void framebuffer_create(VulkanContext& ctx, VulkanFrameBuffer& frame, const std::vector<VulkanSurface*>& colorBuffers, VulkanSurface* pDepth, const vk::RenderPass& renderPass);
-void framebuffer_destroy(VulkanContext& ctx, VulkanFrameBuffer& frame);
+void vulkan_framebuffer_create(VulkanContext& ctx, vk::Framebuffer& framebuffer, const VulkanPassTargets& passTargets, const vk::RenderPass& renderPass);
+void framebuffer_destroy(VulkanContext& ctx, vk::Framebuffer& frame);
 
 } // namespace vulkan

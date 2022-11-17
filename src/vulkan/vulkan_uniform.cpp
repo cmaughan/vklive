@@ -3,7 +3,7 @@
 namespace vulkan
 {
 
-VulkanBuffer uniform_create(VulkanContext& ctx, vk::DeviceSize size)
+VulkanBuffer vulkan_uniform_create(VulkanContext& ctx, vk::DeviceSize size)
 {
     auto deviceProperties = ctx.physicalDevice.getProperties();
     auto alignment = deviceProperties.limits.minUniformBufferOffsetAlignment;

@@ -94,8 +94,8 @@ struct DescriptorBuilder
 void descriptor_reset_pools(VulkanContext& ctx, DescriptorCache& cache);
 vk::DescriptorSetLayout descriptor_create_layout(VulkanContext& ctx, DescriptorCache& cache, vk::DescriptorSetLayoutCreateInfo& info);
 bool descriptor_allocate(VulkanContext& ctx, DescriptorCache& cache, vk::DescriptorSet* set, vk::DescriptorSetLayout layout);
-void descriptor_init(VulkanContext& ctx, DescriptorCache& cache);
-void descriptor_cleanup(VulkanContext& ctx, DescriptorCache& cache);
+void vulkan_descriptor_init(VulkanContext& ctx, DescriptorCache& cache);
+void vulkan_descriptor_cleanup(VulkanContext& ctx, DescriptorCache& cache);
 
 void descriptor_bind_buffer(VulkanContext& ctx, DescriptorCache& cache, DescriptorBuilder& builder, uint32_t binding, vk::DescriptorBufferInfo* bufferInfo, vk::DescriptorType type, vk::ShaderStageFlags stageFlags);
 void descriptor_bind_image(VulkanContext& ctx, DescriptorCache& cache, DescriptorBuilder& builder, uint32_t binding, vk::DescriptorImageInfo* imageInfo, vk::DescriptorType type, vk::ShaderStageFlags stageFlags);

@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - main
+      - pass_rework
 
 jobs:
   build:
@@ -13,15 +14,15 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          # We can build Windows/Mac
-          - { title: "Linux", os: "ubuntu-latest", cc: "clang", arch: "x64", build_type: "Release" }
-          - { title: "Linux", os: "ubuntu-latest", cc: "clang", arch: "x64", build_type: "Debug" }
-          - { title: "Linux", os: "ubuntu-latest", cc: "gcc", arch: "x64", build_type: "Release" }
-          - { title: "Linux", os: "ubuntu-latest", cc: "gcc", arch: "x64", build_type: "Debug" }
-          - { title: "Windows", os: "windows-latest", cc: "vs2022", arch: "x64", build_type: "Release", package_type: "x64-windows-static-md", script: "bat" }
-          - { title: "Windows", os: "windows-latest", cc: "vs2022", arch: "x64", build_type: "Debug", package_type: "x64-windows-static-md", script: "bat" }
-          - { title: "Mac", os: "macos-latest", cc: "clang", arch: "x64", build_type: "Release" }
-          - { title: "Mac", os: "macos-latest", cc: "clang", arch: "x64", build_type: "Debug" }
+            # We can build Windows/Mac
+            - { title: "Linux", os: "ubuntu-latest", cc: "clang-14", cx: "clang++-14", arch: "x64", build_type: "Release" }
+            - { title: "Linux", os: "ubuntu-latest", cc: "clang-14", cx: "clang++-14", arch: "x64", build_type: "Debug" }
+            - { title: "Linux", os: "ubuntu-latest", cc: "gcc-11", cx: "g++-11", arch: "x64", build_type: "Release" }
+            - { title: "Linux", os: "ubuntu-latest", cc: "gcc-11", cx: "g++-11", arch: "x64", build_type: "Debug" }
+            - { title: "Windows", os: "windows-latest", cc: "vs2022", arch: "x64", build_type: "Release", package_type: "x64-windows-static-md", script: "bat" }
+            - { title: "Windows", os: "windows-latest", cc: "vs2022", arch: "x64", build_type: "Debug", package_type: "x64-windows-static-md", script: "bat" }
+            - { title: "Mac", os: "macos-latest", cc: "clang-14", cx: "clang++-14", arch: "x64", build_type: "Release" }
+            - { title: "Mac", os: "macos-latest", cc: "clang-14", cx: "clang++-14", arch: "x64", build_type: "Debug" }
 
     steps:
 
@@ -36,10 +37,11 @@ jobs:
 
      # TODO: Do we really need all this junk on linux?
     - name: Install Libraries
-      env:
-        CC: ${{ matrix.cc}}
       run: |
-        sudo apt-get install xserver-xorg-dev x11proto-xf86vidmode-dev libxxf86vm-dev mesa-common-dev libgl1-mesa-dev libglu1-mesa-dev libxext-dev
+        wget https://apt.llvm.org/llvm.sh
+        sudo bash ./llvm.sh 14
+        sudo apt update
+        sudo apt-get install build-essential clang-14 gcc-11 g++-11 xserver-xorg-dev x11proto-xf86vidmode-dev libxxf86vm-dev mesa-common-dev libgl1-mesa-dev libglu1-mesa-dev libxext-dev
       if: matrix.os == 'ubuntu-latest'
 
     - name: Prebuild
@@ -52,12 +54,26 @@ jobs:
     
     - name: Prebuild Linux_Mac
       working-directory: ${{github.workspace}}
-      env:
-        CC: ${{ matrix.cc }}  
       run: |
         git submodule update --init
         ./prebuild.sh
       if: matrix.os == 'ubuntu-latest' || matrix.os == 'macos-latest'
+
+    - name: GCC11
+      run: echo "CXX=g++-11" >> $GITHUB_ENV
+      if: matrix.cc == 'gcc-11'
+
+    - name: Clang14
+      run: |
+        echo "CXX=clang++-14" >> $GITHUB_ENV
+        echo "CC=clang-14" >> $GITHUB_ENV
+      if: matrix.os == 'ubuntu-latest' && matrix.cc == 'clang-14'
+    
+    - name: Clang14_Mac
+      run: |
+        echo "CXX=$(brew --prefix llvm@14)/bin/clang++" >> $GITHUB_ENV
+        echo "CC=$(brew --prefix llvm@14)/bin/clang" >> $GITHUB_ENV
+      if: matrix.os == 'macos-latest'
 
     - name: Create Build Environment
       # Some projects don't allow in-source building, so create a separate build directory
@@ -72,7 +88,7 @@ jobs:
       # Note the current convention is to use the -S and -B options here to specify source 
       # and build directories, but this is only available with CMake 3.13 and higher.  
       # The CMake binaries on the Github Actions machines are (as of this writing) 3.12
-      run: cmake $GITHUB_WORKSPACE -DCMAKE_BUILD_TYPE=${{ matrix.build_type }}
+      run: cmake $GITHUB_WORKSPACE -DLIBCXX_ENABLE_INCOMPLETE_FEATURES=ON -DCMAKE_BUILD_TYPE=${{ matrix.build_type }}
 
     - name: Build
       working-directory: ${{github.workspace}}/build

@@ -1,9 +1,14 @@
 #include <iostream>
 #include <sstream>
+#include <string>
+
+#include <fmt/format.h>
 
 #include <concurrentqueue/concurrentqueue.h>
 
 #include "vklive/vulkan/vulkan_context.h"
+#include "vklive/vulkan/vulkan_scene.h"
+#include "vklive/vulkan/vulkan_pass.h"
 
 #include "vklive/scene.h"
 #include "vklive/string/string_utils.h"
@@ -92,7 +97,6 @@ VKAPI_ATTR VkBool32 VKAPI_CALL debugMessageFunc(VkDebugUtilsMessageSeverityFlagB
         string_replace_in_place(text, ":", "\n");
         string_replace_in_place(text, "|", "\n");
         validation_error(text);
-
     }
 
     LOG(INFO, message.str().c_str());
@@ -330,6 +334,11 @@ void debug_set_surface_name(VkDevice device, VkSurfaceKHR surface, const std::st
     debug_set_object_name(device, (uint64_t)surface, VK_DEBUG_REPORT_OBJECT_TYPE_SURFACE_KHR_EXT, name);
 }
 
+std::string debug_get_pass_name(VulkanPass& vulkanPass, const std::string& postfix)
+{
+    return fmt::format("Pass::{}::{}", vulkanPass.pass.name, postfix);
+}
+
 bool debug_init(VulkanContext& ctx)
 {
     try
@@ -388,4 +397,5 @@ void debug_destroy(VulkanContext& ctx)
         ctx.instance.destroyDebugUtilsMessengerEXT(debugUtilsMessenger);
     }
 }
+
 } // namespace vulkan

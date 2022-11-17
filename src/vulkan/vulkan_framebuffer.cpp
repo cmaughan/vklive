@@ -1,34 +1,37 @@
 #include "vklive/vulkan/vulkan_framebuffer.h"
+#include "vklive/vulkan/vulkan_pass.h"
 #include "vklive/vulkan/vulkan_utils.h"
 
 namespace vulkan
 {
-void framebuffer_destroy(VulkanContext& ctx, VulkanFrameBuffer& frame)
+void framebuffer_destroy(VulkanContext& ctx, vk::Framebuffer& frameBuffer)
 {
-    if (frame.framebuffer)
-    {
-        ctx.device.destroyFramebuffer(frame.framebuffer);
-        frame.framebuffer = nullptr;
-    }
+    ctx.device.destroyFramebuffer(frameBuffer);
 }
 
-void framebuffer_create(VulkanContext& ctx, VulkanFrameBuffer& frame, const std::vector<VulkanSurface*>& colorBuffers, VulkanSurface* pDepth, const vk::RenderPass& renderPass)
+void vulkan_framebuffer_create(VulkanContext& ctx, vk::Framebuffer& frameBuffer, const VulkanPassTargets& passTargets, const vk::RenderPass& renderPass)
 {
-    framebuffer_destroy(ctx, frame);
+    framebuffer_destroy(ctx, frameBuffer);
 
-    auto attachments = std::vector<vk::ImageView>{ colorBuffers[0]->view };
-    if (pDepth)
+    std::vector<vk::ImageView> attachments;
+    for (auto& [name, pSurface] : passTargets.targets)
     {
-        attachments.push_back(pDepth->view);
+        attachments.emplace_back(pSurface->view);
     }
 
+    if (passTargets.depth)
+    {
+        attachments.push_back(passTargets.depth->view);
+    }
+
+    assert(!attachments.empty() && passTargets.targetSize.x != 0 && passTargets.targetSize.y != 0);
     vk::FramebufferCreateInfo fbufCreateInfo;
     fbufCreateInfo.renderPass = renderPass;
     fbufCreateInfo.attachmentCount = (uint32_t)attachments.size();
     fbufCreateInfo.pAttachments = attachments.data();
-    fbufCreateInfo.width = colorBuffers[0]->extent.width;
-    fbufCreateInfo.height = colorBuffers[0]->extent.height;
+    fbufCreateInfo.width = passTargets.targetSize.x;
+    fbufCreateInfo.height = passTargets.targetSize.y;
     fbufCreateInfo.layers = 1;
-    frame.framebuffer = ctx.device.createFramebuffer(fbufCreateInfo);
+    frameBuffer = ctx.device.createFramebuffer(fbufCreateInfo);
 }
 } // namespace vulkan

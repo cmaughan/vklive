@@ -1,11 +1,4 @@
-/*
- * Vulkan Model loader using ASSIMP
- *
- * Copyright(C) 2016-2017 by Sascha Willems - www.saschawillems.de
- *
- * This code is licensed under the MIT license(MIT) (http://opensource.org/licenses/MIT)
- */
-
+// Loads model; no device specific stuff, just reads it
 #include <vklive/model.h>
 #include <vklive/file/file.h>
 #include <vklive/string/string_utils.h>
@@ -93,6 +86,11 @@ void model_load(Model& model, const std::string& filename, const VertexLayout& l
         }
         model.indexCount += part.indexCount;
     }
+}
+
+void model_load(Model& model, const std::string& filename, const VertexLayout& layout, float scale, const int flags)
+{
+    model_load(model, filename, layout, ModelCreateInfo{ glm::vec3(0.0f), glm::vec3(scale), glm::vec2(1.0f) }, flags);
 }
 
 void model_append_vertex(Model& model, std::vector<uint8_t>& outputBuffer, const aiScene* pScene, uint32_t meshIndex, uint32_t vertexIndex)
@@ -223,17 +221,3 @@ uint32_t layout_offset(const VertexLayout& layout, uint32_t index)
     return res;
 }
 
-/**
- * Loads a 3D model from a file into Vulkan buffers
- *
- * @param device Pointer to the Vulkan device used to generated the vertex and index buffers on
- * @param filename File to load (must be a model format supported by ASSIMP)
- * @param layout Vertex layout components (position, normals, tangents, etc.)
- * @param scale Load time scene scale
- * @param copyQueue Queue used for the memory staging copy commands (must support transfer)
- * @param (Optional) flags ASSIMP model loading flags
- */
-void model_load(Model& model, const std::string& filename, const VertexLayout& layout, float scale, const int flags)
-{
-    model_load(model, filename, layout, ModelCreateInfo{ glm::vec3(0.0f), glm::vec3(scale), glm::vec2(1.0f) }, flags);
-}

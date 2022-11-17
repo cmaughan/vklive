@@ -66,12 +66,16 @@ VulkanDevice::~VulkanDevice()
 
 void VulkanDevice::InitScene(Scene& scene)
 {
-    vulkan::vulkan_scene_init(ctx, scene);
+    vulkan::vulkan_scene_create(ctx, scene);
 }
 
 void VulkanDevice::DestroyScene(Scene& scene)
 {
-    vulkan::vulkan_scene_destroy(ctx, scene);
+    auto pVulkanScene = vulkan::vulkan_scene_get(ctx, scene);
+    if (pVulkanScene)
+    {
+        vulkan::vulkan_scene_destroy(ctx, *pVulkanScene);
+    }
 }
 
 void VulkanDevice::ImGui_Render(ImDrawData* pDrawData)

@@ -32,6 +32,8 @@ struct VulkanContext : DeviceContext
     uint32_t graphicsQueue = (uint32_t)-1;
     uint32_t presentQueue = (uint32_t)-1;
 
+    glm::uvec2 frameBufferSize;
+
     vk::PipelineCache pipelineCache;
     vk::DescriptorPool descriptorPool;
 
