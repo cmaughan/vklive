@@ -32,7 +32,8 @@ namespace vulkan
 
 DescriptorCache& vulkan_descriptor_cache(VulkanContext& ctx, VulkanScene& vulkanScene)
 {
-    return vulkanScene.descriptorCache[ctx.mainWindowData.frameIndex];
+    // Keep enough descriptor pools to ensure we aren't re-using ones in flight
+    return vulkanScene.descriptorCache[globalFrameCount % (ctx.mainWindowData.imageCount + 1)];
 }
 
 // Find the vulkan scene from the scene
@@ -191,6 +192,8 @@ void vulkan_scene_render(VulkanContext& ctx, VulkanScene& vulkanScene)
         {
             vulkan_model_stage(ctx, *pVulkanGeom);
         }
+
+        descriptor_reset_pools(ctx, vulkan_descriptor_cache(ctx, vulkanScene)); 
 
         for (auto& [name, pVulkanPass] : vulkanScene.passes)
         {

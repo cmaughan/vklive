@@ -128,6 +128,7 @@ struct AudioAnalysis
     
     // Bundles pending processing
     moodycamel::ConcurrentQueue<std::shared_ptr<AudioBundle>> processBundles;
+
 };
 
 struct AudioContext
@@ -149,6 +150,9 @@ struct AudioContext
     // so use system mutex, we don't need to spin
     std::vector<std::shared_ptr<AudioAnalysis>> analysisChannels;
     AudioAnalysisSettings audioAnalysisSettings;
+
+    std::atomic<uint64_t> analysisWriteGeneration = 0;
+    std::atomic<uint64_t> analysisReadGeneration = 0;
 
     uint64_t m_sampleTime = 0;
     std::thread::id threadId;

@@ -43,6 +43,7 @@ inline AudioAnalysisSettings audioanalysis_load_settings(const toml::table& sett
         analysisSettings.removeFFTJitter = settings["dejitter_fft"].value_or(analysisSettings.removeFFTJitter);
         analysisSettings.spectrumFrequencies = toml_read_vec4(settings["spectrum_frequencies"], analysisSettings.spectrumFrequencies);
         analysisSettings.spectrumGains = toml_read_vec4(settings["spectrum_gains"], analysisSettings.spectrumGains);
+        analysisSettings.audioDecibelRange = settings["audio_decibels"].value_or(analysisSettings.audioDecibelRange);
     }
     catch (std::exception& ex)
     {
@@ -66,7 +67,8 @@ inline toml::table audioanalysis_save_settings(const AudioAnalysisSettings& sett
         { "dejitter_fft", settings.removeFFTJitter },
         { "log_partitions", settings.logPartitions },
         { "spectrum_frequencies", toml::array{ freq.x, freq.y, freq.z, freq.w } },
-        { "spectrum_gains", toml::array{ gain.x, gain.y, gain.z, gain.w } }
+        { "spectrum_gains", toml::array{ gain.x, gain.y, gain.z, gain.w } },
+        { "audio_decibels", settings.audioDecibelRange }
     };
 
     return tab;

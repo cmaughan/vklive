@@ -67,6 +67,7 @@ struct VulkanScene
     std::unordered_map<std::string, std::shared_ptr<VulkanPass>> passes;
 
     std::unordered_map<uint32_t, DescriptorCache> descriptorCache;
+    uint64_t audioSurfaceFrameGeneration = 0;
 };
 
 std::shared_ptr<VulkanScene> vulkan_scene_create(VulkanContext& ctx, Scene& scene);

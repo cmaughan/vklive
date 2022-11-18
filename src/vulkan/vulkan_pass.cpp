@@ -165,14 +165,14 @@ VulkanSurface* get_vulkan_surface(VulkanContext& ctx, VulkanPass& vulkanPass, co
         // TODO: Cleanup this approach.  Think about it some more
         if (pSurface->name == "AudioAnalysis")
         {
-            bool surfaceChanged = false;
-            surface_update_from_audio(ctx, *pVulkanSurface, surfaceChanged);
-            /*
-            * // TODO: Necessary?
-            if (surfaceChanged)
+            // Only update the audio surface once
+            if (vulkanScene.audioSurfaceFrameGeneration != globalFrameCount || (pVulkanSurface->allocationState == VulkanAllocationState::Init))
             {
+                vulkanScene.audioSurfaceFrameGeneration = globalFrameCount;
+
+                bool surfaceChanged = false;
+                surface_update_from_audio(ctx, *pVulkanSurface, surfaceChanged, vulkan_pass_frame_data(ctx, vulkanPass).commandBuffer);
             }
-            */
         }
         return pVulkanSurface;
     }
@@ -217,12 +217,6 @@ VulkanSurface* get_vulkan_surface(VulkanContext& ctx, VulkanPass& vulkanPass, co
                 // Need a cleaner way to build this custom descriptor set for the IMGUI end, since the scene
                 // render would only need this if the surface was sampled
                 surface_set_sampling(ctx, *pVulkanSurface);
-                /*
-                // May need to sample this target in a later pass.  Sampler stored with the surface
-                pVulkanSurface->sampler = ctx.device.createSampler(vk::SamplerCreateInfo({}, vk::Filter::eLinear, vk::Filter::eLinear, vk::SamplerMipmapMode::eLinear));
-
-                debug_set_sampler_name(ctx.device, pVulkanSurface->sampler, "Sampler:" + pVulkanSurface->debugName);
-                */
             }
         }
 
@@ -704,7 +698,7 @@ void vulkan_pass_build_descriptors(VulkanContext& ctx, VulkanPass& vulkanPass)
 
     if (passFrameData.builtDescriptors)
     {
-        return; 
+        return;
     }
 
     passFrameData.builtDescriptors = true;
@@ -816,7 +810,7 @@ void vulkan_pass_set_descriptors(VulkanContext& ctx, VulkanPass& vulkanPass)
             return;
         };
         debug_set_descriptorset_name(ctx.device, descriptorSet, fmt::format("{}:{}", passFrameData.debugName, "DescriptorSet"));
-            
+
         passFrameData.descriptorSets.push_back(descriptorSet);
 
         // Get bindings for this set
@@ -1008,8 +1002,6 @@ bool vulkan_pass_draw(VulkanContext& ctx, VulkanPass& vulkanPass)
     // Wait for the fence the last time we drew with this pass information
     vulkan_pass_wait(ctx, passFrameData);
 
-    descriptor_reset_pools(ctx, vulkan_descriptor_cache(ctx, vulkanPass.vulkanScene)); 
-
     // Get command buffers ready if necessary
     vulkan_pass_prepare_command_buffers(ctx, passFrameData);
 
@@ -1034,9 +1026,6 @@ bool vulkan_pass_draw(VulkanContext& ctx, VulkanPass& vulkanPass)
     // Graphics pipeline
     vulkan_pass_prepare_pipeline(ctx, passFrameData);
 
-    // Make sure that samplers can be read by the shaders they are bound to
-    vulkan_pass_transition_samplers(ctx, passFrameData);
-
     // Build the actual descriptors, new each time
     vulkan_pass_set_descriptors(ctx, vulkanPass);
 
@@ -1057,6 +1046,10 @@ bool vulkan_pass_draw(VulkanContext& ctx, VulkanPass& vulkanPass)
     LOG(DBG, "PassEnd: " << passFrameData.debugName << " Frame: " << ctx.mainWindowData.frameIndex << " Global Frame: " << globalFrameCount << "\n");
     LOG(DBG, "");
 
+    // Make sure that samplers can be read by the shaders they are bound to
+    vulkan_pass_transition_samplers(ctx, passFrameData);
+
+    // Submit the draw
     vulkan_pass_submit(ctx, vulkanPass);
 
     return true;

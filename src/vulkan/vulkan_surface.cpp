@@ -119,7 +119,7 @@ void vulkan_surface_create(VulkanContext& ctx, VulkanSurface& vulkanSurface, con
         vulkanSurface.view = ctx.device.createImageView(colorImageView);
         debug_set_imageview_name(ctx.device, vulkanSurface.view, vulkanSurface.debugName + ":ColorImageView");
     }
-    
+
     vulkanSurface.allocationState = VulkanAllocationState::Loaded;
 
     vulkanSurface.generation++;
@@ -159,7 +159,7 @@ void vulkan_surface_create_depth(VulkanContext& ctx, VulkanSurface& vulkanSurfac
     depthStencilView.image = vulkanSurface.image;
     vulkanSurface.view = ctx.device.createImageView(depthStencilView);
     debug_set_imageview_name(ctx.device, vulkanSurface.view, vulkanSurface.debugName + ":DepthImageView");
-    
+
     vulkanSurface.allocationState = VulkanAllocationState::Loaded;
 
     vulkanSurface.generation++;
@@ -211,123 +211,6 @@ void surface_set_sampling(VulkanContext& ctx, VulkanSurface& surface)
         ctx.device.updateDescriptorSets(write_desc, {});
     }
 }
-
-/*
-void surface_set_layout(VulkanContext& ctx, vk::CommandBuffer const& commandBuffer, vk::Image image, vk::Format format, vk::ImageLayout oldImageLayout, vk::ImageLayout newImageLayout)
-{
-    vk::AccessFlags sourceAccessMask;
-    switch (oldImageLayout)
-    {
-    case vk::ImageLayout::eTransferDstOptimal:
-        sourceAccessMask = vk::AccessFlagBits::eTransferWrite;
-        break;
-    case vk::ImageLayout::ePreinitialized:
-        sourceAccessMask = vk::AccessFlagBits::eHostWrite;
-        break;
-    case vk::ImageLayout::eGeneral: // sourceAccessMask is empty
-    case vk::ImageLayout::eUndefined:
-        break;
-    default:
-        assert(false);
-        break;
-    }
-
-    vk::PipelineStageFlags sourceStage;
-    switch (oldImageLayout)
-    {
-    case vk::ImageLayout::eGeneral:
-    case vk::ImageLayout::ePreinitialized:
-        sourceStage = vk::PipelineStageFlagBits::eHost;
-        break;
-    case vk::ImageLayout::eTransferDstOptimal:
-        sourceStage = vk::PipelineStageFlagBits::eTransfer;
-        break;
-    case vk::ImageLayout::eUndefined:
-        sourceStage = vk::PipelineStageFlagBits::eTopOfPipe;
-        break;
-    default:
-        assert(false);
-        break;
-    }
-
-    vk::AccessFlags destinationAccessMask;
-    switch (newImageLayout)
-    {
-    case vk::ImageLayout::eColorAttachmentOptimal:
-        destinationAccessMask = vk::AccessFlagBits::eColorAttachmentWrite;
-        break;
-    case vk::ImageLayout::eDepthStencilAttachmentOptimal:
-        destinationAccessMask = vk::AccessFlagBits::eDepthStencilAttachmentRead | vk::AccessFlagBits::eDepthStencilAttachmentWrite;
-        break;
-    case vk::ImageLayout::eGeneral: // empty destinationAccessMask
-    case vk::ImageLayout::ePresentSrcKHR:
-        break;
-    case vk::ImageLayout::eShaderReadOnlyOptimal:
-        destinationAccessMask = vk::AccessFlagBits::eShaderRead;
-        break;
-    case vk::ImageLayout::eTransferSrcOptimal:
-        destinationAccessMask = vk::AccessFlagBits::eTransferRead;
-        break;
-    case vk::ImageLayout::eTransferDstOptimal:
-        destinationAccessMask = vk::AccessFlagBits::eTransferWrite;
-        break;
-    default:
-        assert(false);
-        break;
-    }
-
-    vk::PipelineStageFlags destinationStage;
-    switch (newImageLayout)
-    {
-    case vk::ImageLayout::eColorAttachmentOptimal:
-        destinationStage = vk::PipelineStageFlagBits::eColorAttachmentOutput;
-        break;
-    case vk::ImageLayout::eDepthStencilAttachmentOptimal:
-        destinationStage = vk::PipelineStageFlagBits::eEarlyFragmentTests;
-        break;
-    case vk::ImageLayout::eGeneral:
-        destinationStage = vk::PipelineStageFlagBits::eHost;
-        break;
-    case vk::ImageLayout::ePresentSrcKHR:
-        destinationStage = vk::PipelineStageFlagBits::eBottomOfPipe;
-        break;
-    case vk::ImageLayout::eShaderReadOnlyOptimal:
-        destinationStage = vk::PipelineStageFlagBits::eFragmentShader;
-        break;
-    case vk::ImageLayout::eTransferDstOptimal:
-    case vk::ImageLayout::eTransferSrcOptimal:
-        destinationStage = vk::PipelineStageFlagBits::eTransfer;
-        break;
-    default:
-        assert(false);
-        break;
-    }
-
-    vk::ImageAspectFlags aspectMask;
-    if (newImageLayout == vk::ImageLayout::eDepthStencilAttachmentOptimal)
-    {
-        aspectMask = vk::ImageAspectFlagBits::eDepth;
-        if (format == vk::Format::eD32SfloatS8Uint || format == vk::Format::eD24UnormS8Uint)
-        {
-            aspectMask |= vk::ImageAspectFlagBits::eStencil;
-        }
-    }
-    else
-    {
-        aspectMask = vk::ImageAspectFlagBits::eColor;
-    }
-
-    vk::ImageSubresourceRange imageSubresourceRange(aspectMask, 0, 1, 0, 1);
-    vk::ImageMemoryBarrier imageMemoryBarrier(sourceAccessMask,
-        destinationAccessMask,
-        oldImageLayout,
-        newImageLayout,
-        VK_QUEUE_FAMILY_IGNORED,
-        VK_QUEUE_FAMILY_IGNORED,
-        image,
-        imageSubresourceRange);
-    return commandBuffer.pipelineBarrier(sourceStage, destinationStage, {}, nullptr, nullptr, imageMemoryBarrier);
-}*/
 
 // Create an image memory barrier for changing the layout of
 // an image and put it into an active command buffer
@@ -478,7 +361,6 @@ bool surface_create_from_file(VulkanContext& ctx, VulkanSurface& vulkanSurface, 
 
         // Will create the surface image
         surface_stage_to_device(ctx, vulkanSurface, imageCreateInfo, vk::MemoryPropertyFlagBits::eDeviceLocal, *pTex, imageLayout);
-
     }
     else
     {
@@ -519,12 +401,12 @@ bool surface_create_from_file(VulkanContext& ctx, VulkanSurface& vulkanSurface, 
         viewCreateInfo.subresourceRange = { vk::ImageAspectFlagBits::eColor, 0, vulkanSurface.mipLevels, 0, vulkanSurface.layerCount };
         vulkanSurface.view = ctx.device.createImageView(viewCreateInfo);
     }
-        
+
     vulkanSurface.allocationState = VulkanAllocationState::Loaded;
     return true;
 }
 
-void surface_update_from_audio(VulkanContext& ctx, VulkanSurface& surface, bool& surfaceChanged)
+void surface_update_from_audio(VulkanContext& ctx, VulkanSurface& surface, bool& surfaceChanged, vk::CommandBuffer& commandBuffer)
 {
     auto& audioContext = Audio::GetAudioContext();
 
@@ -551,9 +433,6 @@ void surface_update_from_audio(VulkanContext& ctx, VulkanSurface& surface, bool&
             imageCreateInfo.extent = surface.extent;
             imageCreateInfo.usage = imageUsageFlags | vk::ImageUsageFlagBits::eTransferDst;
 
-            // Need this?
-            //ctx.device.waitIdle();
-
             vulkan_surface_create(ctx, surface, imageCreateInfo, vk::MemoryPropertyFlagBits::eDeviceLocal);
 
             // Add the staging buffer for transfers
@@ -576,16 +455,20 @@ void surface_update_from_audio(VulkanContext& ctx, VulkanSurface& surface, bool&
             }
         }
     };
-        
-    if (audioContext.analysisChannels.empty())
+
+    if (audioContext.analysisChannels.empty() ||
+        audioContext.analysisReadGeneration.load() == audioContext.analysisWriteGeneration.load())
     {
-        // Ensure a blank surface
+        // Ensure a blank surface so the shader always gets something
         if (surface.extent.width == 0 || surface.extent.height == 0)
         {
-            updateSurface(surface.extent.width, surface.extent.height);
+            surface.extent.width = 256;
+            surface.extent.height = 1;
         }
-        return;
+        updateSurface(surface.extent.width, surface.extent.height);
     }
+
+    audioContext.analysisReadGeneration.store(audioContext.analysisWriteGeneration.load());
 
     static std::vector<float> uploadCache;
 
@@ -597,7 +480,7 @@ void surface_update_from_audio(VulkanContext& ctx, VulkanSurface& surface, bool&
     for (int channel = 0; channel < Channels; channel++)
     {
         auto& analysis = audioContext.analysisChannels[channel];
-        
+
         ConsumerMemLock memLock(analysis->analysisData);
         auto& processData = memLock.Data();
         auto currentBuffer = 1 - processData.currentBuffer;
@@ -612,7 +495,7 @@ void surface_update_from_audio(VulkanContext& ctx, VulkanSurface& surface, bool&
             uploadCache.resize(BufferHeight * spectrumBuckets.size());
 
             memcpy(&uploadCache[channel * spectrumBuckets.size()], &spectrumBuckets[0], spectrumBuckets.size() * sizeof(float));
-           
+
             // Copy audio, note that we always make the audio at least as big as the spectrum
             assert(audio.size() >= spectrumBuckets.size());
             memcpy(&uploadCache[(channel + Channels) * spectrumBuckets.size()], &audio[0], spectrumBuckets.size() * sizeof(float));
@@ -624,7 +507,7 @@ void surface_update_from_audio(VulkanContext& ctx, VulkanSurface& surface, bool&
             memset(&uploadCache[0], 0, uploadCache.size() * sizeof(float));
         }
     }
-   
+
     // Left/Right FFT and Audio (4 rows)
     updateSurface(bufferWidth, Channels * BufferTypes);
 
@@ -632,54 +515,21 @@ void surface_update_from_audio(VulkanContext& ctx, VulkanSurface& surface, bool&
 
     // TODO: This is a little inefficient; need to use the scene command buffer, or a copy queue and sync...
     // On the other hand, we aren't going for AAA game engine here.
-    utils_with_command_buffer(ctx, [&](const vk::CommandBuffer& copyCmd) {
-        debug_set_commandbuffer_name(ctx.device, copyCmd, "Buffer::StageAudioToDevice");
-        vk::ImageSubresourceRange range(vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1);
+    vk::ImageSubresourceRange range(vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1);
 
-        // Prepare for transfer
-        surface_set_layout(ctx, copyCmd, surface.image, vk::ImageLayout::eUndefined, vk::ImageLayout::eTransferDstOptimal, range);
+    // Prepare for transfer
+    surface_set_layout(ctx, commandBuffer, surface.image, vk::ImageLayout::eUndefined, vk::ImageLayout::eTransferDstOptimal, range);
 
-        // Prepare for transfer
-        std::vector<vk::BufferImageCopy> bufferCopyRegions;
-        {
-            vk::BufferImageCopy bufferCopyRegion;
-            bufferCopyRegion.imageSubresource.aspectMask = vk::ImageAspectFlagBits::eColor;
-            bufferCopyRegion.imageSubresource.layerCount = 1;
-            bufferCopyRegion.imageExtent = surface.extent;
-            bufferCopyRegions.push_back(bufferCopyRegion);
-        }
-        copyCmd.copyBufferToImage(surface.stagingBuffer.buffer, surface.image, vk::ImageLayout::eTransferDstOptimal, bufferCopyRegions);
-        
-        // Prepare for shader read
-        surface_set_layout(ctx, copyCmd, surface.image, vk::ImageLayout::eTransferDstOptimal, vk::ImageLayout::eShaderReadOnlyOptimal, range);
-    });
+    // Prepare for transfer
+    std::vector<vk::BufferImageCopy> bufferCopyRegions;
+    {
+        vk::BufferImageCopy bufferCopyRegion;
+        bufferCopyRegion.imageSubresource.aspectMask = vk::ImageAspectFlagBits::eColor;
+        bufferCopyRegion.imageSubresource.layerCount = 1;
+        bufferCopyRegion.imageExtent = surface.extent;
+        bufferCopyRegions.push_back(bufferCopyRegion);
+    }
+    commandBuffer.copyBufferToImage(surface.stagingBuffer.buffer, surface.image, vk::ImageLayout::eTransferDstOptimal, bufferCopyRegions);
 }
 
-/*
-inline void copy(size_t size, const void* data, VkDeviceSize offset = 0) const
-{
-    memcpy(static_cast<uint8_t*>(mapped) + offset, data, size);
-}
-template <typename T>
-inline void copy(const T& data, VkDeviceSize offset = 0) const
-{
-    copy(sizeof(T), &data, offset);
-}
-template <typename T>
-inline void copy(const std::vector<T>& data, VkDeviceSize offset = 0) const
-{
-    copy(sizeof(T) * data.size(), data.data(), offset);
-}
-
-// Flush a memory range of the buffer to make it visible to the device
-void flush(vk::DeviceSize size = VK_WHOLE_SIZE, vk::DeviceSize offset = 0)
-{
-    return device.flushMappedMemoryRanges(vk::MappedMemoryRange{ memory, offset, size });
-}
-
-void invalidate(vk::DeviceSize size = VK_WHOLE_SIZE, vk::DeviceSize offset = 0)
-{
-    return device.invalidateMappedMemoryRanges(vk::MappedMemoryRange{ memory, offset, size });
-}
-*/
 } // namespace vulkan

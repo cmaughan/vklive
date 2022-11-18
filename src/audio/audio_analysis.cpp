@@ -232,6 +232,8 @@ void audio_analysis_update(AudioAnalysis& analysis, AudioBundle& bundle)
 
         audio_analysis_calculate_spectrum(analysis, analysisData);
     }
+   
+    ctx.analysisWriteGeneration++;
 }
 
 void audio_analysis_calculate_audio(AudioAnalysis& analysis, AudioAnalysisData& analysisData)
