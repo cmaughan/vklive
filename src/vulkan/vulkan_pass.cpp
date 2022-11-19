@@ -225,6 +225,11 @@ VulkanSurface* get_vulkan_surface(VulkanContext& ctx, VulkanPass& vulkanPass, co
     return pVulkanSurface;
 }
 
+VulkanSurface* get_vulkan_surface(VulkanContext& ctx, VulkanPass& vulkanPass, PassSampler& passSampler)
+{
+    return get_vulkan_surface(ctx, vulkanPass, passSampler.sampler, passSampler.sampleAlternate);
+}
+
 // Ensure that allocated targets match
 bool vulkan_pass_check_targets(VulkanContext& ctx, VulkanPassTargets& passTargets)
 {
@@ -377,9 +382,9 @@ void vulkan_pass_check_samplers(VulkanContext& ctx, VulkanPassTargets& passTarge
         return changed;
     };
 
-    for (auto& name : frameData.pVulkanPass->pass.samplers)
+    for (auto& passSampler : frameData.pVulkanPass->pass.samplers)
     {
-        auto pSurface = get_vulkan_surface(ctx, *frameData.pVulkanPass, name, true);
+        auto pSurface = get_vulkan_surface(ctx, *frameData.pVulkanPass, passSampler);
         if (checkForChanges(pSurface))
         {
             LOG(DBG, "Sampler has changed, removing geometry pipe");
@@ -545,12 +550,13 @@ void vulkan_pass_dump_samplers(VulkanContext& ctx, VulkanPass& vulkanPass)
         return;
     }
     LOG(DBG, "Samplers:");
-    for (auto& name : vulkanPass.pass.samplers)
+    for (auto& passSampler : vulkanPass.pass.samplers)
     {
-        auto pVulkanSurface = get_vulkan_surface(ctx, vulkanPass, name);
+        auto pVulkanSurface = get_vulkan_surface(ctx, vulkanPass, passSampler);
         if (pVulkanSurface)
         {
             LOG(DBG, "  Name: " << pVulkanSurface->debugName);
+            LOG(DBG, "    Sample Alternate: " << passSampler.sampleAlternate);
             LOG(DBG, "    Loaded: " << (pVulkanSurface->allocationState == VulkanAllocationState::Loaded));
             LOG(DBG, "    Image: " << pVulkanSurface->image);
             LOG(DBG, "    Extent: " << pVulkanSurface->extent.width << ", " << pVulkanSurface->extent.height << ", " << pVulkanSurface->extent.depth);
@@ -559,7 +565,7 @@ void vulkan_pass_dump_samplers(VulkanContext& ctx, VulkanPass& vulkanPass)
         }
         else
         {
-            LOG(DBG, "NOT Found: " << name);
+            LOG(DBG, "NOT Found: " << passSampler.sampler);
         }
     }
 }
@@ -603,12 +609,12 @@ void vulkan_pass_prepare_surfaces(VulkanContext& ctx, VulkanPassSwapFrameData& p
     auto& vulkanPassTargets = passFrameData.passTargets[globalFrameCount % 2];
 
     // Walk the surfaces
-    for (auto& samplerName : pass.samplers)
+    for (auto& passSampler : pass.samplers)
     {
-        auto pVulkanSurface = get_vulkan_surface(ctx, *passFrameData.pVulkanPass, samplerName, true);
+        auto pVulkanSurface = get_vulkan_surface(ctx, *passFrameData.pVulkanPass, passSampler);
         if (!pVulkanSurface)
         {
-            scene_report_error(pass.scene, MessageSeverity::Error, fmt::format("Surface not found: ", samplerName), pass.scene.sceneGraphPath);
+            scene_report_error(pass.scene, MessageSeverity::Error, fmt::format("Surface not found: ", passSampler.sampler), pass.scene.sceneGraphPath);
         }
 
         vulkan_pass_check_samplers(ctx, vulkanPassTargets, passFrameData);
@@ -764,17 +770,17 @@ void vulkan_pass_set_descriptors(VulkanContext& ctx, VulkanPass& vulkanPass)
 
     // Build pointers to image infos for later
     std::map<std::string, vk::DescriptorImageInfo> imageInfos;
-    for (auto& sampler : vulkanPass.pass.samplers)
+    for (auto& passSampler : vulkanPass.pass.samplers)
     {
         // TODO: Correct sampler; SurfaceKey needs to account for target ping/pong
-        auto pVulkanSurface = get_vulkan_surface(ctx, vulkanPass, sampler, true);
+        auto pVulkanSurface = get_vulkan_surface(ctx, vulkanPass, passSampler);
         if (pVulkanSurface && pVulkanSurface->image && pVulkanSurface->view && pVulkanSurface->sampler)
         {
             vk::DescriptorImageInfo desc_image;
             desc_image.sampler = pVulkanSurface->sampler;
             desc_image.imageView = pVulkanSurface->view;
             desc_image.imageLayout = vk::ImageLayout::eShaderReadOnlyOptimal;
-            imageInfos[sampler] = desc_image;
+            imageInfos[passSampler.sampler] = desc_image;
         }
     }
 
@@ -910,9 +916,9 @@ void vulkan_pass_transition_samplers(VulkanContext& ctx, VulkanPassSwapFrameData
 {
     auto& vulkanPass = *passFrameData.pVulkanPass;
 
-    for (auto& samplerName : passFrameData.pVulkanPass->pass.samplers)
+    for (auto& passSampler : passFrameData.pVulkanPass->pass.samplers)
     {
-        auto pVulkanSurface = get_vulkan_surface(ctx, vulkanPass, samplerName, true);
+        auto pVulkanSurface = get_vulkan_surface(ctx, vulkanPass, passSampler);
         if (pVulkanSurface && pVulkanSurface->image)
         {
             surface_set_layout(ctx, passFrameData.commandBuffer, pVulkanSurface->image, vk::ImageLayout::eUndefined, vk::ImageLayout::eShaderReadOnlyOptimal);
@@ -990,6 +996,7 @@ bool vulkan_pass_draw(VulkanContext& ctx, VulkanPass& vulkanPass)
     // Data for rendering the pass at the current swap frame
     auto& passFrameData = vulkan_pass_frame_data(ctx, vulkanPass);
     auto& passTargets = vulkan_pass_targets(passFrameData);
+    auto& scene = vulkanPass.pass.scene;
 
     passFrameData.frameIndex = ctx.mainWindowData.frameIndex;
     passFrameData.pVulkanPass = &vulkanPass;
@@ -1029,12 +1036,8 @@ bool vulkan_pass_draw(VulkanContext& ctx, VulkanPass& vulkanPass)
     // Build the actual descriptors, new each time
     vulkan_pass_set_descriptors(ctx, vulkanPass);
 
-    // Not validating against these shaders
-    validation_set_shaders({});
-
     // Validation layer may set an error, meaning this scene is not valid!
     // audio_destroy it, and reset the error trigger
-    auto& scene = vulkanPass.pass.scene;
     if (validation_get_error_state() || !scene.valid)
     {
         LOG(DBG, "!PASS INVALID!");
@@ -1051,6 +1054,17 @@ bool vulkan_pass_draw(VulkanContext& ctx, VulkanPass& vulkanPass)
 
     // Submit the draw
     vulkan_pass_submit(ctx, vulkanPass);
+
+    // Not validating against these shaders
+    validation_set_shaders({});
+
+    if (validation_get_error_state() || !scene.valid)
+    {
+        LOG(DBG, "!PASS INVALID AFTER DRAW!");
+        vulkan_scene_destroy(ctx, vulkanPass.vulkanScene);
+        validation_clear_error_state();
+        return false;
+    }
 
     return true;
 }

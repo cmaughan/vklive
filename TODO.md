@@ -2,9 +2,7 @@ TODO
 ----
 
 ## General
-- Rework scene a bit to dynamically build everything each frame (and then cache afterwards if necessary)
-    - Ping-Pong option (10)
-    - Create UBO for each frame
+- Cleanup the binding code, separate it out a bit more.  Bindings are typically built dynamically.
 
 - Supply model textures in a descriptor
 
@@ -13,7 +11,7 @@ TODO
 - Option to one-off clear a surface, and with restart menu
     - Restart menu option should do default clear once
 
-- Fix Fixed Parameters:
+- Fix Parameters:
     iMouse (x,y screen)
     iDate (year, month, day, seconds since EPOCH)
     fragOffset (audio)
@@ -24,6 +22,8 @@ TODO
     - Make a function which walks through the components of a working project/scene and rebuilds what is necessary
     - This function will also update visible edited shaders and make new ones when the user compiles the scenegraph file, using default templates
     - Handle loading from an empty folder using this approach
+
+- Load/Save a project from a zip file?
 
 - Support Volume and Cubemap textures
 
@@ -47,6 +47,7 @@ Bugs
 ----
 ## General
 - On a release build, after compiling shaders, very occasional crash
+- Left over objects on shut down 
 
 ## Zep
 - Flicker when too small

@@ -135,7 +135,7 @@ void scene_init_parser()
 path_name        : /[a-zA-Z_][a-zA-Z0-9_\/.]*/ ;
 path             : "path" ":" <path_name> ;
 comment          : /\/\/[^\n\r]*/ ;
-ident            : /[a-zA-Z_][a-zA-Z0-9_]*/ ;
+ident            : /[!]?[a-zA-Z_][a-zA-Z0-9_]*/ ;
 float            : /[+-]?\d+(\.\d+)?([eE][+-]?[0-9]+)?/ ;
 vector           : ('(' <float> (','? <float>)? (','? <float>)? (','? <float>)? ')') | <float> ;
 ident_array      : ('(' <ident> (','? <ident>)? (','? <ident>)? (','? <ident>)? (','? <ident>)? ')') | <ident> ;
@@ -250,6 +250,56 @@ std::vector<fs::path> scene_get_headers(const std::vector<fs::path>& files)
     return headers;
 }
 
+void AddMessage(Scene& scene, const std::string& message, MessageSeverity severity = MessageSeverity::Error, uint32_t lineIndex = 0, int32_t column = -1)
+{
+    Message msg;
+    msg.severity = severity;
+    msg.path = scene.sceneGraphPath;
+    msg.line = lineIndex;
+    if (column != -1)
+    {
+        msg.range = std::make_pair(column, column + 1);
+    }
+    msg.text = message;
+
+    switch (severity)
+    {
+    case MessageSeverity::Warning:
+    case MessageSeverity::Message:
+        scene.warnings.push_back(msg);
+        break;
+    default:
+    case MessageSeverity::Error:
+        scene.errors.push_back(msg);
+        scene.valid = false;
+        break;
+    }
+    
+    LOG(DBG, message);
+}
+
+// Ensure that samplers have been set up correctly
+void validate_samplers(Scene& scene)
+{
+    for (auto& [name, pass] : scene.passes)
+    {
+        for (auto& passSampler : pass->samplers)
+        {
+            for (auto& passTarget : pass->targets)
+            {
+                if (passSampler.sampler == passTarget)
+                {
+                    if (!passSampler.sampleAlternate)
+                    {
+                        AddMessage(scene, fmt::format("To sample and write to the same target, use '!' to label the sampler: {}", passSampler.sampler), MessageSeverity::Warning, pass->scriptSamplersLine);
+                    }
+                    passSampler.sampleAlternate = true;
+                }
+            }
+        }
+    }
+}
+
 std::shared_ptr<Scene> scene_build(const fs::path& root)
 {
     LOG(DBG, "scene_build: " << root.string());
@@ -261,28 +311,13 @@ std::shared_ptr<Scene> scene_build(const fs::path& root)
     spScene->sceneGraphPath = scene_get_scenegraph(root, files);
     spScene->headers = scene_get_headers(files);
     spScene->valid = true;
-    
-    auto addError = [&](auto message, uint32_t lineIndex = 0, int32_t column = -1) {
-        Message msg;
-        msg.severity = MessageSeverity::Error;
-        msg.path = spScene->sceneGraphPath;
-        msg.line = lineIndex;
-        if (column != -1)
-        {
-            msg.range = std::make_pair(column, column + 1);
-        }
-        msg.text = message;
-        spScene->errors.push_back(msg);
-        spScene->valid = false;
-        LOG(DBG, message);
-    };
 
     scene_init_parser();
 
     // Add the error to this scene's file
     if (parser.pError != NULL)
     {
-        addError(sanitize_mpc_error(parser.pError), parser.pError->state.row, parser.pError->state.col);
+        AddMessage(*spScene, sanitize_mpc_error(parser.pError), MessageSeverity::Error, parser.pError->state.row, parser.pError->state.col);
         return spScene;
     }
 
@@ -290,7 +325,7 @@ std::shared_ptr<Scene> scene_build(const fs::path& root)
     auto spDefaultColor = std::make_shared<Surface>("default_color");
     spDefaultColor->format = Format::Default;
     spDefaultColor->isTarget = true;
-    
+
     auto spDefaultDepth = std::make_shared<Surface>("default_depth");
     spDefaultDepth->format = Format::Default_Depth;
     spDefaultDepth->isTarget = true;
@@ -306,7 +341,7 @@ std::shared_ptr<Scene> scene_build(const fs::path& root)
         if (mpc_parse_contents(spScene->sceneGraphPath.string().c_str(), parser.pSceneGraph, &r))
         {
             auto ast_current = (mpc_ast_t*)r.output;
-            //mpc_ast_print((mpc_ast_t*)r.output);
+            // mpc_ast_print((mpc_ast_t*)r.output);
 
             auto childrenOf = [&](mpc_ast_t* entry, const std::string& val) {
                 std::vector<mpc_ast_t*> children;
@@ -349,7 +384,7 @@ std::shared_ptr<Scene> scene_build(const fs::path& root)
                     tags << val << " ";
                 }
 
-                addError(std::string("Not found: " + val), entry->state.row);
+                AddMessage(*spScene, std::string("Not found: " + val), MessageSeverity::Error, entry->state.row);
                 throw std::domain_error(fmt::format("tag not found {}", tags.str()).c_str());
             };
 
@@ -359,7 +394,7 @@ std::shared_ptr<Scene> scene_build(const fs::path& root)
 
                 if (vals.size() < min || vals.size() > max)
                 {
-                    addError(fmt::format("Wrong size vector: {}", entry->tag), entry->state.row);
+                    AddMessage(*spScene, fmt::format("Wrong size vector: {}", entry->tag),MessageSeverity::Error, entry->state.row);
                 }
 
                 for (int i = 0; i < std::max(ret.length(), std::min(1, int(vals.size()))); i++)
@@ -375,7 +410,7 @@ std::shared_ptr<Scene> scene_build(const fs::path& root)
 
                 if (vals.size() < min || vals.size() > max)
                 {
-                    addError(fmt::format("Wrong size vector: {}", entry->tag), entry->state.row);
+                    AddMessage(*spScene, fmt::format("Wrong size vector: {}", entry->tag), MessageSeverity::Error, entry->state.row);
                 }
 
                 std::vector<std::string> ret;
@@ -391,7 +426,7 @@ std::shared_ptr<Scene> scene_build(const fs::path& root)
                 return pPathNameNode->contents;
             };
 
-            //LOG(DBG, "Tag: " << ast_current->tag << " Contents: " << ast_current->contents);
+            // LOG(DBG, "Tag: " << ast_current->tag << " Contents: " << ast_current->contents);
 
             auto surfaces = childrenOf(ast_current, T_SURFACE);
             for (auto& pSurfaceNode : surfaces)
@@ -420,7 +455,7 @@ std::shared_ptr<Scene> scene_build(const fs::path& root)
                     auto itrFormat = Formats.find(strFormat);
                     if (itrFormat == Formats.end())
                     {
-                        addError(fmt::format("Format not found: {}", strFormat), pFormatNode->state.row, pFormatNode->state.col);
+                        AddMessage(*spScene, fmt::format("Format not found: {}", strFormat), MessageSeverity::Error, pFormatNode->state.row, pFormatNode->state.col);
                     }
                     else
                     {
@@ -447,7 +482,6 @@ std::shared_ptr<Scene> scene_build(const fs::path& root)
                     auto pGeomNameNode = getChild(pGeometryNode, T_IDENT);
                     auto pPathNameNode = getChild(getChild(pGeometryNode, T_PATH), T_PATH_NAME);
 
-
                     std::shared_ptr<Geometry> spGeom;
                     auto geomPath = fs::path(pPathNameNode->contents);
                     if (geomPath.filename() == "screen_rect")
@@ -459,7 +493,7 @@ std::shared_ptr<Scene> scene_build(const fs::path& root)
                         auto foundPath = scene_find_asset(*spScene, geomPath, AssetType::Model);
                         if (foundPath.empty() || !fs::exists(foundPath))
                         {
-                            addError(std::string("Geometry missing: " + geomPath.filename().string()), pGeometryNode->state.row);
+                            AddMessage(*spScene, std::string("Geometry missing: " + geomPath.filename().string()), MessageSeverity::Error, pGeometryNode->state.row);
                             continue;
                         }
                         spGeom = std::make_shared<Geometry>(foundPath);
@@ -475,7 +509,7 @@ std::shared_ptr<Scene> scene_build(const fs::path& root)
                             auto shaderPath = root / pPathNode->contents;
                             if (!fs::exists(shaderPath))
                             {
-                                addError(std::string("Shader missing: " + shaderPath.filename().string()), pPathNode->state.row, pPathNode->state.col);
+                                AddMessage(*spScene, std::string("Shader missing: " + shaderPath.filename().string()), MessageSeverity::Error, pPathNode->state.row, pPathNode->state.col);
                                 continue;
                             }
                             auto spShaderFrag = std::make_shared<Shader>(shaderPath);
@@ -486,7 +520,7 @@ std::shared_ptr<Scene> scene_build(const fs::path& root)
 
                     if (spPass->shaders.empty())
                     {
-                        addError(fmt::format("No shaders in geometry: {}", pGeomNameNode->contents), pGeomNameNode->state.row);
+                        AddMessage(*spScene, fmt::format("No shaders in geometry: {}", pGeomNameNode->contents), MessageSeverity::Error, pGeomNameNode->state.row);
                         continue;
                     }
 
@@ -524,7 +558,7 @@ std::shared_ptr<Scene> scene_build(const fs::path& root)
                         auto itrFound = spScene->surfaces.find(target);
                         if (itrFound == spScene->surfaces.end())
                         {
-                            addError(fmt::format("Surface not found in pass: {}", target), pTargetNode->state.row, pTargetNode->state.col);
+                            AddMessage(*spScene, fmt::format("Surface not found in pass: {}", target), MessageSeverity::Error, pTargetNode->state.row, pTargetNode->state.col);
                         }
                         else
                         {
@@ -537,17 +571,25 @@ std::shared_ptr<Scene> scene_build(const fs::path& root)
 
                 if (hasChild(pPassNode, T_SAMPLERS))
                 {
-                    auto pTargetNode = getChild(pPassNode, T_SAMPLERS);
-                    spPass->samplers = getVectorIdent(pTargetNode, 1, 5);
-                    for (auto& sampler : spPass->samplers)
+                    auto pSamplerNode = getChild(pPassNode, T_SAMPLERS);
+                    auto vecSamplers = getVectorIdent(pSamplerNode, 1, 5);
+                    for (auto& sampler : vecSamplers)
                     {
-                        auto itrFound = spScene->surfaces.find(sampler);
+                        PassSampler passSampler{ sampler, false };
+                        if (string_starts_with(passSampler.sampler, "!"))
+                        {
+                            passSampler.sampler = string_left_trim(passSampler.sampler, "!");
+                            passSampler.sampleAlternate = true;
+                        }
+                        spPass->samplers.push_back(passSampler);
+
+                        auto itrFound = spScene->surfaces.find(passSampler.sampler);
                         if (itrFound == spScene->surfaces.end())
                         {
-                            addError(fmt::format("Sampler not found in pass: {}", sampler), pTargetNode->state.row, pTargetNode->state.col);
+                            AddMessage(*spScene, fmt::format("Sampler not found in pass: {}", passSampler.sampler), MessageSeverity::Error, pSamplerNode->state.row, pSamplerNode->state.col);
                         }
                     }
-                    spPass->scriptSamplersLine = int(pTargetNode->state.row);
+                    spPass->scriptSamplersLine = int(pSamplerNode->state.row);
                 }
 
                 if (hasChild(pPassNode, T_CLEAR))
@@ -560,7 +602,7 @@ std::shared_ptr<Scene> scene_build(const fs::path& root)
                 // Complete the pass
                 if (spPass->models.empty())
                 {
-                    addError(fmt::format("No geometries in pass: {}", spPass->name), pPassNode->state.row);
+                    AddMessage(*spScene, fmt::format("No geometries in pass: {}", spPass->name), MessageSeverity::Error, pPassNode->state.row);
                 }
                 else
                 {
@@ -585,7 +627,7 @@ std::shared_ptr<Scene> scene_build(const fs::path& root)
                 // We might have found a bad pass and reported it, don't double report.
                 if (spScene->errors.empty())
                 {
-                    addError("No passes found in scene");
+                    AddMessage(*spScene, "No passes found in scene", MessageSeverity::Error);
                 }
                 // No error here, found earlier
                 spScene->valid = false;
@@ -593,7 +635,7 @@ std::shared_ptr<Scene> scene_build(const fs::path& root)
         }
         else
         {
-            addError(sanitize_mpc_error(r.error), r.error->state.row, r.error->state.col);
+            AddMessage(*spScene, sanitize_mpc_error(r.error), MessageSeverity::Error, r.error->state.row, r.error->state.col);
             mpc_err_delete(r.error);
         }
     }
@@ -604,8 +646,10 @@ std::shared_ptr<Scene> scene_build(const fs::path& root)
     }
     catch (std::exception& ex)
     {
-        addError(fmt::format("Exception processing scenegraph: {}", ex.what()));
+        AddMessage(*spScene, fmt::format("Exception processing scenegraph: {}", ex.what()), MessageSeverity::Error);
     }
+
+    validate_samplers(*spScene);
 
     return spScene;
 }
@@ -668,7 +712,7 @@ fs::path scene_find_asset(Scene& scene, const fs::path& path, AssetType type)
     }
 
     trialPaths.push_back(runtree_path() / path);
-    
+
     if (itr != subTypePaths.end())
     {
         trialPaths.push_back(runtree_path() / itr->second / path);
@@ -685,4 +729,3 @@ fs::path scene_find_asset(Scene& scene, const fs::path& path, AssetType type)
     }
     return fs::path();
 }
-

@@ -29,8 +29,11 @@ struct AppConfig
     // 0 = normal, 1 = maximized, 2 = minimized
     WindowState main_window_state = WindowState::Normal;
 
+    fs::path last_folder_path;
+
     Audio::AudioAnalysisSettings audioAnalysisSettings;
     Audio::AudioDeviceSettings audioDeviceSettings;
+
 };
 
 extern AppConfig appConfig;

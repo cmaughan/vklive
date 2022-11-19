@@ -28,6 +28,7 @@ void config_load(const fs::path& path)
         appConfig.main_window_size = toml_read_vec2<glm::vec2>(tbl["settings"]["main_window_size"]);
         appConfig.main_window_pos = toml_read_vec2<glm::vec2>(tbl["settings"]["main_window_pos"]);
         appConfig.main_window_state = WindowState(tbl["settings"]["main_window_state"].value_or(int(WindowState::Normal)));
+        appConfig.last_folder_path = fs::path(tbl["settings"]["last_folder_path"].value_or(""));
         
         appConfig.draw_on_background = tbl["settings"]["draw_on_background"].value_or(false);
         appConfig.transparent_editor = tbl["settings"]["transparent_editor"].value_or(false);
@@ -62,6 +63,8 @@ void config_save(const fs::path& path)
 
     settings.insert_or_assign("draw_on_background", appConfig.draw_on_background);
     settings.insert_or_assign("transparent_editor", appConfig.transparent_editor);
+
+    settings.insert_or_assign("last_folder_path", appConfig.last_folder_path.string());
 
     toml::table analysis_settings = Audio::audioanalysis_save_settings(Audio::GetAudioContext().audioAnalysisSettings);
     toml::table device_settings = Audio::audiodevice_save_settings(Audio::GetAudioContext().audioDeviceSettings);

@@ -1,5 +1,6 @@
 #include <imgui/imgui.h>
 
+#include <SDL.h>
 #include <fmt/format.h>
 
 #include <app/menu.h>
@@ -173,6 +174,14 @@ void menu_show()
                 {
                     zep_get_editor().GetActiveTabWindow()->CloseActiveWindow();
                 }
+            }
+            
+            if (ImGui::MenuItem("Exit"))
+            {
+                SDL_Event ev;
+                ev.type = SDL_QUIT;
+                SDL_PushEvent(&ev);
+
             }
 
             ImGui::EndMenu();
