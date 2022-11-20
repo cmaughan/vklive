@@ -398,4 +398,19 @@ vk::Format utils_format_to_vulkan(const Format& format)
     return vk::Format::eR8G8B8A8Unorm;
 }
 
+bool vulkan_format_is_depth(const vk::Format& format)
+{
+    switch (format)
+    {
+    case vk::Format::eD16Unorm:
+    case vk::Format::eD16UnormS8Uint:
+    case vk::Format::eD24UnormS8Uint:
+    case vk::Format::eD32Sfloat:
+    case vk::Format::eD32SfloatS8Uint:
+        return true;
+    default:
+        return false;
+    }
+}
+
 } // namespace vulkan

@@ -65,5 +65,6 @@ vk::Rect2D rect2d(const vk::Extent2D& size, const vk::Offset2D& offset = vk::Off
 vk::ColorComponentFlags full_color_writemask();
 vk::ClearColorValue clear_color(const glm::vec4& v = glm::vec4(0));
 
+bool vulkan_format_is_depth(const vk::Format& format);
 
 } // namespace vulkan

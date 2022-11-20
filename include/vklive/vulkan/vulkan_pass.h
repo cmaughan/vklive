@@ -21,7 +21,7 @@ struct VulkanPassTargets
 {
     // Image and depth for this pass
     std::map<std::string, VulkanSurface*> targets;
-    VulkanSurface* depth;
+    //VulkanSurface* depth;
 
     // Increased every time the surfaces change
     std::map<VulkanSurface*, uint64_t> mapSurfaceGenerations;

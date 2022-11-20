@@ -3,12 +3,13 @@
 #include "vklive/vulkan/vulkan_pipeline.h"
 #include "vklive/file/file.h"
 #include "vklive/vulkan/vulkan_utils.h"
+#include "vklive/vulkan/vulkan_pass.h"
 #include "vklive/logger/logger.h"
 
 namespace vulkan
 {
 
-vk::Pipeline pipeline_create(VulkanContext& ctx, const VertexLayout& vertexLayout, const vk::PipelineLayout& layout, const vk::RenderPass& renderPass, const std::vector<vk::PipelineShaderStageCreateInfo>& shaders)
+vk::Pipeline pipeline_create(VulkanContext& ctx, const VertexLayout& vertexLayout, const vk::PipelineLayout& layout, VulkanPassTargets& passTargets, const std::vector<vk::PipelineShaderStageCreateInfo>& shaders)
 {
     try
     {
@@ -48,15 +49,23 @@ vk::Pipeline pipeline_create(VulkanContext& ctx, const VertexLayout& vertexLayou
         vk::PipelineMultisampleStateCreateInfo ms_info;
         ms_info.rasterizationSamples = ctx.MSAASamples;
 
-        vk::PipelineColorBlendAttachmentState color_attachment[1];
-        color_attachment[0].blendEnable = 1;
-        color_attachment[0].srcColorBlendFactor = vk::BlendFactor::eSrcAlpha;
-        color_attachment[0].dstColorBlendFactor = vk::BlendFactor::eOneMinusSrcAlpha;
-        color_attachment[0].colorBlendOp = vk::BlendOp::eAdd;
-        color_attachment[0].srcAlphaBlendFactor = vk::BlendFactor::eOne;
-        color_attachment[0].dstAlphaBlendFactor = vk::BlendFactor::eOneMinusSrcAlpha;
-        color_attachment[0].alphaBlendOp = vk::BlendOp::eAdd;
-        color_attachment[0].colorWriteMask = vk::ColorComponentFlagBits::eR | vk::ColorComponentFlagBits::eG | vk::ColorComponentFlagBits::eB | vk::ColorComponentFlagBits::eA;
+        std::vector<vk::PipelineColorBlendAttachmentState> color_attachments;
+        for (auto& [name, pTarget] : passTargets.targets)
+        {
+            if (!vulkan_format_is_depth(pTarget->format))
+            {
+                vk::PipelineColorBlendAttachmentState blendState;
+                blendState.blendEnable = 1;
+                blendState.srcColorBlendFactor = vk::BlendFactor::eSrcAlpha;
+                blendState.dstColorBlendFactor = vk::BlendFactor::eOneMinusSrcAlpha;
+                blendState.colorBlendOp = vk::BlendOp::eAdd;
+                blendState.srcAlphaBlendFactor = vk::BlendFactor::eOne;
+                blendState.dstAlphaBlendFactor = vk::BlendFactor::eOneMinusSrcAlpha;
+                blendState.alphaBlendOp = vk::BlendOp::eAdd;
+                blendState.colorWriteMask = vk::ColorComponentFlagBits::eR | vk::ColorComponentFlagBits::eG | vk::ColorComponentFlagBits::eB | vk::ColorComponentFlagBits::eA;
+                color_attachments.push_back(blendState);
+            }
+        }
 
         vk::PipelineDepthStencilStateCreateInfo depth_info;
         depth_info.depthTestEnable = VK_TRUE;
@@ -64,8 +73,8 @@ vk::Pipeline pipeline_create(VulkanContext& ctx, const VertexLayout& vertexLayou
         depth_info.depthCompareOp = vk::CompareOp::eLessOrEqual;
 
         vk::PipelineColorBlendStateCreateInfo blend_info;
-        blend_info.attachmentCount = 1;
-        blend_info.pAttachments = color_attachment;
+        blend_info.attachmentCount = color_attachments.size();
+        blend_info.pAttachments = color_attachments.data();
 
         auto dynamic_states = std::vector<vk::DynamicState>{ vk::DynamicState::eViewport, vk::DynamicState::eScissor };
         vk::PipelineDynamicStateCreateInfo dynamic_state;
@@ -82,7 +91,7 @@ vk::Pipeline pipeline_create(VulkanContext& ctx, const VertexLayout& vertexLayou
         info.pColorBlendState = &blend_info;
         info.pDynamicState = &dynamic_state;
         info.layout = layout;
-        info.renderPass = renderPass;
+        info.renderPass = passTargets.renderPass;
         info.subpass = 0;
         return ctx.device.createGraphicsPipelines(ctx.pipelineCache, info).value[0];
     }

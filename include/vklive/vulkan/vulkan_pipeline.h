@@ -7,5 +7,5 @@
 
 namespace vulkan
 {
-vk::Pipeline pipeline_create(VulkanContext& ctx, const VertexLayout& vertexLayout, const vk::PipelineLayout& layout, const vk::RenderPass& renderPass, const std::vector<vk::PipelineShaderStageCreateInfo>& shaders);
+vk::Pipeline pipeline_create(VulkanContext& ctx, const VertexLayout& vertexLayout, const vk::PipelineLayout& layout, VulkanPassTargets& passTargets, const std::vector<vk::PipelineShaderStageCreateInfo>& shaders);
 }

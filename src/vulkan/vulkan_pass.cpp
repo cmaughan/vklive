@@ -304,7 +304,7 @@ bool vulkan_pass_check_targets(VulkanContext& ctx, VulkanPassTargets& passTarget
         }
     }
 
-    if (!checkSize(passTargets.depth, size))
+    /* if (!checkSize(passTargets.depth, size))
     {
         return false;
     }
@@ -313,6 +313,7 @@ bool vulkan_pass_check_targets(VulkanContext& ctx, VulkanPassTargets& passTarget
     {
         diff = true;
     }
+    */
 
     // If our pass targets have changed size, then we need to clean up the framebuffer, renderpass and geom pipe
     // TODO: This only handles resizes, not recreation?...
@@ -414,11 +415,16 @@ void vulkan_pass_prepare_renderpass(VulkanContext& ctx, VulkanPassTargets& passT
         std::vector<vk::Format> colorFormats;
         vk::Format depthFormat = vk::Format::eUndefined;
 
-        // TODO: Custom formats
-        if (depthFormat == vk::Format::eUndefined && colorFormats.empty())
+        for (auto& [name, pTarget] : passTargets.targets)
         {
-            colorFormats.push_back(vk::Format::eR8G8B8A8Unorm);
-            depthFormat = vk::Format::eD32Sfloat;
+            if (vulkan_format_is_depth(pTarget->format))
+            {
+                depthFormat = pTarget->format;
+            }
+            else
+            {
+                colorFormats.push_back(pTarget->format);
+            }
         }
 
         vk::SubpassDescription subpass;
@@ -535,10 +541,12 @@ void vulkan_pass_dump_targets(VulkanPassTargets& passTargets)
         LOG(DBG, "  Name: " << pVulkanSurface->debugName << " Target: " << pVulkanSurface->image);
     }
 
+    /*
     if (passTargets.depth)
     {
         LOG(DBG, "  Name: " << passTargets.depth->debugName << " Target: " << passTargets.depth->debugName);
     }
+    */
 
     LOG(DBG, "  TargetSize: " << passTargets.targetSize.x << ", " << passTargets.targetSize.y);
 }
@@ -589,10 +597,12 @@ void vulkan_pass_prepare_targets(VulkanContext& ctx, VulkanPassSwapFrameData& pa
         vulkanPassTargets.targets[surfaceName] = get_vulkan_surface(ctx, *passFrameData.pVulkanPass, surfaceName);
     }
 
+    /*
     if (!pass.depth.empty())
     {
         vulkanPassTargets.depth = get_vulkan_surface(ctx, *passFrameData.pVulkanPass, pass.depth);
     }
+    */
 
     if (!vulkan_pass_check_targets(ctx, vulkanPassTargets))
     {
@@ -905,7 +915,7 @@ void vulkan_pass_prepare_pipeline(VulkanContext& ctx, VulkanPassSwapFrameData& f
         debug_set_pipelinelayout_name(ctx.device, frameData.geometryPipelineLayout, fmt::format("GeomPipeLayout:" + frameData.debugName));
     }
 
-    frameData.geometryPipeline = pipeline_create(ctx, g_vertexLayout, frameData.geometryPipelineLayout, vulkanPassTargets.renderPass, shaderStages);
+    frameData.geometryPipeline = pipeline_create(ctx, g_vertexLayout, frameData.geometryPipelineLayout, vulkanPassTargets, shaderStages);
     debug_set_pipeline_name(ctx.device, frameData.geometryPipeline, fmt::format("GeomPipe:" + frameData.debugName));
 
     LOG(DBG, "Create GeometryPipe: " << frameData.geometryPipeline);
@@ -932,9 +942,18 @@ void vulkan_pass_submit(VulkanContext& ctx, VulkanPass& vulkanPass)
     auto& passTargets = vulkan_pass_targets(passFrameData);
 
     // Clear
-    vk::ClearValue clearValues[2];
-    clearValues[0].color = clear_color(vulkanPass.pass.clearColor);
-    clearValues[1].depthStencil = vk::ClearDepthStencilValue{ 1.0f, 0 };
+    std::vector<vk::ClearValue> clearValues;
+    for (auto& [name, pTarget] : passTargets.targets)
+    {
+        if (vulkan_format_is_depth(pTarget->format))
+        {
+            clearValues.push_back(vk::ClearDepthStencilValue{ 1.0f, 0 });
+        }
+        else
+        {
+            clearValues.push_back(clear_color(vulkanPass.pass.clearColor));
+        }
+    }
 
     // Draw geometry
     vk::RenderPassBeginInfo renderPassBeginInfo;
@@ -942,8 +961,8 @@ void vulkan_pass_submit(VulkanContext& ctx, VulkanPass& vulkanPass)
     renderPassBeginInfo.framebuffer = passTargets.frameBuffer;
     renderPassBeginInfo.renderArea.extent.width = passTargets.targetSize.x;
     renderPassBeginInfo.renderArea.extent.height = passTargets.targetSize.y;
-    renderPassBeginInfo.clearValueCount = 2;
-    renderPassBeginInfo.pClearValues = clearValues;
+    renderPassBeginInfo.clearValueCount = clearValues.size();
+    renderPassBeginInfo.pClearValues = clearValues.data();
 
     auto rect = passTargets.targetSize;
 
@@ -978,10 +997,12 @@ void vulkan_pass_submit(VulkanContext& ctx, VulkanPass& vulkanPass)
         col.second->pSurface->rendered = true;
     }
 
+    /*
     if (passTargets.depth)
     {
         passTargets.depth->pSurface->rendered = true;
     }
+    */
 
     passFrameData.commandBuffer.end();
     passFrameData.inFlight = true;

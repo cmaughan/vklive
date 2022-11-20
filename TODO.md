@@ -4,7 +4,7 @@ TODO
 ## General
 - Cleanup the binding code, separate it out a bit more.  Bindings are typically built dynamically.
 
-- Supply model textures in a descriptor
+- Supply model textures in a descriptor, do a textured model sample
 
 - Blend operations/Alpha, and other render state
 
@@ -46,8 +46,7 @@ TODO
 Bugs
 ----
 ## General
-- On a release build, after compiling shaders, very occasional crash
-- Left over objects on shut down 
+- Left over objects on shut down ; need to reconfirm this.
 
 ## Zep
 - Flicker when too small
