@@ -216,7 +216,10 @@ VulkanSurface* get_vulkan_surface(VulkanContext& ctx, VulkanPass& vulkanPass, co
                 // TODO: This is necessary to build a descriptor set for display in IMGUI.
                 // Need a cleaner way to build this custom descriptor set for the IMGUI end, since the scene
                 // render would only need this if the surface was sampled
-                surface_set_sampling(ctx, *pVulkanSurface);
+                if (pVulkanSurface->pSurface->name == "default_color")
+                {
+                    surface_set_sampling(ctx, *pVulkanSurface);
+                }
             }
         }
 
@@ -403,6 +406,13 @@ void vulkan_pass_check_samplers(VulkanContext& ctx, VulkanPassTargets& passTarge
                 ctx.device.destroyPipelineLayout(frameData.geometryPipelineLayout);
                 passTargets.pFrameData->geometryPipeline = nullptr;
                 passTargets.pFrameData->geometryPipelineLayout = nullptr;
+            }
+
+            // We are sampling this surface, so make sure it has a sampler: 
+            // they are not automatically created until the surface is actually sampled
+            if (!pSurface->sampler)
+            {
+                surface_create_sampler(ctx, *pSurface);
             }
         }
     }
@@ -929,6 +939,7 @@ void vulkan_pass_transition_samplers(VulkanContext& ctx, VulkanPassSwapFrameData
     for (auto& passSampler : passFrameData.pVulkanPass->pass.samplers)
     {
         auto pVulkanSurface = get_vulkan_surface(ctx, vulkanPass, passSampler);
+
         if (pVulkanSurface && pVulkanSurface->image)
         {
             surface_set_layout(ctx, passFrameData.commandBuffer, pVulkanSurface->image, vk::ImageLayout::eUndefined, vk::ImageLayout::eShaderReadOnlyOptimal);
