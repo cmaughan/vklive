@@ -746,7 +746,7 @@ void imgui_render_3d(VulkanContext& ctx, Scene& scene, bool background)
             if (pVulkanScene)
             {
                 // Find the thing we just rendered to
-                auto itrSurface = pVulkanScene->surfaces.find(SurfaceKey(scene.finalColorTarget->name, globalFrameCount));
+                auto itrSurface = pVulkanScene->surfaces.find(SurfaceKey(scene.finalColorTarget->name, globalFrameCount, false));
                 if (itrSurface != pVulkanScene->surfaces.end() && scene.finalColorTarget->rendered && itrSurface->second->samplerDescriptorSet)
                 {
                     LOG(DBG, "Drawing Surface Sampler: " << itrSurface->second->sampler);

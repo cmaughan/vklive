@@ -28,13 +28,27 @@ void controller_load_project(const fs::path& projectPath)
 fs::path controller_open_project()
 {
     nfdchar_t *pszPath = NULL;
+
     auto docPath = (file_documents_path() / "VkLive");
+    if (!appConfig.last_folder_path.empty() && fs::exists(appConfig.last_folder_path) && fs::is_directory(appConfig.last_folder_path))
+    {
+        docPath = appConfig.last_folder_path;
+    }
+    else
+    {
+        appConfig.last_folder_path = fs::path(); 
+    }
+
     NFD_PickFolder(docPath.string().c_str(), &pszPath);
     if (pszPath)
     {
         fs::path p(pszPath);
         if (fs::exists(p) && fs::is_directory(p))
         {
+            if (fs::exists(p.parent_path()))
+            {
+                appConfig.last_folder_path = p.parent_path();
+            }
             return p;
         }
     }

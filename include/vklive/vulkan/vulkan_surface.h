@@ -83,6 +83,7 @@ void surface_set_layout(VulkanContext& ctx, vk::CommandBuffer cmdbuffer, vk::Ima
 void surface_set_layout(VulkanContext& ctx, vk::Image image, vk::ImageLayout oldImageLayout, vk::ImageLayout newImageLayout, vk::ImageSubresourceRange subresourceRange);
 void surface_set_layout(VulkanContext& ctx, vk::Image image, vk::ImageAspectFlags aspectMask, vk::ImageLayout oldImageLayout, vk::ImageLayout newImageLayout);
 
+void surface_create_sampler(VulkanContext& ctx, VulkanSurface& surface);
 void surface_set_sampling(VulkanContext& ctx, VulkanSurface& image);
 
 void surface_stage_to_device(VulkanContext& ctx, VulkanSurface& surface, vk::ImageCreateInfo imageCreateInfo, const vk::MemoryPropertyFlags& memoryPropertyFlags, vk::DeviceSize size, const void* data, const std::vector<MipData>& mipData = {}, const vk::ImageLayout layout = vk::ImageLayout::eShaderReadOnlyOptimal);

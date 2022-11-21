@@ -392,6 +392,14 @@ int main(int argc, char** argv)
                     zep_add_file_message(err);
                 }
             }
+            
+            for (auto& err : spNewProject->spScene->warnings)
+            {
+                if (!err.path.empty())
+                {
+                    zep_add_file_message(err);
+                }
+            }
 
             focusEditor = true;
         }
@@ -462,7 +470,17 @@ int main(int argc, char** argv)
 
         if (!g_pDevice->Context().minimized)
         {
-            g_pDevice->ImGui_Render(main_draw_data);
+            try
+            {
+                g_pDevice->ImGui_Render(main_draw_data);
+            }
+            catch(std::exception& ex)
+            {
+                if (g_Controller.spCurrentProject && project_has_scene(g_Controller.spCurrentProject.get()))
+                {
+                    g_pDevice->DestroyScene(*g_Controller.spCurrentProject->spScene);
+                }
+            }
         }
 
         auto& io = ImGui::GetIO();

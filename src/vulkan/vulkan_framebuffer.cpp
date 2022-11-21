@@ -19,10 +19,12 @@ void vulkan_framebuffer_create(VulkanContext& ctx, vk::Framebuffer& frameBuffer,
         attachments.emplace_back(pSurface->view);
     }
 
+    /*
     if (passTargets.depth)
     {
         attachments.push_back(passTargets.depth->view);
     }
+    */
 
     assert(!attachments.empty() && passTargets.targetSize.x != 0 && passTargets.targetSize.y != 0);
     vk::FramebufferCreateInfo fbufCreateInfo;

@@ -86,6 +86,12 @@ struct Shader
 };
 
 struct Scene;
+struct PassSampler
+{
+    std::string sampler;
+    bool sampleAlternate = false;
+};
+
 struct Pass
 {
     Pass(Scene& s, const std::string& n)
@@ -99,7 +105,7 @@ struct Pass
     glm::vec4 clearColor = glm::vec4(0.0f, 0.0f, 0.0f, 1.0f);
     std::string name;
     std::vector<std::string> targets;
-    std::vector<std::string> samplers;
+    std::vector<PassSampler> samplers;
     std::string depth;
     std::vector<fs::path> models;
     std::vector<fs::path> shaders;
