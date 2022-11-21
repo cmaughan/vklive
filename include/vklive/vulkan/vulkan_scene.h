@@ -75,7 +75,6 @@ VulkanScene* vulkan_scene_get(VulkanContext& ctx, Scene& scene);
 
 void vulkan_scene_destroy(VulkanContext& ctx, VulkanScene& scene);
 void vulkan_scene_render(VulkanContext& ctx, VulkanScene& vulkanScene);
-void vulkan_scene_prepare(VulkanContext& ctx, VulkanScene& vulkanScene);
 
 DescriptorCache& vulkan_descriptor_cache(VulkanContext& ctx, VulkanScene& vulkanScene);
 

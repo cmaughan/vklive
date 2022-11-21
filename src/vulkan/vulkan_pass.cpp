@@ -991,7 +991,6 @@ bool vulkan_pass_draw(VulkanContext& ctx, VulkanPass& vulkanPass)
     auto& passFrameData = vulkan_pass_frame_data(ctx, vulkanPass);
     auto& passTargets = vulkan_pass_targets(passFrameData);
 
-    passFrameData.frameIndex = ctx.mainWindowData.frameIndex;
     passFrameData.pVulkanPass = &vulkanPass;
     passFrameData.debugName = fmt::format("{}:{}", vulkanPass.pass.name, ctx.mainWindowData.frameIndex);
     passTargets.pFrameData = &passFrameData;

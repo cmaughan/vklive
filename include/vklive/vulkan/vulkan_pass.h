@@ -52,8 +52,6 @@ struct VulkanPassTargets
 struct VulkanPassSwapFrameData
 {
     VulkanPass* pVulkanPass = nullptr;
-    
-    uint32_t frameIndex = 0;
 
     // Pass targets for each ping pong....
     // This means we have 2 different sets of pass targets for each pass/swap.
@@ -101,10 +99,13 @@ struct VulkanPassSwapFrameData
     vk::PipelineLayout geometryPipelineLayout;
     std::map<uint32_t, VulkanBindingSet> mergedBindingSets;
 
+    // Descriptors built once
     bool builtDescriptors = false;
-    std::vector<vk::DescriptorSet> descriptorSets;
     std::map<uint32_t, vk::DescriptorSetLayout> descriptorSetLayouts;
     std::map<uint32_t, std::vector<vk::DescriptorSetLayoutBinding>> descriptorSetBindings;
+
+    // Built each frame
+    std::vector<vk::DescriptorSet> descriptorSets;
 
     // In flight stuff
     bool inFlight = false;
