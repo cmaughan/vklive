@@ -35,6 +35,8 @@ struct VulkanContext : DeviceContext
     glm::uvec2 frameBufferSize;
 
     vk::PipelineCache pipelineCache;
+
+    // Currently used by IMGui for the font.  Maybe factor this out later
     vk::DescriptorPool descriptorPool;
 
     vk::DeviceSize BufferMemoryAlignment = 256;
@@ -46,6 +48,8 @@ struct VulkanContext : DeviceContext
 
     bool swapChainRebuild = false;
     uint32_t minImageCount = 0;
+
+    std::unordered_map<uint32_t, DescriptorCache> descriptorCache;
 
 #ifdef WIN32
     static __declspec(thread) vk::CommandPool commandPool;

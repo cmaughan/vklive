@@ -1,5 +1,6 @@
 #include <atomic>
 #include <fmt/format.h>
+#include <unordered_set>
 
 #include <range/v3/algorithm/for_each.hpp>
 #include <range/v3/range/conversion.hpp>
@@ -29,12 +30,6 @@ using namespace ranges;
 
 namespace vulkan
 {
-
-DescriptorCache& vulkan_descriptor_cache(VulkanContext& ctx, VulkanScene& vulkanScene)
-{
-    // Keep enough descriptor pools to ensure we aren't re-using ones in flight
-    return vulkanScene.descriptorCache[globalFrameCount % (ctx.mainWindowData.imageCount + 1)];
-}
 
 // Find the vulkan scene from the scene
 VulkanScene* vulkan_scene_get(VulkanContext& ctx, Scene& scene)
@@ -109,16 +104,22 @@ std::shared_ptr<VulkanScene> vulkan_scene_create(VulkanContext& ctx, Scene& scen
     return spVulkanScene;
 }
 
+void vulkan_scene_destroy_output_descriptors(VulkanContext& ctx, VulkanScene& vulkanScene)
+{
+    // descriptor_cleanup will remove all the layouts/sets; so just reset our state here
+    vulkanScene.defaultTarget = SurfaceKey();
+    vulkanScene.targetData.clear();
+}
+
 void vulkan_scene_destroy(VulkanContext& ctx, VulkanScene& vulkanScene)
 {
-    LOG(DBG, "Scene Destroy");
+    LOG_SCOPE(0, "Scene Destroy: " << vulkanScene.pScene);
 
     // Destroying a scene means we might be destroying something that is in flight.
     // Lets wait for everything to finish
     ctx.device.waitIdle();
 
-    // Descriptor
-    vulkan_descriptor_cleanup(ctx, vulkan_descriptor_cache(ctx, vulkanScene)); 
+    vulkan_scene_destroy_output_descriptors(ctx, vulkanScene);
 
     // Pass
     for (auto& [name, pVulkanPass] : vulkanScene.passes)
@@ -164,7 +165,7 @@ VulkanSurface* vulkan_scene_get_or_create_surface(VulkanScene& vulkanScene, cons
         return nullptr;
     }
 
-    SurfaceKey key(surfaceName, pSurface->isTarget ? frameCount : 0, sampling);
+    SurfaceKey key(surfaceName, (!format_is_depth(pSurface->format) && pSurface->isTarget) ? frameCount : 0, sampling);
 
     auto itr = vulkanScene.surfaces.find(key);
     if (itr != vulkanScene.surfaces.end())
@@ -175,17 +176,136 @@ VulkanSurface* vulkan_scene_get_or_create_surface(VulkanScene& vulkanScene, cons
     auto spSurface = std::make_shared<VulkanSurface>(pSurface);
     vulkanScene.surfaces[key] = spSurface;
 
-    spSurface->debugName = fmt::format("{}:{}", surfaceName, key.pingPongIndex);
+    spSurface->debugName = key.DebugName();
     return spSurface.get();
+}
+
+void vulkan_scene_target_build_descriptor(VulkanContext& ctx, VulkanScene& vulkanScene, VulkanSurface& vulkanSurface, const SurfaceKey& key)
+{
+    auto& targetData = vulkanScene.targetData[key];
+    if (targetData.descriptorSetLayout)
+    {
+        return;
+    }
+
+    auto binding = vk::DescriptorSetLayoutBinding(0, vk::DescriptorType::eCombinedImageSampler, 1, vk::ShaderStageFlagBits::eFragment);
+
+    auto layoutCreateInfo = vk::DescriptorSetLayoutCreateInfo(vk::DescriptorSetLayoutCreateFlags(), binding);
+
+    targetData.descriptorSetLayout = descriptor_create_layout(ctx, descriptor_get_cache(ctx), layoutCreateInfo);
+
+    debug_set_descriptorsetlayout_name(ctx.device, targetData.descriptorSetLayout, fmt::format("{}:{}", key.DebugName(), "DescriptorLayout(UI)"));
+
+    LOG(DBG, fmt::format("Build DescriptorSetLayout for: {}, {}", key.DebugName(), (void*)(VkDescriptorSetLayout)targetData.descriptorSetLayout));
+}
+
+void vulkan_scene_target_set_descriptor(VulkanContext& ctx, VulkanScene& vulkanScene, VulkanSurface& vulkanSurface, const SurfaceKey& key)
+{
+    LOG_SCOPE(DBG, "Scene GUI Target Descriptors:");
+    auto& targetData = vulkanScene.targetData[key];
+    if (!targetData.descriptorSetLayout || !vulkanSurface.sampler)
+    {
+        targetData.descriptorSet = nullptr;
+        return;
+    }
+
+    bool success = descriptor_allocate(ctx, descriptor_get_cache(ctx), &targetData.descriptorSet, targetData.descriptorSetLayout);
+    if (!success)
+    {
+        scene_report_error(*vulkanScene.pScene, MessageSeverity::Error, fmt::format("Could not allocate descriptor"));
+        return;
+    };
+
+    debug_set_descriptorset_name(ctx.device, targetData.descriptorSet, fmt::format("{}:{}:{}", key.DebugName(), ctx.mainWindowData.frameIndex, "DescriptorSet(UI)"));
+
+    assert(vulkanSurface.sampler != 0);
+    vk::DescriptorImageInfo desc_image;
+    desc_image.sampler = vulkanSurface.sampler;
+    desc_image.imageView = vulkanSurface.view;
+    desc_image.imageLayout = vk::ImageLayout::eShaderReadOnlyOptimal;
+
+    vk::WriteDescriptorSet write_desc;
+    write_desc.dstSet = targetData.descriptorSet;
+    write_desc.descriptorCount = 1;
+    write_desc.descriptorType = vk::DescriptorType::eCombinedImageSampler;
+    write_desc.setImageInfo(desc_image);
+    ctx.device.updateDescriptorSets(write_desc, {});
+    
+    LOG(0, fmt::format("Set DescriptorSet for: {}, Layout:{}, Set:{}, Sampler:{}", key.DebugName(), (void*)(VkDescriptorSetLayout)targetData.descriptorSetLayout, (void*)(VkDescriptorSet)targetData.descriptorSet, (void*)desc_image.sampler));
+}
+
+void vulkan_scene_prepare_output_descriptors(VulkanContext& ctx, VulkanScene& vulkanScene)
+{
+    vulkanScene.viewableTargets.clear();
+
+    // Create descriptors if necessary for rendered targets
+    // This is a little complex.  We walk the surfaces that are in the scene, finding the valid
+    // ones for the current frame, that have been written.  Then we allocate our descriptors
+    for (auto& [key, pVulkanSurface] : vulkanScene.surfaces)
+    {
+        // Find the correct surface for this frame
+        SurfaceKey key(pVulkanSurface->pSurface->name, globalFrameCount, false);
+        auto itrTarget = vulkanScene.surfaces.find(key);
+        if (itrTarget != vulkanScene.surfaces.end())
+        {
+            // If the surface has been rendered and has a sampler, it's a potential for display
+            auto pTarget = itrTarget->second.get();
+            if (!pTarget->pSurface->rendered)
+            {
+                continue;
+            }
+
+            if (!vulkan_format_is_depth(pTarget->format))
+            {
+                if (!pTarget->sampler)
+                {
+                    surface_set_sampling(ctx, *pVulkanSurface);
+                    LOG(0, "Adding sampler to rendered target for UI: " << pVulkanSurface->debugName);
+                }
+            }
+
+            if (pTarget->sampler)
+            {
+                vulkanScene.viewableTargets.insert(key);
+            }
+        }
+    }
+
+    for (auto& key : vulkanScene.viewableTargets)
+    {
+        auto itrTarget = vulkanScene.surfaces.find(key);
+
+        if (itrTarget != vulkanScene.surfaces.end())
+        {
+            auto pTarget = itrTarget->second.get();
+
+            if (pTarget->pSurface->name == "default_color")
+            {
+                vulkanScene.defaultTarget = key;
+            }
+
+            // Only build on demand, but always set
+            vulkan_scene_target_build_descriptor(ctx, vulkanScene, *pTarget, key);
+
+            // Descriptors renewed each frame
+            vulkan_scene_target_set_descriptor(ctx, vulkanScene, *pTarget, key);
+        }
+    }
 }
 
 void vulkan_scene_render(VulkanContext& ctx, VulkanScene& vulkanScene)
 {
     assert(vulkanScene.pScene->valid);
 
+    LOG(0, "Vulkan Scene Render: " << vulkanScene.pScene);
+
+
     globalElapsedSeconds = timer_get_elapsed_seconds(globalTimer);
     try
     {
+        // Descriptor
+        descriptor_reset_pools(ctx, descriptor_get_cache(ctx));
+
         // Copy the actual vertices to the GPU, if necessary.
         // TODO: Just the pass vertices instead of all
         for (auto& [name, pVulkanGeom] : vulkanScene.models)
@@ -193,8 +313,9 @@ void vulkan_scene_render(VulkanContext& ctx, VulkanScene& vulkanScene)
             vulkan_model_stage(ctx, *pVulkanGeom);
         }
 
-        descriptor_reset_pools(ctx, vulkan_descriptor_cache(ctx, vulkanScene)); 
+        vulkanScene.defaultTarget = SurfaceKey();
 
+        // Draw the passes
         for (auto& [name, pVulkanPass] : vulkanScene.passes)
         {
             if (!vulkan_pass_draw(ctx, *pVulkanPass))
@@ -202,8 +323,9 @@ void vulkan_scene_render(VulkanContext& ctx, VulkanScene& vulkanScene)
                 // Scene not valid, might be deleted
                 return;
             }
-
         }
+
+        vulkan_scene_prepare_output_descriptors(ctx, vulkanScene);
     }
     catch (std::exception& ex)
     {

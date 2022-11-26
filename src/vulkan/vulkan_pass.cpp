@@ -37,10 +37,6 @@ std::shared_ptr<VulkanPass> vulkan_pass_create(VulkanScene& vulkanScene, Pass& p
     auto spVulkanPass = std::make_shared<VulkanPass>(vulkanScene, pass);
     vulkanScene.passes[pass.name] = spVulkanPass;
 
-    // Camera setup
-    pass.camera.nearFar = glm::vec2(0.1f, 256.0f);
-    camera_set_pos_lookat(pass.camera, glm::vec3(0.0f, 0.0f, 6.0f), glm::vec3(0.0f, 0.0f, 0.0f));
-
     return spVulkanPass;
 }
 
@@ -48,7 +44,7 @@ void vulkan_pass_destroy(VulkanContext& ctx, VulkanPass& vulkanPass)
 {
     for (auto& [index, passData] : vulkanPass.passFrameData)
     {
-        LOG(DBG, "Pass Destroy: " << passData.debugName);
+        LOG_SCOPE(DBG, "Pass Destroy: " << passData.debugName);
 
         // Wait for this pass to finish
         vulkan_pass_wait(ctx, passData);
@@ -80,7 +76,7 @@ void vulkan_pass_destroy(VulkanContext& ctx, VulkanPass& vulkanPass)
 // Wait for this pass to finish sending to the hardware
 void vulkan_pass_wait(VulkanContext& ctx, VulkanPassSwapFrameData& passData)
 {
-    LOG(DBG, "Wait for pass: " << passData.debugName);
+    LOG_SCOPE(DBG, "Wait for pass: " << passData.debugName);
     if (passData.inFlight)
     {
         const uint64_t FenceTimeout = 100000000;
@@ -212,14 +208,6 @@ VulkanSurface* get_vulkan_surface(VulkanContext& ctx, VulkanPass& vulkanPass, co
             else
             {
                 vulkan_surface_create(ctx, *pVulkanSurface, size, utils_format_to_vulkan(pSurface->format), true);
-
-                // TODO: This is necessary to build a descriptor set for display in IMGUI.
-                // Need a cleaner way to build this custom descriptor set for the IMGUI end, since the scene
-                // render would only need this if the surface was sampled
-                if (pVulkanSurface->pSurface->name == "default_color")
-                {
-                    surface_set_sampling(ctx, *pVulkanSurface);
-                }
             }
         }
 
@@ -293,15 +281,15 @@ bool vulkan_pass_check_targets(VulkanContext& ctx, VulkanPassTargets& passTarget
     bool diff = false;
     glm::uvec2 size = glm::uvec2(0);
 
-    for (auto& [name, surface] : passTargets.targets)
+    for (auto& pTargetData : passTargets.orderedTargets)
     {
-        if (!checkSize(surface, size))
+        if (!checkSize(pTargetData->pVulkanSurface, size))
         {
             // If sizes don't match, we are effectively broken and can't render
             return false;
         }
 
-        if (checkForChanges(surface))
+        if (checkForChanges(pTargetData->pVulkanSurface))
         {
             diff = true;
         }
@@ -388,8 +376,8 @@ void vulkan_pass_check_samplers(VulkanContext& ctx, VulkanPassTargets& passTarge
 
     for (auto& passSampler : frameData.pVulkanPass->pass.samplers)
     {
-        auto pSurface = get_vulkan_surface(ctx, *frameData.pVulkanPass, passSampler);
-        if (checkForChanges(pSurface))
+        auto pVulkanSurface = get_vulkan_surface(ctx, *frameData.pVulkanPass, passSampler);
+        if (checkForChanges(pVulkanSurface))
         {
             LOG(DBG, "Sampler has changed, removing geometry pipe");
 
@@ -408,11 +396,12 @@ void vulkan_pass_check_samplers(VulkanContext& ctx, VulkanPassTargets& passTarge
                 passTargets.pFrameData->geometryPipelineLayout = nullptr;
             }
 
-            // We are sampling this surface, so make sure it has a sampler: 
+            // We are sampling this surface, so make sure it has a sampler:
             // they are not automatically created until the surface is actually sampled
-            if (!pSurface->sampler)
+            if (!pVulkanSurface->sampler)
             {
-                surface_create_sampler(ctx, *pSurface);
+                surface_create_sampler(ctx, *pVulkanSurface);
+                debug_set_sampler_name(ctx.device, pVulkanSurface->sampler, pVulkanSurface->debugName);
             }
         }
     }
@@ -425,15 +414,15 @@ void vulkan_pass_prepare_renderpass(VulkanContext& ctx, VulkanPassTargets& passT
         std::vector<vk::Format> colorFormats;
         vk::Format depthFormat = vk::Format::eUndefined;
 
-        for (auto& [name, pTarget] : passTargets.targets)
+        for (auto& pTargetData : passTargets.orderedTargets)
         {
-            if (vulkan_format_is_depth(pTarget->format))
+            if (vulkan_format_is_depth(pTargetData->pVulkanSurface->format))
             {
-                depthFormat = pTarget->format;
+                depthFormat = pTargetData->pVulkanSurface->format;
             }
             else
             {
-                colorFormats.push_back(pTarget->format);
+                colorFormats.push_back(pTargetData->pVulkanSurface->format);
             }
         }
 
@@ -545,10 +534,10 @@ void vulkan_pass_prepare_renderpass(VulkanContext& ctx, VulkanPassTargets& passT
 
 void vulkan_pass_dump_targets(VulkanPassTargets& passTargets)
 {
-    LOG(DBG, "Targets:");
-    for (auto& [name, pVulkanSurface] : passTargets.targets)
+    LOG_SCOPE(DBG, "Targets:");
+    for (auto& pTargetData : passTargets.orderedTargets)
     {
-        LOG(DBG, "  Name: " << pVulkanSurface->debugName << " Target: " << pVulkanSurface->image);
+        LOG(DBG, "Name: " << pTargetData->pVulkanSurface->debugName << " Target: " << pTargetData->pVulkanSurface->image);
     }
 
     /*
@@ -558,7 +547,7 @@ void vulkan_pass_dump_targets(VulkanPassTargets& passTargets)
     }
     */
 
-    LOG(DBG, "  TargetSize: " << passTargets.targetSize.x << ", " << passTargets.targetSize.y);
+    LOG(DBG, "TargetSize: " << passTargets.targetSize.x << ", " << passTargets.targetSize.y);
 }
 
 void vulkan_pass_dump_samplers(VulkanContext& ctx, VulkanPass& vulkanPass)
@@ -567,19 +556,19 @@ void vulkan_pass_dump_samplers(VulkanContext& ctx, VulkanPass& vulkanPass)
     {
         return;
     }
-    LOG(DBG, "Samplers:");
+    LOG_SCOPE(DBG, "Samplers:");
     for (auto& passSampler : vulkanPass.pass.samplers)
     {
         auto pVulkanSurface = get_vulkan_surface(ctx, vulkanPass, passSampler);
         if (pVulkanSurface)
         {
-            LOG(DBG, "  Name: " << pVulkanSurface->debugName);
-            LOG(DBG, "    Sample Alternate: " << passSampler.sampleAlternate);
-            LOG(DBG, "    Loaded: " << (pVulkanSurface->allocationState == VulkanAllocationState::Loaded));
-            LOG(DBG, "    Image: " << pVulkanSurface->image);
-            LOG(DBG, "    Extent: " << pVulkanSurface->extent.width << ", " << pVulkanSurface->extent.height << ", " << pVulkanSurface->extent.depth);
-            LOG(DBG, "    MipLevels: " << pVulkanSurface->mipLevels);
-            LOG(DBG, "    Format: " << to_string(pVulkanSurface->format));
+            LOG_SCOPE(DBG, "Name: " << pVulkanSurface->debugName);
+            LOG(DBG, "Sample Alternate: " << passSampler.sampleAlternate);
+            LOG(DBG, "Loaded: " << (pVulkanSurface->allocationState == VulkanAllocationState::Loaded));
+            LOG(DBG, "Image: " << pVulkanSurface->image);
+            LOG(DBG, "Extent: " << pVulkanSurface->extent.width << ", " << pVulkanSurface->extent.height << ", " << pVulkanSurface->extent.depth);
+            LOG(DBG, "MipLevels: " << pVulkanSurface->mipLevels);
+            LOG(DBG, "Format: " << to_string(pVulkanSurface->format));
         }
         else
         {
@@ -599,20 +588,18 @@ void vulkan_pass_prepare_targets(VulkanContext& ctx, VulkanPassSwapFrameData& pa
 
     vulkanPassTargets.debugName = fmt::format("PassTargets:{}:{}", globalFrameCount % 2, passFrameData.debugName);
 
-    LOG(DBG, "PrepareTargets: " << vulkanPassTargets.debugName);
+    LOG_SCOPE(DBG, "PrepareTargets: " << vulkanPassTargets.debugName);
+
+    vulkanPassTargets.orderedTargets.clear();
 
     // Make sure all targets are relevent
     for (auto& surfaceName : pass.targets)
     {
-        vulkanPassTargets.targets[surfaceName] = get_vulkan_surface(ctx, *passFrameData.pVulkanPass, surfaceName);
-    }
+        auto& targetData = vulkanPassTargets.mapNameToTargetData[surfaceName];
+        targetData.pVulkanSurface = get_vulkan_surface(ctx, *passFrameData.pVulkanPass, surfaceName);
 
-    /*
-    if (!pass.depth.empty())
-    {
-        vulkanPassTargets.depth = get_vulkan_surface(ctx, *passFrameData.pVulkanPass, pass.depth);
+        vulkanPassTargets.orderedTargets.push_back(&targetData);
     }
-    */
 
     if (!vulkan_pass_check_targets(ctx, vulkanPassTargets))
     {
@@ -627,6 +614,8 @@ void vulkan_pass_prepare_surfaces(VulkanContext& ctx, VulkanPassSwapFrameData& p
 {
     auto& pass = passFrameData.pVulkanPass->pass;
     auto& vulkanPassTargets = passFrameData.passTargets[globalFrameCount % 2];
+
+    LOG_SCOPE(DBG, "Prepare Surfaces:");
 
     // Walk the surfaces
     for (auto& passSampler : pass.samplers)
@@ -646,6 +635,8 @@ void vulkan_pass_prepare_surfaces(VulkanContext& ctx, VulkanPassSwapFrameData& p
 // Ensure we have setup the buffers for this pass
 void vulkan_pass_prepare_uniforms(VulkanContext& ctx, VulkanPass& vulkanPass)
 {
+    LOG_SCOPE(DBG, "Prepare Uniforms:");
+
     auto& passFrameData = vulkan_pass_frame_data(ctx, vulkanPass);
     auto& passTargets = vulkan_pass_targets(passFrameData);
 
@@ -665,10 +656,28 @@ void vulkan_pass_prepare_uniforms(VulkanContext& ctx, VulkanPass& vulkanPass)
     auto size = passTargets.targetSize;
     auto& ubo = passFrameData.vsUBO;
 
+    auto& scene = *vulkanPass.vulkanScene.pScene;
+
     // Setup the camera for this pass
     // pVulkanPass->pPass->camera.orbitDelta = glm::vec2(4.0f, 0.0f);
-    camera_set_film_size(vulkanPass.pass.camera, glm::ivec2(size));
-    camera_pre_render(vulkanPass.pass.camera);
+    // Note that the camera might need different setup each time
+    for (auto& cameraName : vulkanPass.pass.cameras)
+    {
+        auto itrCamera = scene.cameras.find(cameraName);
+        if (itrCamera != scene.cameras.end())
+        {
+            auto& camera = *itrCamera->second;
+            camera_set_film_size(camera, glm::ivec2(size));
+            camera_pre_render(camera);
+
+            // Set UBO variables
+            // TODO: More than one camera; handle with reflection
+            ubo.view = camera_get_lookat(camera);
+            ubo.projection = camera_get_projection(camera);
+            ubo.modelViewProjection = ubo.projection * ubo.view * ubo.model;
+            ubo.eye = glm::vec4(camera.position, 0.0f);
+        }
+    }
 
     auto elapsed = globalElapsedSeconds;
     glm::vec3 meshPos = glm::vec3(0.0f, 0.0f, 0.0f);
@@ -707,10 +716,6 @@ void vulkan_pass_prepare_uniforms(VulkanContext& ctx, VulkanPass& vulkanPass)
     ubo.ifFragCoordOffsetUniform = glm::vec4(0.0f);
 
     ubo.model = glm::mat4(1.0f);
-    ubo.view = camera_get_lookat(vulkanPass.pass.camera);
-    ubo.projection = camera_get_projection(vulkanPass.pass.camera);
-    ubo.modelViewProjection = ubo.projection * ubo.view * ubo.model;
-    ubo.eye = glm::vec4(vulkanPass.pass.camera.position, 0.0f);
 
     // TODO: Should we stage using command buffer?  This is a direct write
     utils_copy_to_memory(ctx, passFrameData.vsUniform.memory, ubo);
@@ -727,6 +732,8 @@ void vulkan_pass_build_descriptors(VulkanContext& ctx, VulkanPass& vulkanPass)
         return;
     }
 
+    LOG_SCOPE(DBG, "Build Descriptors:");
+
     passFrameData.builtDescriptors = true;
 
     // Lookup the vulkan compiled shader stages that match the declared scene shaders
@@ -737,8 +744,8 @@ void vulkan_pass_build_descriptors(VulkanContext& ctx, VulkanPass& vulkanPass)
     auto bindings = vulkanPass.pass.shaders | views::filter(f) | views::transform(t) | to<std::vector>();
     passFrameData.mergedBindingSets = bindings_merge(bindings);
 
-    LOG(DBG, "  Pass: " << passFrameData.debugName << ", Merged Bindings:");
-    bindings_dump(passFrameData.mergedBindingSets, 4);
+    LOG(DBG, "Pass: " << passFrameData.debugName << ", Merged Bindings:");
+    bindings_dump(passFrameData.mergedBindingSets);
 
     passFrameData.descriptorSetBindings.clear();
     passFrameData.descriptorSetLayouts.clear();
@@ -773,7 +780,7 @@ void vulkan_pass_build_descriptors(VulkanContext& ctx, VulkanPass& vulkanPass)
             layoutInfo.pBindings = bindings.data();
             layoutInfo.bindingCount = static_cast<uint32_t>(bindings.size());
 
-            auto descriptorSetLayout = descriptor_create_layout(ctx, vulkan_descriptor_cache(ctx, vulkanScene), layoutInfo);
+            auto descriptorSetLayout = descriptor_create_layout(ctx, descriptor_get_cache(ctx), layoutInfo);
             debug_set_descriptorsetlayout_name(ctx.device, descriptorSetLayout, fmt::format("{}:{}", passFrameData.debugName, "Layout"));
 
             layout = descriptorSetLayout;
@@ -783,6 +790,8 @@ void vulkan_pass_build_descriptors(VulkanContext& ctx, VulkanPass& vulkanPass)
 
 void vulkan_pass_set_descriptors(VulkanContext& ctx, VulkanPass& vulkanPass)
 {
+    LOG_SCOPE(DBG, "Set Descriptors:");
+
     VulkanScene& vulkanScene = vulkanPass.vulkanScene;
 
     auto& passFrameData = vulkan_pass_frame_data(ctx, vulkanPass);
@@ -797,6 +806,7 @@ void vulkan_pass_set_descriptors(VulkanContext& ctx, VulkanPass& vulkanPass)
         if (pVulkanSurface && pVulkanSurface->image && pVulkanSurface->view && pVulkanSurface->sampler)
         {
             vk::DescriptorImageInfo desc_image;
+            assert(pVulkanSurface->sampler != 0);
             desc_image.sampler = pVulkanSurface->sampler;
             desc_image.imageView = pVulkanSurface->view;
             desc_image.imageLayout = vk::ImageLayout::eShaderReadOnlyOptimal;
@@ -829,7 +839,7 @@ void vulkan_pass_set_descriptors(VulkanContext& ctx, VulkanPass& vulkanPass)
         layoutInfo.bindingCount = static_cast<uint32_t>(bindings.size());
 
         vk::DescriptorSet descriptorSet;
-        bool success = descriptor_allocate(ctx, vulkan_descriptor_cache(ctx, vulkanScene), &descriptorSet, layout);
+        bool success = descriptor_allocate(ctx, descriptor_get_cache(ctx), &descriptorSet, layout);
         if (!success)
         {
             scene_report_error(*vulkanScene.pScene, MessageSeverity::Error, fmt::format("Could not allocate descriptor"));
@@ -902,6 +912,8 @@ void vulkan_pass_prepare_pipeline(VulkanContext& ctx, VulkanPassSwapFrameData& f
         return;
     }
 
+    LOG_SCOPE(DBG, "Prepare Pipeline:");
+
     auto& vulkanScene = frameData.pVulkanPass->vulkanScene;
     auto& vulkanPass = *frameData.pVulkanPass;
     auto& pass = frameData.pVulkanPass->pass;
@@ -952,18 +964,29 @@ void vulkan_pass_submit(VulkanContext& ctx, VulkanPass& vulkanPass)
     auto& passFrameData = vulkan_pass_frame_data(ctx, vulkanPass);
     auto& passTargets = vulkan_pass_targets(passFrameData);
 
+    LOG_SCOPE(DBG, "Pass Submit: " << passFrameData.debugName);
+
     // Clear
+    // Targets are sorted by name, with the depth pushed on the end.
     std::vector<vk::ClearValue> clearValues;
-    for (auto& [name, pTarget] : passTargets.targets)
+    vk::ClearValue depthClearValue;
+    bool haveDepth = false;
+    for (auto& pTargetData : passTargets.orderedTargets)
     {
-        if (vulkan_format_is_depth(pTarget->format))
+        if (vulkan_format_is_depth(pTargetData->pVulkanSurface->format))
         {
-            clearValues.push_back(vk::ClearDepthStencilValue{ 1.0f, 0 });
+            depthClearValue = vk::ClearDepthStencilValue{ 1.0f, 0 };
+            haveDepth = true;
         }
         else
         {
             clearValues.push_back(clear_color(vulkanPass.pass.clearColor));
         }
+    }
+
+    if (haveDepth)
+    {
+        clearValues.push_back(depthClearValue);
     }
 
     // Draw geometry
@@ -1003,9 +1026,9 @@ void vulkan_pass_submit(VulkanContext& ctx, VulkanPass& vulkanPass)
     cmd.endRenderPass();
     debug_end_region(cmd);
 
-    for (auto& col : passTargets.targets)
+    for (auto& pTargetData : passTargets.orderedTargets)
     {
-        col.second->pSurface->rendered = true;
+        pTargetData->pVulkanSurface->pSurface->rendered = true;
     }
 
     /*
@@ -1032,11 +1055,10 @@ bool vulkan_pass_draw(VulkanContext& ctx, VulkanPass& vulkanPass)
 
     passFrameData.frameIndex = ctx.mainWindowData.frameIndex;
     passFrameData.pVulkanPass = &vulkanPass;
-    passFrameData.debugName = fmt::format("{}:{}", vulkanPass.pass.name, ctx.mainWindowData.frameIndex);
+    passFrameData.debugName = fmt::format("{}:I{}", vulkanPass.pass.name, ctx.mainWindowData.frameIndex);
     passTargets.pFrameData = &passFrameData;
 
-    LOG(DBG, "");
-    LOG(DBG, "PassBegin: " << passFrameData.debugName << " Frame: " << ctx.mainWindowData.frameIndex << " Global Frame: " << globalFrameCount);
+    LOG_SCOPE(DBG, "Pass Draw: " << passFrameData.debugName << " Global Frame: " << globalFrameCount);
 
     // Wait for the fence the last time we drew with this pass information
     vulkan_pass_wait(ctx, passFrameData);
@@ -1077,9 +1099,6 @@ bool vulkan_pass_draw(VulkanContext& ctx, VulkanPass& vulkanPass)
         validation_clear_error_state();
         return false;
     }
-
-    LOG(DBG, "PassEnd: " << passFrameData.debugName << " Frame: " << ctx.mainWindowData.frameIndex << " Global Frame: " << globalFrameCount << "\n");
-    LOG(DBG, "");
 
     // Make sure that samplers can be read by the shaders they are bound to
     vulkan_pass_transition_samplers(ctx, passFrameData);

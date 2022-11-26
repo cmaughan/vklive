@@ -3,10 +3,10 @@
 #include "vklive/scene.h"
 
 #include <vklive/vulkan/vulkan_context.h>
-#include <vklive/vulkan/vulkan_scene.h>
-#include <vklive/vulkan/vulkan_render.h>
-#include <vklive/vulkan/vulkan_imgui.h>
 #include <vklive/vulkan/vulkan_device.h>
+#include <vklive/vulkan/vulkan_imgui.h>
+#include <vklive/vulkan/vulkan_render.h>
+#include <vklive/vulkan/vulkan_scene.h>
 
 #include <imgui/imgui_impl_sdl.h>
 
@@ -51,7 +51,14 @@ VulkanDevice::~VulkanDevice()
     if (ctx.deviceState == DeviceState::Normal)
     {
         ctx.device.waitIdle();
+
+        for (auto& [frame, cache] : ctx.descriptorCache)
+        {
+            vulkan_descriptor_destroy_pools(ctx, cache);
+        }
     }
+
+    ctx.descriptorCache.clear();
 
     vulkan::imgui_shutdown(ctx);
     vulkan::window_destroy(ctx, &ctx.mainWindowData);
@@ -82,22 +89,26 @@ void VulkanDevice::ImGui_Render(ImDrawData* pDrawData)
 {
     vulkan::imgui_render(ctx, &ctx.mainWindowData, pDrawData);
 }
-    
+
 void VulkanDevice::ValidateSwapChain()
 {
     vulkan::main_window_validate_swapchain(ctx);
 }
-    
-void VulkanDevice::ImGui_Render_3D(Scene& scene, bool backgroundRender)
+
+void VulkanDevice::ImGui_Render_3D(Scene& scene, bool backgroundRender, bool testRender)
 {
-    vulkan::imgui_render_3d(ctx, scene, backgroundRender);
+    vulkan::imgui_render_3d(ctx, scene, backgroundRender, testRender);
+    if (!testRender)
+    {
+        vulkan::imgui_render_targets(ctx, scene);
+    }
 }
-  
+
 void VulkanDevice::WaitIdle()
 {
     if (ctx.device)
     {
-        ctx.device.waitIdle(); 
+        ctx.device.waitIdle();
     }
 }
 
@@ -110,7 +121,7 @@ DeviceContext& VulkanDevice::Context()
 {
     return ctx;
 }
-    
+
 std::set<std::string> VulkanDevice::ShaderFileExtensions()
 {
     return std::set<std::string>{

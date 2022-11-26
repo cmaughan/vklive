@@ -15,10 +15,11 @@ struct Project;
 
 enum class Format
 {
-    Default,
-    Default_Depth,
-    R8G8B8A8UNorm,
-    D32
+    default_format,
+    default_depth_format,
+    r8g8b8a8_unorm,
+    r16g16b16a16_sfloat,
+    d32
 };
 
 struct Surface
@@ -40,7 +41,7 @@ struct Surface
     fs::path path;
 
     // Format if a target
-    Format format = Format::Default;
+    Format format = Format::default_format;
 
     // Has this image been rendered to during the frame?
     bool rendered = false;
@@ -109,8 +110,7 @@ struct Pass
     std::string depth;
     std::vector<fs::path> models;
     std::vector<fs::path> shaders;
-
-    Camera camera;
+    std::vector<std::string> cameras;
 
     int scriptTargetsLine = 0;
     int scriptSamplersLine = 0;
@@ -128,6 +128,7 @@ struct Scene
 
     // Global objects
     std::map<std::string, std::shared_ptr<Surface>> surfaces;
+    std::map<std::string, std::shared_ptr<Camera>> cameras;
     std::map<fs::path, std::shared_ptr<Geometry>> models;
     std::map<fs::path, std::shared_ptr<Shader>> shaders;
     std::map<std::string, std::shared_ptr<Pass>> passes;
@@ -155,3 +156,5 @@ bool format_is_depth(const Format& fmt);
 void scene_report_error(Scene& scene, MessageSeverity severity, const std::string& txt, const fs::path& path = fs::path(), int32_t line = -1, const std::pair<int32_t, int32_t>& range = std::make_pair(-1, -1));
 fs::path scene_find_asset(Scene& scene, const fs::path& path, AssetType assetType = AssetType::None);
 Surface* scene_get_surface(Scene& scene, const std::string& surfacename);
+Camera* scene_get_camera(Scene& scene, const std::string& cameraName);
+void scene_copy_state(Scene& dest, Scene& source);

@@ -14,6 +14,7 @@ namespace vulkan
 {
 struct VulkanContext;
 struct VulkanPass;
+struct VulkanSurface;
 
 bool debug_init(VulkanContext& context);
 void debug_destroy(VulkanContext& context);
@@ -49,6 +50,7 @@ void debug_set_semaphore_name(VkDevice device, VkSemaphore semaphore, const std:
 void debug_set_shadermodule_name(VkDevice device, VkShaderModule shaderModule, const std::string& name);
 void debug_set_surface_name(VkDevice device, VkSurfaceKHR surface, const std::string& name);
 void debug_set_swapchain_name(VkDevice device, VkSwapchainKHR swap, const std::string& name);
+void debug_set_surface_name(VkDevice device, VulkanSurface& surface, const std::string& name);
 
 // Naming engine specific things
 // Name a pass

@@ -8,6 +8,7 @@
 
 #include "vklive/vulkan/vulkan_context.h"
 #include "vklive/vulkan/vulkan_scene.h"
+#include "vklive/vulkan/vulkan_surface.h"
 #include "vklive/vulkan/vulkan_pass.h"
 
 #include "vklive/scene.h"
@@ -337,6 +338,34 @@ void debug_set_surface_name(VkDevice device, VkSurfaceKHR surface, const std::st
 std::string debug_get_pass_name(VulkanPass& vulkanPass, const std::string& postfix)
 {
     return fmt::format("Pass::{}::{}", vulkanPass.pass.name, postfix);
+}
+
+void debug_set_surface_name(VkDevice device, VulkanSurface& surface, const std::string& name)
+{
+    if (surface.memory)
+    {
+        debug_set_devicememory_name(device, surface.memory, name + ":Memory");
+    }
+    if (surface.image)
+    {
+        debug_set_image_name(device, surface.image, name + ":Image");
+    }
+    if (surface.stagingBuffer.buffer)
+    {
+        debug_set_buffer_name(device, surface.stagingBuffer.buffer, name + ":StagingBuffer");
+    }
+    if (surface.stagingBuffer.memory)
+    {
+        debug_set_devicememory_name(device, surface.stagingBuffer.memory, name + ":StagingBufferMemory");
+    }
+    if (surface.sampler)
+    {
+        debug_set_sampler_name(device, surface.sampler, name + ":Sampler");
+    }
+    if (surface.view)
+    {
+        debug_set_imageview_name(device, surface.view, name + ":View");
+    }
 }
 
 bool debug_init(VulkanContext& ctx)

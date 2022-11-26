@@ -35,6 +35,12 @@ extern "C" {
 #define T_SCENEGRAPH "scenegraph"
 #define T_SIZE "size"
 #define T_SURFACE "surface"
+#define T_CAMERA "camera"
+#define T_CAMERA_ID "camera_id"
+#define T_POSITION "position"
+#define T_LOOK_AT "look_at"
+#define T_FIELD_OF_VIEW "field_of_view"
+#define T_NEAR_FAR "near_far"
 #define T_TARGETS "targets"
 #define T_VECTOR "vector"
 #define T_VS "vs"
@@ -63,18 +69,28 @@ const auto ShaderTypes = std::map<std::string, ShaderType>{
 };
 
 const auto Formats = std::map<std::string, Format>{
-    { "default_color", Format::Default },
-    { "default_depth", Format::Default_Depth },
-    { "R8G8B8A8UNorm", Format::R8G8B8A8UNorm },
-    { "D32", Format::D32 }
+    { "default_format", Format::default_format },
+    { "default_color_format", Format::default_format },
+    { "default_color", Format::default_format },
+    { "color_format", Format::default_format },
+    { "r8g8b8a8_unorm", Format::r8g8b8a8_unorm },
+    { "rgba8", Format::r8g8b8a8_unorm },
+
+    { "r16g16b16a16_sfloat", Format::r16g16b16a16_sfloat },
+    { "rgba16f", Format::r16g16b16a16_sfloat },
+
+    { "d32", Format::d32 },
+    { "default_depth_format", Format::default_depth_format },
+    { "depth_format", Format::default_depth_format },
+    { "default_depth", Format::default_depth_format }
 };
 
 bool format_is_depth(const Format& fmt)
 {
     switch (fmt)
     {
-    case Format::Default_Depth:
-    case Format::D32:
+    case Format::default_depth_format:
+    case Format::d32:
         return true;
     default:
         return false;
@@ -123,6 +139,14 @@ void scene_init_parser()
     ADD_PARSER(scale, T_SCALE);
     ADD_PARSER(size, T_SIZE);
     ADD_PARSER(surface, T_SURFACE);
+
+    ADD_PARSER(camera, T_CAMERA);
+    ADD_PARSER(camera_id, T_CAMERA_ID);
+    ADD_PARSER(position, T_POSITION);
+    ADD_PARSER(look_at, T_LOOK_AT);
+    ADD_PARSER(near_far, T_NEAR_FAR);
+    ADD_PARSER(field_of_view, T_FIELD_OF_VIEW);
+
     ADD_PARSER(targets, T_TARGETS);
     ADD_PARSER(vector, T_VECTOR);
     ADD_PARSER(vs, T_VS);
@@ -132,10 +156,10 @@ void scene_init_parser()
     parser.parsers.push_back(parser.pSceneGraph);
 
     parser.pError = mpca_lang(MPCA_LANG_DEFAULT, R"(
-path_name        : /[a-zA-Z_][a-zA-Z0-9_\/.]*/ ;
+path_name        : /[a-zA-Z_\-][a-zA-Z0-9_\-\/.]*/ ;
 path             : "path" ":" <path_name> ;
 comment          : /\/\/[^\n\r]*/ ;
-ident            : /[!]?[a-zA-Z_][a-zA-Z0-9_]*/ ;
+ident            : /[!]?[a-zA-Z_][a-zA-Z0-9_-]*/ ;
 float            : /[+-]?\d+(\.\d+)?([eE][+-]?[0-9]+)?/ ;
 vector           : ('(' <float> (','? <float>)? (','? <float>)? (','? <float>)? ')') | <float> ;
 ident_array      : ('(' <ident> (','? <ident>)? (','? <ident>)? (','? <ident>)? (','? <ident>)? ')') | <ident> ;
@@ -145,17 +169,23 @@ clear            : "clear" ':' <vector> ;
 format           : "format" ':' <ident> ;
 samplers         : "samplers" ':' <ident_array> ;
 targets          : "targets" ':' <ident_array> ;
+camera_id        : "camera" ':' <ident_array> ;
+look_at          : "look_at" ':' <vector> ;
+position         : "position" ':' <vector> ;
+near_far         : "near_far" ':' <vector> ;
+field_of_view    : "field_of_view" ':' <float> ;
 vs               : "vs" ':' <path_name> ;
 gs               : "gs" ':' <path_name> ;
 fs               : "fs" ':' <path_name> ;
 surface          : "surface" ':' <ident> '{' (<comment> | <path> | <clear> | <format> | <scale> | <size>)* '}';
+camera           : "camera" ':' <ident> '{' (<comment> | <position> | <look_at> | <field_of_view> | <near_far>)* '}';
 geometry         : "geometry" ':' <ident> '{' (<path> | <scale> | <vs> | <fs> | <gs> | <comment>)* '}';
 disable          : '!' ;
-pass             : <disable>? "pass" ':' <ident> '{' (<geometry> | <targets> | <samplers> | <comment> | <clear>)* '}'; 
-scenegraph       : /^/ (<comment> | <surface>)* (<comment> | <pass> )* /$/ ;
+pass             : <disable>? "pass" ':' <ident> '{' (<geometry> | <targets> | <samplers> | <camera_id> | <comment> | <clear>)* '}'; 
+scenegraph       : /^/ (<comment> | <surface> | <camera>)* (<comment> | <pass> )* /$/ ;
     )",
         path_name, path_id, comment, ident, flt, vector, ident_array, scale, size, clear, format,
-        samplers, targets, vs, gs, fs, surface, geometry, disable, pass, parser.pSceneGraph, nullptr);
+        samplers, targets, vs, gs, fs, surface, camera, camera_id, position, look_at, field_of_view, near_far, geometry, disable, pass, parser.pSceneGraph, nullptr);
 }
 
 void scene_destroy_parser()
@@ -237,6 +267,17 @@ Surface* scene_get_surface(Scene& scene, const std::string& surfaceName)
     return itr->second.get();
 }
 
+Camera* scene_get_camera(Scene& scene, const std::string& cameraName)
+{
+    auto itr = scene.cameras.find(cameraName);
+    if (itr == scene.cameras.end())
+    {
+        return nullptr;
+    }
+
+    return itr->second.get();
+}
+
 std::vector<fs::path> scene_get_headers(const std::vector<fs::path>& files)
 {
     std::vector<fs::path> headers;
@@ -274,7 +315,7 @@ void AddMessage(Scene& scene, const std::string& message, MessageSeverity severi
         scene.valid = false;
         break;
     }
-    
+
     LOG(DBG, message);
 }
 
@@ -323,15 +364,20 @@ std::shared_ptr<Scene> scene_build(const fs::path& root)
 
     // Default backbuffer and depth targets
     auto spDefaultColor = std::make_shared<Surface>("default_color");
-    spDefaultColor->format = Format::Default;
+    spDefaultColor->format = Format::default_format;
     spDefaultColor->isTarget = true;
 
     auto spDefaultDepth = std::make_shared<Surface>("default_depth");
-    spDefaultDepth->format = Format::Default_Depth;
+    spDefaultDepth->format = Format::default_depth_format;
     spDefaultDepth->isTarget = true;
+
+    auto spDefaultCamera = std::make_shared<Camera>("default_camera");
+    spDefaultCamera->nearFar = glm::vec2(0.1f, 256.0f);
+    camera_set_pos_lookat(*spDefaultCamera, glm::vec3(0.0f, 0.0f, 4.0f), glm::vec3(0.0f, 0.0f, 0.0f));
 
     spScene->surfaces["default_color"] = spDefaultColor;
     spScene->surfaces["default_depth"] = spDefaultDepth;
+    spScene->cameras["default_camera"] = spDefaultCamera;
     spScene->finalColorTarget = spDefaultColor.get();
 
     try
@@ -394,7 +440,7 @@ std::shared_ptr<Scene> scene_build(const fs::path& root)
 
                 if (vals.size() < min || vals.size() > max)
                 {
-                    AddMessage(*spScene, fmt::format("Wrong size vector: {}", entry->tag),MessageSeverity::Error, entry->state.row);
+                    AddMessage(*spScene, fmt::format("Wrong size vector: {}", entry->tag), MessageSeverity::Error, entry->state.row);
                 }
 
                 for (int i = 0; i < std::max(ret.length(), std::min(1, int(vals.size()))); i++)
@@ -402,6 +448,17 @@ std::shared_ptr<Scene> scene_build(const fs::path& root)
                     ret[i] = std::stof(vals[i]->contents);
                 }
                 return vals.size();
+            };
+            
+            auto getScalar = [&](auto entry, auto& ret) {
+                auto pChild = getChild(entry, T_FLOAT);
+                if (!pChild)
+                {
+                    AddMessage(*spScene, fmt::format("Missing value: {}", entry->tag), MessageSeverity::Error, entry->state.row);
+                    return;
+                }
+                
+                ret = std::stof(pChild->contents);
             };
 
             auto getVectorIdent = [&](auto entry, int min, int max) -> std::vector<std::string> {
@@ -428,6 +485,49 @@ std::shared_ptr<Scene> scene_build(const fs::path& root)
 
             // LOG(DBG, "Tag: " << ast_current->tag << " Contents: " << ast_current->contents);
 
+            auto cameras = childrenOf(ast_current, T_CAMERA);
+            for (auto& pCameraNode : cameras)
+            {
+                auto pCameraNameNode = getChild(pCameraNode, T_IDENT);
+
+                std::shared_ptr<Camera> spCamera;
+                if (pCameraNameNode->contents == "default_camera")
+                {
+                    spCamera = spDefaultCamera;
+                }
+                else
+                {
+                    spCamera = std::make_shared<Camera>(pCameraNameNode->contents);
+                }
+
+                glm::vec3 position = glm::vec3(0.0f, 0.0f, 5.0f);
+                glm::vec3 look_at = glm::vec3(0.0f);
+                glm::vec2 near_far = glm::vec2(0.1f, 256.0f);
+
+                if (hasChild(pCameraNode, T_POSITION))
+                {
+                    getVector(getChild(pCameraNode, T_POSITION), position, 3, 3);
+                }
+                if (hasChild(pCameraNode, T_LOOK_AT))
+                {
+                    getVector(getChild(pCameraNode, T_LOOK_AT), look_at, 3, 3);
+                }
+                camera_set_pos_lookat(*spCamera, position, look_at);
+
+                if (hasChild(pCameraNode, T_NEAR_FAR))
+                {
+                    getVector(getChild(pCameraNode, T_NEAR_FAR), near_far, 2, 2);
+                }
+                camera_set_near_far(*spCamera, near_far);
+
+                if (hasChild(pCameraNode, T_FIELD_OF_VIEW))
+                {
+                    auto pFOVNode = getChild(pCameraNode, T_FIELD_OF_VIEW);
+                    getScalar(pFOVNode, spCamera->fieldOfView);
+                }
+                spScene->cameras[spCamera->name] = spCamera;
+            }
+
             auto surfaces = childrenOf(ast_current, T_SURFACE);
             for (auto& pSurfaceNode : surfaces)
             {
@@ -452,7 +552,8 @@ std::shared_ptr<Scene> scene_build(const fs::path& root)
                 {
                     auto pFormatNode = getChild(pSurfaceNode, T_FORMAT);
                     auto strFormat = getChild(pFormatNode, T_IDENT)->contents;
-                    auto itrFormat = Formats.find(strFormat);
+                    auto strLowerFormat = string_tolower(strFormat);
+                    auto itrFormat = Formats.find(strLowerFormat);
                     if (itrFormat == Formats.end())
                     {
                         AddMessage(*spScene, fmt::format("Format not found: {}", strFormat), MessageSeverity::Error, pFormatNode->state.row, pFormatNode->state.col);
@@ -547,6 +648,30 @@ std::shared_ptr<Scene> scene_build(const fs::path& root)
                         spPass->clearColor[i] = std::stof(vals[i]->contents);
                         spPass->hasClear = true;
                     }
+                }
+
+                auto cameraEntries = childrenOf(pPassNode, T_CAMERA_ID);
+                for (auto& pCameraIdNode : cameraEntries)
+                {
+                    auto pCameraName = getChild(pCameraIdNode, T_IDENT);
+                    if (pCameraName)
+                    {
+
+                        auto itrFound = spScene->cameras.find(pCameraName->contents);
+                        if (itrFound == spScene->cameras.end())
+                        {
+                            AddMessage(*spScene, fmt::format("Camera not found in pass: {}", pCameraName->contents), MessageSeverity::Error, pCameraIdNode->state.row, pCameraIdNode->state.col);
+                        }
+                        else
+                        {
+                            spPass->cameras.push_back(pCameraName->contents);
+                        }
+                    }
+                }
+                
+                if (spPass->cameras.empty())
+                {
+                    spPass->cameras.push_back("default_camera");
                 }
 
                 if (hasChild(pPassNode, T_TARGETS))
@@ -729,3 +854,33 @@ fs::path scene_find_asset(Scene& scene, const fs::path& path, AssetType type)
     }
     return fs::path();
 }
+
+void scene_copy_state(Scene& destScene, Scene& sourceScene)
+{
+    // Copy over the old info, if appropriate - this is temporary fix for cleaner solution later.
+    for (auto& [name, pPass] : destScene.passes)
+    {
+        auto itrSourcePass = sourceScene.passes.find(name);
+        if (itrSourcePass != sourceScene.passes.end())
+        {
+            auto pSourcePass = itrSourcePass->second.get();
+            for (auto& sourceCamName : pSourcePass->cameras)
+            {
+                for (auto& destCamName : pPass->cameras)
+                {
+                    if (sourceCamName == destCamName)
+                    {
+                        auto pDestCam = scene_get_camera(destScene, destCamName);
+                        auto pSourceCam = scene_get_camera(sourceScene, sourceCamName);
+                        if (pDestCam && pSourceCam)
+                        {
+                            // Not for now, need to figure out changes
+                            //*pDestCam = *pSourceCam;
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+

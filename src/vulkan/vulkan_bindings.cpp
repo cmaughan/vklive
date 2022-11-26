@@ -10,14 +10,15 @@
 namespace vulkan
 {
 
-void bindings_dump(const BindingSets& bindingSets, uint32_t indent)
+void bindings_dump(const BindingSets& bindingSets)
 {
+    LOG_SCOPE(DBG, "Bindings:");
     for (auto& [set, bindings] : bindingSets)
     {
-        LOG_INDENT(DBG, indent, "Set: " << set);
+        LOG_SCOPE(DBG, "Set: " << set);
         for (auto& [index, binding] : bindings.bindings)
         {
-            LOG_INDENT(DBG, indent + 2, fmt::format("{} {} (Count: {}) Flags: {}", index, ToStringDescriptorType((SpvReflectDescriptorType)binding.descriptorType),
+            LOG(DBG, fmt::format("{} {} (Count: {}) Flags: {}", index, ToStringDescriptorType((SpvReflectDescriptorType)binding.descriptorType),
                 binding.descriptorCount, to_string(binding.stageFlags)));
         }
     }

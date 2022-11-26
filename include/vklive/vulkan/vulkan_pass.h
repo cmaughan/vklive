@@ -17,11 +17,17 @@ struct VulkanPass;
 struct VulkanScene;
 struct VulkanPassSwapFrameData;
 
+struct VulkanTargetData
+{
+    VulkanSurface* pVulkanSurface = nullptr;
+
+};
+
 struct VulkanPassTargets
 {
     // Image and depth for this pass
-    std::map<std::string, VulkanSurface*> targets;
-    //VulkanSurface* depth;
+    std::map<std::string, VulkanTargetData> mapNameToTargetData;
+    std::vector<VulkanTargetData*> orderedTargets;
 
     // Increased every time the surfaces change
     std::map<VulkanSurface*, uint64_t> mapSurfaceGenerations;

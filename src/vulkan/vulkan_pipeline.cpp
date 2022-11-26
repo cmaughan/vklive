@@ -50,9 +50,9 @@ vk::Pipeline pipeline_create(VulkanContext& ctx, const VertexLayout& vertexLayou
         ms_info.rasterizationSamples = ctx.MSAASamples;
 
         std::vector<vk::PipelineColorBlendAttachmentState> color_attachments;
-        for (auto& [name, pTarget] : passTargets.targets)
+        for (auto pTargetData : passTargets.orderedTargets)
         {
-            if (!vulkan_format_is_depth(pTarget->format))
+            if (!vulkan_format_is_depth(pTargetData->pVulkanSurface->format))
             {
                 vk::PipelineColorBlendAttachmentState blendState;
                 blendState.blendEnable = 1;

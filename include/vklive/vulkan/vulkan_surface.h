@@ -57,8 +57,6 @@ struct VulkanSurface : Allocation
 
     // For sampling the image in a shader
     vk::Sampler sampler;
-    vk::DescriptorSetLayout samplerDescriptorSetLayout;
-    vk::DescriptorSet samplerDescriptorSet;
 
     vk::Format format{ vk::Format::eUndefined };
 

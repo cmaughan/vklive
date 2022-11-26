@@ -32,8 +32,9 @@ void model_load(Model& model, const std::string& filename, const VertexLayout& l
     const aiScene* pScene;
 
     // Load file
-    auto data = file_read(filename);
-    pScene = importer.ReadFileFromMemory(data.data(), data.size(), flags, filename.c_str());
+    //auto data = file_read(filename);
+    //pScene = importer.ReadFileFromMemory(data.data(), data.size(), flags, filename.c_str());
+    pScene = importer.ReadFile(filename.c_str(), flags);
 
     if (!pScene)
     {
