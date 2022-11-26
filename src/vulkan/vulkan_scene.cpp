@@ -241,7 +241,7 @@ void vulkan_scene_prepare_output_descriptors(VulkanContext& ctx, VulkanScene& vu
     // Create descriptors if necessary for rendered targets
     // This is a little complex.  We walk the surfaces that are in the scene, finding the valid
     // ones for the current frame, that have been written.  Then we allocate our descriptors
-    for (auto& [key, pVulkanSurface] : vulkanScene.surfaces)
+    for (auto& [initKey, pVulkanSurface] : vulkanScene.surfaces)
     {
         // Find the correct surface for this frame
         SurfaceKey key(pVulkanSurface->pSurface->name, globalFrameCount, false);
