@@ -234,7 +234,7 @@ vk::DescriptorSet imgui_add_texture(VulkanContext& ctx, vk::Sampler sampler, vk:
 
     // Update the Descriptor Set:
     {
-        assert(sampler != 0);
+        assert(sampler);
         vk::DescriptorImageInfo desc_image;
         desc_image.sampler = sampler;
         desc_image.imageView = image_view;
