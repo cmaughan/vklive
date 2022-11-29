@@ -39,7 +39,7 @@
 #include <windows.h>
 #endif
 
-Logger vklogger{ false, LT::DBG };
+Logger vklogger{ false, DBG };
 bool Log::disabled = false;
 
 Controller g_Controller;
@@ -248,6 +248,8 @@ int main(int argc, char** argv)
         // creating the device always fails)
         if (g_pDevice->Context().deviceState == DeviceState::Lost)
         {
+            LOG(0, "Device Lost! (This shouldn't happen)");
+
             // Try to restart
             if (project_has_scene(g_Controller.spCurrentProject.get()))
             {
@@ -323,6 +325,7 @@ int main(int argc, char** argv)
         std::shared_ptr<Project> spNewProject;
         if (spQueue->try_dequeue(spNewProject))
         {
+            LOG(DBG, "Deque Compiled Project");
             validation_enable_messages(true);
 
             zep_clear_all_messages();
@@ -333,7 +336,10 @@ int main(int argc, char** argv)
             // Do a 'pre-render'.  If this fails, then we will catch errors that might only happen during scene prepare
             if (project_scene_valid(spNewProject.get()))
             {
-                g_pDevice->ImGui_Render_3D(*spNewProject->spScene, appConfig.draw_on_background);
+                LOG_SCOPE(0, "PreRender Compiled Project, scene: " << spNewProject->spScene.get());
+
+                // The test flag stops things being added to IMGUI that we may not render later.
+                g_pDevice->ImGui_Render_3D(*spNewProject->spScene, appConfig.draw_on_background, true);
             }
 
             // If the new project is still valid and has a working scene, swap
@@ -342,20 +348,14 @@ int main(int argc, char** argv)
             {
                 g_pDevice->WaitIdle();
 
+                // Copy scene data and destroy
                 if (project_scene_valid(g_Controller.spCurrentProject.get()))
                 {
+                    LOG_SCOPE(0, "Destroying previous scene: " << g_Controller.spCurrentProject->spScene.get());
                     g_pDevice->DestroyScene(*g_Controller.spCurrentProject->spScene);
 
                     // Copy over the old info, if appropriate - this is temporary fix for cleaner solution later.
-                    auto spNewScene = spNewProject->spScene;
-                    for (auto& [name, pass] : spNewScene->passes)
-                    {
-                        auto itrOrig = g_Controller.spCurrentProject->spScene->passes.find(name);
-                        if (itrOrig != g_Controller.spCurrentProject->spScene->passes.end())
-                        {
-                            pass->camera = itrOrig->second->camera;
-                        }
-                    }
+                    scene_copy_state(*spNewProject->spScene, *g_Controller.spCurrentProject->spScene);
                 }
 
                 // Copy the new one
@@ -444,8 +444,11 @@ int main(int argc, char** argv)
         {
             validation_enable_messages(true);
 
+            LOG_SCOPE(0, "\nDraw Current Scene: " << g_Controller.spCurrentProject->spScene.get());
+
             // Scene may not be valid, but we want to draw the window
-            g_pDevice->ImGui_Render_3D(*g_Controller.spCurrentProject->spScene, appConfig.draw_on_background);
+            g_pDevice->ImGui_Render_3D(*g_Controller.spCurrentProject->spScene, appConfig.draw_on_background, false);
+
             if (g_pDevice->Context().deviceState == DeviceState::Lost)
             {
                 // Device lost, reset.
@@ -472,12 +475,14 @@ int main(int argc, char** argv)
         {
             try
             {
+                LOG_SCOPE(0, "Draw IMGUI created data");
                 g_pDevice->ImGui_Render(main_draw_data);
             }
             catch(std::exception& ex)
             {
                 if (g_Controller.spCurrentProject && project_has_scene(g_Controller.spCurrentProject.get()))
                 {
+                    LOG(0, "Exception drawing IMGUI! " << ex.what());
                     g_pDevice->DestroyScene(*g_Controller.spCurrentProject->spScene);
                 }
             }

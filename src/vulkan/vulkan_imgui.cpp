@@ -1,14 +1,14 @@
 #include <filesystem>
 
+#include "vklive/logger/logger.h"
+#include "vklive/time/timer.h"
 #include "vklive/vulkan/vulkan_command.h"
 #include "vklive/vulkan/vulkan_context.h"
 #include "vklive/vulkan/vulkan_framebuffer.h"
 #include "vklive/vulkan/vulkan_imgui.h"
 #include "vklive/vulkan/vulkan_render.h"
-#include "vklive/vulkan/vulkan_utils.h"
 #include "vklive/vulkan/vulkan_scene.h"
-#include "vklive/logger/logger.h"
-#include "vklive/time/timer.h"
+#include "vklive/vulkan/vulkan_utils.h"
 
 #include "vklive/file/runtree.h"
 
@@ -234,6 +234,7 @@ vk::DescriptorSet imgui_add_texture(VulkanContext& ctx, vk::Sampler sampler, vk:
 
     // Update the Descriptor Set:
     {
+        assert(sampler);
         vk::DescriptorImageInfo desc_image;
         desc_image.sampler = sampler;
         desc_image.imageView = image_view;
@@ -689,9 +690,10 @@ void imgui_render(VulkanContext& ctx, VulkanWindow* wd, ImDrawData* draw_data)
             ctx.queue.submit(info, fd->fence);
         }
     }
-    catch(std::exception& ex)
+    catch (std::exception& ex)
     {
     }
+    LOG(DBG, "ImGui: Rendered");
 }
 
 void imgui_destroy_font_upload_objects(VulkanContext& ctx)
@@ -704,7 +706,7 @@ void imgui_destroy_font_upload_objects(VulkanContext& ctx)
     imgui->uploadBufferMemory = nullptr;
 }
 
-void imgui_render_3d(VulkanContext& ctx, Scene& scene, bool background)
+void imgui_render_3d(VulkanContext& ctx, Scene& scene, bool background, bool test_render)
 {
     auto imgui = imgui_context(ctx);
 
@@ -739,35 +741,116 @@ void imgui_render_3d(VulkanContext& ctx, Scene& scene, bool background)
     {
         vulkan::render(ctx, glm::vec4(canvas_pos.x, canvas_pos.y, canvas_size.x, canvas_size.y), scene);
 
-        if (ctx.deviceState == DeviceState::Normal)
+        if (ctx.deviceState == DeviceState::Normal && !test_render)
         {
             // If we have a final target, and we rendered to it
             auto pVulkanScene = vulkan_scene_get(ctx, scene);
             if (pVulkanScene)
             {
-                // Find the thing we just rendered to
-                auto itrSurface = pVulkanScene->surfaces.find(SurfaceKey(scene.finalColorTarget->name, globalFrameCount, false));
-                if (itrSurface != pVulkanScene->surfaces.end() && scene.finalColorTarget->rendered && itrSurface->second->samplerDescriptorSet)
+                if (pVulkanScene->defaultTarget)
                 {
-                    LOG(DBG, "Drawing Surface Sampler: " << itrSurface->second->sampler);
-                    pDrawList->AddImage((ImTextureID)itrSurface->second->samplerDescriptorSet,
-                        ImVec2(canvas_pos.x, canvas_pos.y),
-                        ImVec2(canvas_pos.x + canvas_size.x, canvas_pos.y + canvas_size.y));
+                    // Find the thing we just rendered to
+                    auto itrTargetData = pVulkanScene->targetData.find(pVulkanScene->defaultTarget);
+
+                    if (itrTargetData != pVulkanScene->targetData.end())
+                    {
+                        auto& targetData = itrTargetData->second;
+                        if (targetData.descriptorSetLayout && targetData.descriptorSet)
+                        {
+                            LOG(0, "Showing RT with Descriptor: " << targetData.descriptorSet);
+                            pDrawList->AddImage((ImTextureID)targetData.descriptorSet,
+                                ImVec2(canvas_pos.x, canvas_pos.y),
+                                ImVec2(canvas_pos.x + canvas_size.x, canvas_pos.y + canvas_size.y));
+                        }
+                        targetData.descriptorSet = nullptr;
+                        drawn = true;
+                    }
+                }
+            }
+        }
+
+        if (test_render)
+        {
+            drawn = true;
+        }
+    }
+
+    if (!drawn)
+    {
+        pDrawList->AddText(ImVec2(canvas_pos.x, canvas_pos.y), 0xFFFFFFFF, "No passes draw to the this buffer...");
+    }
+
+    if (!background)
+    {
+        ImGui::End();
+    }
+}
+
+void imgui_render_targets(VulkanContext& ctx, Scene& scene)
+{
+    auto imgui = imgui_context(ctx);
+
+    ImGui::SetNextWindowSize(ImVec2(800, 600), ImGuiCond_FirstUseEver);
+    ImGui::SetNextWindowPos(ImVec2(820, 50), ImGuiCond_FirstUseEver);
+    ImGui::Begin("Targets");
+    auto pDrawList = ImGui::GetWindowDrawList();
+    ImVec2 canvas_pos = ImGui::GetCursorScreenPos(); // ImDrawList API uses screen coordinates!
+    ImVec2 canvas_size = ImGui::GetContentRegionAvail(); // Resize canvas to what's available
+    canvas_size.x = std::max(canvas_size.x, 1.0f);
+    canvas_size.y = std::max(canvas_size.y, 1.0f);
+    ImGui::InvisibleButton("##dummy", canvas_size);
+
+    auto minRect = pDrawList->GetClipRectMin();
+    auto maxRect = pDrawList->GetClipRectMax();
+    canvas_pos = minRect;
+    canvas_size = ImVec2(maxRect.x - minRect.x, maxRect.y - minRect.y);
+
+    // TODO: Render these in order in the scene graph file?
+    // Add labels
+    bool drawn = false;
+    if (scene.valid)
+    {
+        // If we have a final target, and we rendered to it
+        auto pVulkanScene = vulkan_scene_get(ctx, scene);
+        if (pVulkanScene && pVulkanScene->viewableTargets.size() >= 1)
+        {
+            auto count = pVulkanScene->viewableTargets.size();
+            auto height_per_tile = canvas_size.y / count;
+
+            for (auto& target : pVulkanScene->viewableTargets)
+            {
+                /*if (pVulkanScene->defaultTarget == target)
+                {
+                    continue;
+                }
+                */
+                // Find the thing we just rendered to
+                auto itrTargetData = pVulkanScene->targetData.find(target);
+
+                if (itrTargetData != pVulkanScene->targetData.end())
+                {
+                    auto& targetData = itrTargetData->second;
+                    if (targetData.descriptorSetLayout && targetData.descriptorSet)
+                    {
+                        LOG(0, "Showing RT:Target with Descriptor: " << targetData.descriptorSet);
+                        pDrawList->AddImage((ImTextureID)targetData.descriptorSet,
+                            ImVec2(canvas_pos.x, canvas_pos.y),
+                            ImVec2(canvas_pos.x + canvas_size.x, canvas_pos.y + height_per_tile));
+                        canvas_pos.y += height_per_tile;
+                    }
+                    targetData.descriptorSet = nullptr;
                     drawn = true;
                 }
             }
         }
     }
-    
+
     if (!drawn)
     {
-        pDrawList->AddText(ImVec2(canvas_pos.x, canvas_pos.y), 0xFFFFFFFF, "No passes draw to the this buffer...");
+        pDrawList->AddText(ImVec2(canvas_pos.x, canvas_pos.y), 0xFFFFFFFF, "No targets...");
     }
-    
-    if (!background)
-    {
-        ImGui::End();
-    }
+
+    ImGui::End();
 }
 
 // ImVec2 mouse_pos_in_canvas = ImVec2(ImGui::GetIO().MousePos.x - canvas_pos.x, ImGui::GetIO().MousePos.y - canvas_pos.y);

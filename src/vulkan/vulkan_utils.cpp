@@ -387,12 +387,14 @@ vk::Format utils_format_to_vulkan(const Format& format)
 {
     switch (format)
     {
-    case Format::D32:
-    case Format::Default_Depth:
+    case Format::d32:
+    case Format::default_depth_format:
         return vk::Format::eD32Sfloat;
-    case Format::Default:
-    case Format::R8G8B8A8UNorm:
+    case Format::default_format:
+    case Format::r8g8b8a8_unorm:
         return vk::Format::eR8G8B8A8Unorm;
+    case Format::r16g16b16a16_sfloat:
+        return vk::Format::eR16G16B16A16Sfloat;
     }
     assert(!"Unknown format?");
     return vk::Format::eR8G8B8A8Unorm;

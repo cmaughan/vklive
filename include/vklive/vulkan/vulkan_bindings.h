@@ -26,6 +26,6 @@ struct VulkanBindingSet
 using BindingSets = std::map<uint32_t, VulkanBindingSet>;
 
 BindingSets bindings_merge(const std::vector<BindingSets*>& sets);
-void bindings_dump(const BindingSets& bindingSets, uint32_t indent = 0);
+void bindings_dump(const BindingSets& bindingSets);
 
 } // namespace vulkan

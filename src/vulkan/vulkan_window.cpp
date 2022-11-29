@@ -10,7 +10,7 @@
 #include "vklive/vulkan/vulkan_utils.h"
 #include "vklive/vulkan/vulkan_framebuffer.h"
 
-//#define IMGUI_UNLIMITED_FRAME_RATE
+#define IMGUI_UNLIMITED_FRAME_RATE
 
 namespace vulkan
 {

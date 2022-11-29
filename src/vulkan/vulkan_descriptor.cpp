@@ -1,8 +1,16 @@
 #include <algorithm>
 #include <vklive/vulkan/vulkan_descriptor.h>
+#include <vklive/time/timer.h>
 
 namespace vulkan
 {
+
+DescriptorCache& descriptor_get_cache(VulkanContext& ctx)
+{
+    // Keep enough descriptor pools to ensure we aren't re-using ones in flight
+    // With 3 swap chains, we need at most 4.
+    return ctx.descriptorCache[globalFrameCount % 4];
+}
 
 namespace
 {
@@ -67,6 +75,13 @@ vk::DescriptorPool grab_pool(VulkanContext& ctx, DescriptorCache& cache)
 
 void descriptor_reset_pools(VulkanContext& ctx, DescriptorCache& cache)
 {
+    // Protect against double reset
+    if (cache.usedPools.empty())
+    {
+        cache.currentPool = VK_NULL_HANDLE;
+        return;
+    }
+
     for (auto p : cache.usedPools)
     {
         vkResetDescriptorPool(ctx.device, p, 0);
@@ -130,7 +145,7 @@ bool descriptor_allocate(VulkanContext& ctx, DescriptorCache& cache, vk::Descrip
     return false;
 }
 
-void vulkan_descriptor_cleanup(VulkanContext& ctx, DescriptorCache& cache)
+void vulkan_descriptor_destroy_pools(VulkanContext& ctx, DescriptorCache& cache)
 {
     // delete every pool held
     for (auto p : cache.freePools)

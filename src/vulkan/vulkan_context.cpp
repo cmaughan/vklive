@@ -130,7 +130,7 @@ bool context_init(VulkanContext& ctx)
         };
         vk::DescriptorPoolCreateInfo pool_info(vk::DescriptorPoolCreateFlagBits::eFreeDescriptorSet, 1000 * pool_sizes.size(), pool_sizes);
         ctx.descriptorPool = ctx.device.createDescriptorPool(pool_info);
-        debug_set_descriptorpool_name(ctx.device, ctx.descriptorPool, "Context::DescriptorPool");
+        debug_set_descriptorpool_name(ctx.device, ctx.descriptorPool, "Context::DescriptorPool(ImGui)");
     }
 
     return true;

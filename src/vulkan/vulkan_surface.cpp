@@ -29,40 +29,33 @@ void vulkan_surface_destroy(VulkanContext& ctx, VulkanSurface& img)
 
     if (img.sampler)
     {
+        LOG(DBG, "Destroy Sampler: " << img.sampler);
         ctx.device.destroySampler(img.sampler);
-        img.sampler = vk::Sampler();
-    }
-    if (img.samplerDescriptorSetLayout)
-    {
-        ctx.device.destroyDescriptorSetLayout(img.samplerDescriptorSetLayout);
-        img.samplerDescriptorSetLayout = nullptr;
+        img.sampler = nullptr;
     }
 
-    // We don't free these here, but do take account of the fact they are no longer valid
-    if (img.samplerDescriptorSet)
-    {
-        // ctx.device.freeDescriptorSets(ctx.descriptorPool, img.samplerDescriptorSet);
-        img.samplerDescriptorSet = nullptr;
-    }
     if (img.mapped)
     {
         surface_unmap(ctx, img);
         img.mapped = nullptr;
     }
+
     if (img.view)
     {
         ctx.device.destroyImageView(img.view);
-        img.view = vk::ImageView();
+        img.view = nullptr;
     }
+
     if (img.image)
     {
         ctx.device.destroyImage(img.image);
-        img.image = vk::Image();
+        img.image = nullptr;
     }
+
     if (img.memory)
     {
         ctx.device.freeMemory(img.memory);
-        img.memory = vk::DeviceMemory();
+        img.memory = nullptr;
     }
 };
 
@@ -104,8 +97,6 @@ void vulkan_surface_create(VulkanContext& ctx, VulkanSurface& vulkanSurface, con
     image.usage = vk::ImageUsageFlagBits::eColorAttachment | colorUsage;
     image.format = colorFormat;
     vulkan_surface_create(ctx, vulkanSurface, image, vk::MemoryPropertyFlagBits::eDeviceLocal);
-    debug_set_image_name(ctx.device, vulkanSurface.image, vulkanSurface.debugName + ":ColorImage");
-    debug_set_devicememory_name(ctx.device, vulkanSurface.memory, vulkanSurface.debugName + ":ColorImageMemory");
 
     if (sampled)
     {
@@ -117,8 +108,9 @@ void vulkan_surface_create(VulkanContext& ctx, VulkanSurface& vulkanSurface, con
         colorImageView.format = colorFormat;
         colorImageView.image = vulkanSurface.image;
         vulkanSurface.view = ctx.device.createImageView(colorImageView);
-        debug_set_imageview_name(ctx.device, vulkanSurface.view, vulkanSurface.debugName + ":ColorImageView");
     }
+
+    debug_set_surface_name(ctx.device, vulkanSurface, vulkanSurface.debugName);
 
     vulkanSurface.allocationState = VulkanAllocationState::Loaded;
 
@@ -147,8 +139,6 @@ void vulkan_surface_create_depth(VulkanContext& ctx, VulkanSurface& vulkanSurfac
     image.usage = vk::ImageUsageFlagBits::eDepthStencilAttachment | depthUsage;
 
     vulkan_surface_create(ctx, vulkanSurface, image, vk::MemoryPropertyFlagBits::eDeviceLocal);
-    debug_set_image_name(ctx.device, vulkanSurface.image, vulkanSurface.debugName + ":DepthImage");
-    debug_set_devicememory_name(ctx.device, vulkanSurface.memory, vulkanSurface.debugName + ":DepthImageMemory");
 
     vk::ImageViewCreateInfo depthStencilView;
     depthStencilView.viewType = vk::ImageViewType::e2D;
@@ -158,7 +148,8 @@ void vulkan_surface_create_depth(VulkanContext& ctx, VulkanSurface& vulkanSurfac
     depthStencilView.subresourceRange.layerCount = 1;
     depthStencilView.image = vulkanSurface.image;
     vulkanSurface.view = ctx.device.createImageView(depthStencilView);
-    debug_set_imageview_name(ctx.device, vulkanSurface.view, vulkanSurface.debugName + ":DepthImageView");
+
+    debug_set_surface_name(ctx.device, vulkanSurface, vulkanSurface.debugName);
 
     vulkanSurface.allocationState = VulkanAllocationState::Loaded;
 
@@ -191,25 +182,7 @@ void surface_create_sampler(VulkanContext& ctx, VulkanSurface& surface)
 void surface_set_sampling(VulkanContext& ctx, VulkanSurface& surface)
 {
     surface_create_sampler(ctx, surface);
-
-    auto binding = vk::DescriptorSetLayoutBinding(0, vk::DescriptorType::eCombinedImageSampler, 1, vk::ShaderStageFlagBits::eFragment, &surface.sampler);
-    surface.samplerDescriptorSetLayout = ctx.device.createDescriptorSetLayout(vk::DescriptorSetLayoutCreateInfo(vk::DescriptorSetLayoutCreateFlags(), binding));
-    surface.samplerDescriptorSet = ctx.device.allocateDescriptorSets(vk::DescriptorSetAllocateInfo(ctx.descriptorPool, surface.samplerDescriptorSetLayout))[0];
-
-    // Update the Descriptor Set:
-    {
-        vk::DescriptorImageInfo desc_image;
-        desc_image.sampler = surface.sampler;
-        desc_image.imageView = surface.view;
-        desc_image.imageLayout = vk::ImageLayout::eShaderReadOnlyOptimal;
-
-        vk::WriteDescriptorSet write_desc;
-        write_desc.dstSet = surface.samplerDescriptorSet;
-        write_desc.descriptorCount = 1;
-        write_desc.descriptorType = vk::DescriptorType::eCombinedImageSampler;
-        write_desc.setImageInfo(desc_image);
-        ctx.device.updateDescriptorSets(write_desc, {});
-    }
+    debug_set_sampler_name(ctx.device, surface.sampler, surface.debugName);
 }
 
 // Create an image memory barrier for changing the layout of
@@ -269,6 +242,8 @@ void surface_stage_to_device(VulkanContext& ctx, VulkanSurface& surface, vk::Ima
 {
     VulkanBuffer staging = buffer_create_staging(ctx, size, data);
     imageCreateInfo.usage = imageCreateInfo.usage | vk::ImageUsageFlagBits::eTransferDst;
+
+    debug_set_buffer_name(ctx.device, staging.buffer, "Staging");
 
     vulkan_surface_create(ctx, surface, imageCreateInfo, memoryPropertyFlags);
 
@@ -403,6 +378,9 @@ bool surface_create_from_file(VulkanContext& ctx, VulkanSurface& vulkanSurface, 
     }
 
     vulkanSurface.allocationState = VulkanAllocationState::Loaded;
+
+    debug_set_surface_name(ctx.device, vulkanSurface, vulkanSurface.debugName);
+
     return true;
 }
 
@@ -413,6 +391,8 @@ void surface_update_from_audio(VulkanContext& ctx, VulkanSurface& surface, bool&
     auto updateSurface = [&](auto width, auto height) {
         if (surface.extent.width != width || surface.extent.height != height)
         {
+            vulkan_surface_destroy(ctx, surface);
+
             surfaceChanged = true;
             surface.extent.width = width;
             surface.extent.height = height;
@@ -453,11 +433,12 @@ void surface_update_from_audio(VulkanContext& ctx, VulkanSurface& surface, bool&
                 viewCreateInfo.subresourceRange = { vk::ImageAspectFlagBits::eColor, 0, surface.mipLevels, 0, surface.layerCount };
                 surface.view = ctx.device.createImageView(viewCreateInfo);
             }
+
+            debug_set_surface_name(ctx.device, surface, "Audio Analysis");
         }
     };
 
-    if (audioContext.analysisChannels.empty() ||
-        audioContext.analysisReadGeneration.load() == audioContext.analysisWriteGeneration.load())
+    if (audioContext.analysisChannels.empty() || audioContext.analysisReadGeneration.load() == audioContext.analysisWriteGeneration.load())
     {
         // Ensure a blank surface so the shader always gets something
         if (surface.extent.width == 0 || surface.extent.height == 0)

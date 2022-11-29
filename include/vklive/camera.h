@@ -18,6 +18,11 @@ enum class CameraType
 
 struct Camera
 {
+    Camera(const std::string& n)
+        : name(n)
+    {
+    }
+
     glm::vec3 position = glm::vec3(0.0f); // Position of the camera in world space
     glm::vec3 focalPoint = glm::vec3(0.0f); // Look at point
     glm::vec2 nearFar = glm::vec2(.1f, 100.0f);
@@ -44,6 +49,8 @@ struct Camera
 
     int64_t lastTime = 0;
     CameraType m_type = CameraType::Perspective;
+
+    std::string name;
 };
 
 void camera_set_pos_lookat(Camera& cam, const glm::vec3& pos, const glm::vec3& point);

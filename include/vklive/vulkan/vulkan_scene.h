@@ -2,7 +2,11 @@
 
 #include <string>
 #include <unordered_map>
+#include <unordered_set>
+#include <set>
 #include <filesystem>
+#include <fmt/format.h>
+
 #include <vklive/platform/platform.h>
 #include <vklive/scene.h>
 #include <vklive/vulkan/vulkan_descriptor.h>
@@ -24,6 +28,12 @@ inline uint64_t frame_to_pingpong(uint64_t frame)
 
 struct SurfaceKey
 {
+    SurfaceKey()
+        : targetName()
+        , pingPongIndex(0)
+    {
+    }
+
     SurfaceKey(const std::string& name, uint64_t globalFrameCount, bool sampling = false)
         : targetName(name)
         , pingPongIndex(frame_to_pingpong(globalFrameCount))
@@ -41,7 +51,17 @@ struct SurfaceKey
     {
         return (targetName == other.targetName) && (pingPongIndex == other.pingPongIndex);
     }
-    
+
+    explicit operator bool() const
+    {
+        return !targetName.empty();
+    }
+
+    std::string DebugName() const
+    {
+        return fmt::format("{}:P{}", targetName, pingPongIndex);
+    }
+
     struct HashFunction
     {
         size_t operator()(const SurfaceKey& k) const
@@ -49,6 +69,25 @@ struct SurfaceKey
             return std::hash<std::string>()(k.targetName) ^ k.pingPongIndex;
         }
     };
+
+    bool operator < (const SurfaceKey& rhs) const
+    {
+        if (targetName < rhs.targetName)
+        {
+            return true;
+        }
+        else if (targetName > rhs.targetName)
+        {
+            return false;
+        }
+        return pingPongIndex < rhs.pingPongIndex;
+    }
+};
+
+struct VulkanSceneTargetData
+{
+    vk::DescriptorSetLayout descriptorSetLayout = nullptr;
+    vk::DescriptorSet descriptorSet = nullptr;
 };
 
 struct VulkanScene
@@ -66,8 +105,13 @@ struct VulkanScene
     std::unordered_map<fs::path, std::shared_ptr<VulkanShader>> shaderStages;
     std::unordered_map<std::string, std::shared_ptr<VulkanPass>> passes;
 
-    std::unordered_map<uint32_t, DescriptorCache> descriptorCache;
     uint64_t audioSurfaceFrameGeneration = 0;
+
+    // Descriptor set used by the GUI layer to draw it.
+    std::unordered_map<SurfaceKey, VulkanSceneTargetData, SurfaceKey::HashFunction> targetData;
+
+    std::set<SurfaceKey> viewableTargets;
+    SurfaceKey defaultTarget;
 };
 
 std::shared_ptr<VulkanScene> vulkan_scene_create(VulkanContext& ctx, Scene& scene);
@@ -75,8 +119,6 @@ VulkanScene* vulkan_scene_get(VulkanContext& ctx, Scene& scene);
 
 void vulkan_scene_destroy(VulkanContext& ctx, VulkanScene& scene);
 void vulkan_scene_render(VulkanContext& ctx, VulkanScene& vulkanScene);
-
-DescriptorCache& vulkan_descriptor_cache(VulkanContext& ctx, VulkanScene& vulkanScene);
 
 VulkanSurface* vulkan_scene_get_or_create_surface(VulkanScene& scene, const std::string& surface, uint64_t frameCount = 0, bool sampling = false);
 

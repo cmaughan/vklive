@@ -42,7 +42,12 @@ void clear_temporary_files()
 
 void project_startup()
 {
-    clear_temporary_files();
+    try
+    {
+        clear_temporary_files();
+    }
+    catch(std::exception& ex)
+    { }
 }
     
 fs::path find_temp_path()

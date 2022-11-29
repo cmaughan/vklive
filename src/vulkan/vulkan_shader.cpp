@@ -147,11 +147,17 @@ bool shader_parse_output(const std::string& strOutput, const fs::path& shaderPat
     }
     return errors;
 }
+
 void shader_reflect(const std::string& spirv, VulkanShader& vulkanShader)
 {
     SpvReflectShaderModule module = {};
     SpvReflectResult result = spvReflectCreateShaderModule(spirv.size(), spirv.c_str(), &module);
     assert(result == SPV_REFLECT_RESULT_SUCCESS);
+
+    std::ostringstream str;
+    const spv_reflect::ShaderModule mod(spirv.size(), spirv.c_str());
+    WriteReflection(mod, false, str);
+    LOG_SCOPE(DBG, str.str());
 
     uint32_t count = 0;
     result = spvReflectEnumerateDescriptorSets(&module, &count, NULL);
@@ -188,8 +194,8 @@ void shader_reflect(const std::string& spirv, VulkanShader& vulkanShader)
             vulkanShader.bindingSets[set->set].bindingMeta[layout_binding.binding] = meta;
         }
     }
-    LOG(DBG, "Shader: " << vulkanShader.pShader->path.filename() << ", Bindings:");
-    bindings_dump(vulkanShader.bindingSets, 2);
+    LOG_SCOPE(DBG, "Shader: " << vulkanShader.pShader->path.filename() << ", Bindings:");
+    bindings_dump(vulkanShader.bindingSets);
     spvReflectDestroyShaderModule(&module);
 }
 
