@@ -1,0 +1,64 @@
+// Background
+
+camera: default_camera {
+    position: (-0.25, -2.5, 6.0)
+    look_at: (-0.25, -2.5, 0.0)
+    field_of_view: 45.0
+    near_far: (0.01, 20.0)
+}
+
+surface: Noise {
+    path: noise.png
+}
+
+surface: Albedo {
+    scale: (1, 1, 1)      // Scale relative to window
+    format: default_format       // Default RGBA8
+    clear: (0.0, 0.0, 0.0, 0.0) // Clear color for restart
+    // path: tex.png            // Path to a texture 
+}
+
+surface: Positions {
+    scale: (1, 1, 1)      // Scale relative to window
+    format: rgba16f // Default 16 bit signed floats
+    clear: (0.0, 0.0, 0.0, 0.0) // Clear color for restart
+    // path: tex.png            // Path to a texture 
+}
+
+surface: Normals {
+    scale: (1, 1, 1)      // Scale relative to window
+    format: rgba16f // Default 16 bit signed floats
+    clear: (0.0, 0.0, 0.0, 0.0) // Clear color for restart
+    // path: tex.png            // Path to a texture 
+}
+
+surface: Depth {
+    scale: (1, 1, 1)
+    clear: 0.0
+    format: default_depth_format // Default D32f
+}
+
+// Write the components of the lighting equation in a single pass
+pass: Deferred {
+    targets: (Positions, Albedo, Normals, Depth)
+    clear: (0.1, 0.1, 0.1, 1.0) // Clear done every pass
+    geometry : shape {
+        path: cornell-box.obj
+        scale: (1.0, 1.0, 1.0) // Scale for the model matrix
+        vs: deferred.vert
+        fs: deferred.frag
+    }
+}
+
+// Loop the lights, calculating their effects
+pass: Lights {
+    camera: default_camera
+    samplers: (Positions, Albedo, Normals)
+    clear: (0.0, 0.0, 0.0, 1.0) // Clear done every pass
+    geometry: background {      // The geometry to submit
+        path: screen_rect       // screen_rect is Quad
+        vs: lighting.vert
+        fs: lighting.frag
+    }
+}
+
