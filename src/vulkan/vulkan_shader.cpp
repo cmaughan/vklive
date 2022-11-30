@@ -43,27 +43,6 @@ bool shader_parse_output(const std::string& strOutput, const fs::path& shaderPat
         Message msg;
         msg.severity = MessageSeverity::Message;
 
-        /*
-        // Try to find paths
-        auto paths = string_split(error_line, " ");
-        for (auto& pathString : paths)
-        {
-            auto tok = string_trim(pathString, " \n\r:");
-            try
-            {
-                auto p = fs::path(tok);
-                if (fs::exists(p))
-                {
-                    msg.path = fs::canonical(p);
-                }
-            }
-            catch (std::exception& ex)
-            {
-                LOG(INFO, ex.what());
-            }
-        }
-        */
-
         // TODO: Includes, etc.
         msg.path = p;
 
@@ -154,10 +133,12 @@ void shader_reflect(const std::string& spirv, VulkanShader& vulkanShader)
     SpvReflectResult result = spvReflectCreateShaderModule(spirv.size(), spirv.c_str(), &module);
     assert(result == SPV_REFLECT_RESULT_SUCCESS);
 
+    #ifdef _DEBUG
     std::ostringstream str;
     const spv_reflect::ShaderModule mod(spirv.size(), spirv.c_str());
     WriteReflection(mod, false, str);
     LOG_SCOPE(DBG, str.str());
+    #endif
 
     uint32_t count = 0;
     result = spvReflectEnumerateDescriptorSets(&module, &count, NULL);

@@ -1,0 +1,102 @@
+generator       : Khronos Glslang Reference Front End
+source lang     : GLSL
+source lang ver : 450
+source file     : C:/dev/vklive/run_tree/shaders/include/default_parameters.h
+entry point     : main (stage=PS)
+
+
+  Input variables: 2
+
+    0:
+      spirv id  : 48
+      location  : 0
+      type      : float2
+      semantic  :
+      name      : inUV
+      qualifier :
+    1:
+      spirv id  : 147
+      location  : 1
+      type      : float3
+      semantic  :
+      name      : inEye
+      qualifier :
+
+
+  Output variables: 1
+
+    0:
+      spirv id  : 76
+      location  : 0
+      type      : float4
+      semantic  :
+      name      : outFragcolor
+      qualifier :
+
+
+  Descriptor bindings: 4
+
+    Binding 0.0
+      spirv id : 229
+      set      : 0
+      binding  : 0
+      type     : VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER (CBV)
+      count    : 1
+      accessed : false
+      name     : ubo (UBO)
+          // size = 608, padded size = 608
+          struct UBO {
+              float                 iTime;                    // abs offset =   0, rel offset =   0, size =  4, padded size =  4 UNUSED
+              float                 iGlobalTime;              // abs offset =   4, rel offset =   4, size =  4, padded size =  4 UNUSED
+              float                 iTimeDelta;               // abs offset =   8, rel offset =   8, size =  4, padded size =  4 UNUSED
+              float                 iFrame;                   // abs offset =  12, rel offset =  12, size =  4, padded size =  4 UNUSED
+              float                 iFrameRate;               // abs offset =  16, rel offset =  16, size =  4, padded size =  4 UNUSED
+              float                 iSampleRate;              // abs offset =  20, rel offset =  20, size =  4, padded size = 12 UNUSED
+              float4                iResolution;              // abs offset =  32, rel offset =  32, size = 16, padded size = 16 UNUSED
+              float4                iMouse;                   // abs offset =  48, rel offset =  48, size = 16, padded size = 16 UNUSED
+              float4                iDate;                    // abs offset =  64, rel offset =  64, size = 16, padded size = 16 UNUSED
+              float4                iSpectrumBands[2];        // abs offset =  80, rel offset =  80, size = 32, padded size = 32, array stride = 16 UNUSED
+              float4                iChannelTime;             // abs offset = 112, rel offset = 112, size = 16, padded size = 16 UNUSED
+              float4                iChannelResolution[4];    // abs offset = 128, rel offset = 128, size = 64, padded size = 64, array stride = 16 UNUSED
+              float4                ifFragCoordOffsetUniform; // abs offset = 192, rel offset = 192, size = 16, padded size = 16 UNUSED
+              float4                eye;                      // abs offset = 208, rel offset = 208, size = 16, padded size = 16 UNUSED
+              column_major float4x4 model;                    // abs offset = 224, rel offset = 224, size = 64, padded size = 64 UNUSED
+              column_major float4x4 view;                     // abs offset = 288, rel offset = 288, size = 64, padded size = 64 UNUSED
+              column_major float4x4 projection;               // abs offset = 352, rel offset = 352, size = 64, padded size = 64 UNUSED
+              column_major float4x4 modelViewProjection;      // abs offset = 416, rel offset = 416, size = 64, padded size = 64 UNUSED
+
+              // abs offset = 480, rel offset = 480, size = 128, padded size = 128, array stride = 32 UNUSED
+              struct Channel {
+                  float4 resolution;                          // abs offset =   0, rel offset =   0, size = 16, padded size = 16 UNUSED
+                  float  time;                                // abs offset =   0, rel offset =  16, size =  4, padded size = 16 UNUSED
+              } iChannel[4];
+
+          } ubo;
+
+
+    Binding 1.0
+      spirv id : 44
+      set      : 1
+      binding  : 0
+      type     : VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER (???)
+      count    : 1
+      accessed : true
+      name     : Positions
+
+    Binding 1.1
+      spirv id : 60
+      set      : 1
+      binding  : 1
+      type     : VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER (???)
+      count    : 1
+      accessed : true
+      name     : Albedo
+
+    Binding 1.2
+      spirv id : 53
+      set      : 1
+      binding  : 2
+      type     : VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER (???)
+      count    : 1
+      accessed : true
+      name     : Normals
