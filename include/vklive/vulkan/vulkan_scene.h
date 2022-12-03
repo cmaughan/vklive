@@ -119,7 +119,6 @@ VulkanScene* vulkan_scene_get(VulkanContext& ctx, Scene& scene);
 
 void vulkan_scene_destroy(VulkanContext& ctx, VulkanScene& scene);
 void vulkan_scene_render(VulkanContext& ctx, VulkanScene& vulkanScene);
-void vulkan_scene_prepare(VulkanContext& ctx, VulkanScene& vulkanScene);
 
 VulkanSurface* vulkan_scene_get_or_create_surface(VulkanScene& scene, const std::string& surface, uint64_t frameCount = 0, bool sampling = false);
 
