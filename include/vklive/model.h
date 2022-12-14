@@ -40,6 +40,37 @@ struct ModelCreateInfo
     glm::vec2 uvscale{ 1 };
 };
 
+// We support PBR style of models
+enum ModelTextureType
+{
+    // Others
+    Ambient,
+
+    // PBR
+    BaseColor,
+    NormalCamera,
+    EmissionColor,
+    Metalness,
+    DiffuseRoughness,
+    AmbientOcclusion
+};
+
+struct ModelTexture
+{
+    fs::path filePath;
+};
+
+struct ModelMaterial
+{
+    std::string name;
+    glm::vec4 diffuse;
+    glm::vec4 ambient;
+    glm::vec4 specular;
+    glm::vec4 emissive;
+    glm::vec4 reflective;
+    std::map<ModelTextureType, std::vector<ModelTexture>> mapTextures;
+};
+
 // Model
 struct Model
 {
@@ -58,6 +89,8 @@ struct Model
         uint32_t indexCount;
     };
     std::vector<ModelPart> parts;
+
+    std::vector<ModelMaterial> materials;
 
     struct Dimension
     {

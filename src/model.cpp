@@ -1,6 +1,6 @@
 // Loads model; no device specific stuff, just reads it
-#include <vklive/model.h>
 #include <vklive/file/file.h>
+#include <vklive/model.h>
 #include <vklive/string/string_utils.h>
 
 #include <assimp/Importer.hpp>
@@ -8,6 +8,8 @@
 #include <assimp/material.h>
 #include <assimp/postprocess.h>
 #include <assimp/scene.h>
+
+#include <vklive/logger/logger.h>
 
 const int DefaultModelFlags = aiProcess_FlipWindingOrder | aiProcess_Triangulate | aiProcess_PreTransformVertices | aiProcess_CalcTangentSpace | aiProcess_GenSmoothNormals;
 
@@ -32,8 +34,8 @@ void model_load(Model& model, const std::string& filename, const VertexLayout& l
     const aiScene* pScene;
 
     // Load file
-    //auto data = file_read(filename);
-    //pScene = importer.ReadFileFromMemory(data.data(), data.size(), flags, filename.c_str());
+    // auto data = file_read(filename);
+    // pScene = importer.ReadFileFromMemory(data.data(), data.size(), flags, filename.c_str());
     pScene = importer.ReadFile(filename.c_str(), flags);
 
     if (!pScene)
@@ -41,6 +43,41 @@ void model_load(Model& model, const std::string& filename, const VertexLayout& l
         model.errors = importer.GetErrorString();
         return;
     }
+
+    model.materials.clear();
+    for (unsigned int i = 0; i < pScene->mNumMaterials; i++)
+    {
+        auto pMaterial = pScene->mMaterials[i];
+        std::vector<std::pair<aiTextureType, ModelTextureType>> mapTypes{
+            { aiTextureType_DIFFUSE, ModelTextureType::BaseColor },
+            { aiTextureType_AMBIENT, ModelTextureType::Ambient },
+            { aiTextureType_BASE_COLOR, ModelTextureType::BaseColor },
+            { aiTextureType_NORMAL_CAMERA, ModelTextureType::BaseColor },
+            { aiTextureType_EMISSION_COLOR, ModelTextureType::NormalCamera },
+            { aiTextureType_METALNESS, ModelTextureType::Metalness },
+            { aiTextureType_DIFFUSE_ROUGHNESS, ModelTextureType::DiffuseRoughness },
+            { aiTextureType_AMBIENT_OCCLUSION, ModelTextureType::AmbientOcclusion }
+        };
+
+        for (auto& mapType : mapTypes)
+        {
+            for (uint32_t texNum = 0; texNum < pMaterial->GetTextureCount(mapType.first); texNum++)
+            {
+                aiString str;
+                pMaterial->GetTexture(mapType.first, texNum, &str);
+                LOG(DBG, "MapType: " << (int)mapType.first << ", Index: " << texNum << ", Path: " << str.C_Str());
+            }
+        }
+    }
+
+    /*
+    * Embedded textures
+    model.textures.resize(pScene->mNumTextures);
+    for (unsigned int i = 0; i < pScene->mNumTextures; i++)
+    {
+        model.textures.push_back(pScene->mTextures[i]->mFilename)
+    }
+    */
 
     model.parts.clear();
     model.parts.resize(pScene->mNumMeshes);
@@ -221,4 +258,3 @@ uint32_t layout_offset(const VertexLayout& layout, uint32_t index)
     }
     return res;
 }
-
