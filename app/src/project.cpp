@@ -121,10 +121,11 @@ std::set<std::string> project_file_extensions()
 // We don't want to do a deep copy of an erroneously selected project path. It is possible to load
 // a project from the wrong path, then try to save it, massively duplicating folder trees....
 // So we only copy the known bits.
-bool project_copy(Project& project, const fs::path& destPath)
+bool project_copy(Project& project, const fs::path& destPath, std::string& error)
 {
     if (!project.spScene || !fs::is_directory(project.rootPath))
     {
+        error = fmt::format("Scene not found: {}", project.rootPath.string());
         return false; 
     }
     std::set<fs::path> sourcePaths;
@@ -169,6 +170,13 @@ bool project_copy(Project& project, const fs::path& destPath)
         for (auto& source : sourcePaths)
         {
             auto dest = destPath / file_get_relative_path(root, source);
+            dest = fs::canonical(dest);
+            if (fs::equivalent(source, dest))
+            {
+                LOG(DBG, fmt::format("Not copying: {}", dest.string()));
+                continue;
+            }
+
             LOG(DBG, fmt::format("Writing: {}", dest.string()));
             try
             {
@@ -178,6 +186,7 @@ bool project_copy(Project& project, const fs::path& destPath)
             {
                 // Something we can't copy?
                 LOG(DBG, "Error copying: " << ex.what());
+                error = ex.what();
                 ok = false;
             }
         }
@@ -185,6 +194,7 @@ bool project_copy(Project& project, const fs::path& destPath)
     catch (std::exception& ex)
     {
         LOG(DBG, ex.what());
+        error = ex.what();
         return false;
     }
     return ok;
