@@ -100,6 +100,7 @@ void surface_stage_to_device(VulkanContext& ctx, VulkanSurface& surface, const v
 }
 
 bool surface_create_from_file(VulkanContext& ctx, VulkanSurface& surface, const fs::path& filename, vk::Format format = vk::Format::eR8G8B8A8Unorm, vk::ImageUsageFlags imageUsageFlags = vk::ImageUsageFlagBits::eSampled, vk::ImageLayout imageLayout = vk::ImageLayout::eShaderReadOnlyOptimal, bool forceLinear = false);
+bool surface_create_from_memory(VulkanContext& ctx, VulkanSurface& surface, const fs::path& filename, const char* pData, size_t data_size, vk::Format format = vk::Format::eR8G8B8A8Unorm, vk::ImageUsageFlags imageUsageFlags = vk::ImageUsageFlagBits::eSampled, vk::ImageLayout imageLayout = vk::ImageLayout::eShaderReadOnlyOptimal, bool forceLinear = false);
 void surface_update_from_audio(VulkanContext& ctx, VulkanSurface& surface, bool& surfaceChanged, vk::CommandBuffer& commandBuffer);
 
 } // namespace vulkan

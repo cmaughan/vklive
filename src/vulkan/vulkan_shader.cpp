@@ -6,6 +6,7 @@
 #include <fstream>
 #include <sstream>
 
+#define SPIRV_REFLECT_USE_SYSTEM_SPIRV_H
 #include <spirv_reflect.h>
 
 #include "config_app.h"

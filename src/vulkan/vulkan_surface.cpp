@@ -295,23 +295,15 @@ void surface_stage_to_device(VulkanContext& ctx, VulkanSurface& surface, const v
     surface_stage_to_device(ctx, surface, imageCreateInfo, memoryPropertyFlags, (vk::DeviceSize)tex2D.size(), tex2D.data(), mips, layout);
 }
 
-bool surface_create_from_file(VulkanContext& ctx, VulkanSurface& vulkanSurface, const fs::path& filename, vk::Format format, vk::ImageUsageFlags imageUsageFlags, vk::ImageLayout imageLayout, bool forceLinear)
+bool surface_create_from_memory(VulkanContext& ctx, VulkanSurface& vulkanSurface, const fs::path& filename, const char* pData, size_t data_size, vk::Format format, vk::ImageUsageFlags imageUsageFlags, vk::ImageLayout imageLayout, bool forceLinear)
 {
     vulkan_surface_destroy(ctx, vulkanSurface);
 
-    if (!fs::exists(filename))
-    {
-        vulkanSurface.allocationState = VulkanAllocationState::Failed;
-        return false;
-    }
-
     std::shared_ptr<gli::texture2d> tex2Dptr;
-
-    auto data = file_read(filename);
 
     if (filename.extension() == ".dds" || filename.extension() == ".ktx")
     {
-        auto pTex = std::make_shared<gli::texture2d>(gli::load(data.c_str(), data.size()));
+        auto pTex = std::make_shared<gli::texture2d>(gli::load((char*)pData, data_size));
         if (!pTex)
         {
             // TODO: Error
@@ -340,7 +332,7 @@ bool surface_create_from_file(VulkanContext& ctx, VulkanSurface& vulkanSurface, 
     else
     {
         int x, y, n;
-        auto loaded = stbi_load_from_memory((const stbi_uc*)data.c_str(), int(data.size()), &x, &y, &n, 0);
+        auto loaded = stbi_load_from_memory((const stbi_uc*)pData, data_size, &x, &y, &n, 0);
 
         vulkanSurface.extent.width = static_cast<uint32_t>(x);
         vulkanSurface.extent.height = static_cast<uint32_t>(y);
@@ -382,6 +374,26 @@ bool surface_create_from_file(VulkanContext& ctx, VulkanSurface& vulkanSurface, 
     debug_set_surface_name(ctx.device, vulkanSurface, vulkanSurface.debugName);
 
     return true;
+}
+
+bool surface_create_from_file(VulkanContext& ctx, VulkanSurface& vulkanSurface, const fs::path& filename, vk::Format format, vk::ImageUsageFlags imageUsageFlags, vk::ImageLayout imageLayout, bool forceLinear)
+{
+    if (!fs::exists(filename))
+    {
+        vulkanSurface.allocationState = VulkanAllocationState::Failed;
+        return false;
+    }
+
+    std::shared_ptr<gli::texture2d> tex2Dptr;
+
+    auto data = file_read(filename);
+    if (data.empty())
+    {
+        vulkanSurface.allocationState = VulkanAllocationState::Failed;
+        return false;
+    }
+
+    return surface_create_from_memory(ctx, vulkanSurface, filename, data.c_str(), data.size(), format, imageUsageFlags, imageLayout, forceLinear);
 }
 
 void surface_update_from_audio(VulkanContext& ctx, VulkanSurface& surface, bool& surfaceChanged, vk::CommandBuffer& commandBuffer)
