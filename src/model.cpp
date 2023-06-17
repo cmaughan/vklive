@@ -44,21 +44,68 @@ void model_load(Model& model, const std::string& filename, const VertexLayout& l
         return;
     }
 
+    // Embedded textures
+    model.embeddedTextures.clear();
+    for (unsigned int i = 0; i < pScene->mNumTextures; i++)
+    {
+        auto pTex = pScene->mTextures[i];
+        ModelTexture tex;
+        tex.pathName = pTex->mFilename.C_Str();
+        if (tex.pathName.empty())
+        {
+            tex.pathName = fmt::format("*{}", i);
+        }
+        tex.size = glm::uvec2(pTex->mWidth, pTex->mHeight);
+        if (tex.size.y != 0)
+        {
+            tex.data.resize(size_t(tex.size.x * tex.size.y * 4));
+        }
+        else
+        {
+            tex.data.resize(tex.size.x);
+        }
+        memcpy(tex.data.data(), pTex->pcData, tex.data.size());
+
+        model.embeddedTextures[tex.pathName] = tex;
+    }
+
     model.materials.clear();
     for (unsigned int i = 0; i < pScene->mNumMaterials; i++)
     {
         auto pMaterial = pScene->mMaterials[i];
+        std::string name = pMaterial->GetName().C_Str();
+        if (name.empty())
+        {
+            continue;
+        }
         std::vector<std::pair<aiTextureType, ModelTextureType>> mapTypes{
-            { aiTextureType_DIFFUSE, ModelTextureType::BaseColor },
             { aiTextureType_AMBIENT, ModelTextureType::Ambient },
+
+            { aiTextureType_DIFFUSE, ModelTextureType::Diffuse },
             { aiTextureType_BASE_COLOR, ModelTextureType::BaseColor },
-            { aiTextureType_NORMAL_CAMERA, ModelTextureType::BaseColor },
-            { aiTextureType_EMISSION_COLOR, ModelTextureType::NormalCamera },
+
+            { aiTextureType_LIGHTMAP, ModelTextureType::LightMap },
+
+            { aiTextureType_NORMAL_CAMERA, ModelTextureType::NormalCamera },
+            
+            { aiTextureType_NORMALS, ModelTextureType::Normal },
+            { aiTextureType_HEIGHT, ModelTextureType::Normal },
+            { aiTextureType_DISPLACEMENT, ModelTextureType::Normal },
+
+            { aiTextureType_EMISSION_COLOR, ModelTextureType::EmissionColor },
+            { aiTextureType_EMISSIVE, ModelTextureType::EmissionColor },
+
             { aiTextureType_METALNESS, ModelTextureType::Metalness },
+            { aiTextureType_SHININESS, ModelTextureType::Metalness },
+            { aiTextureType_SPECULAR, ModelTextureType::Metalness },
+            { aiTextureType_REFLECTION, ModelTextureType::Metalness },
+            { aiTextureType_OPACITY, ModelTextureType::Metalness },
+
             { aiTextureType_DIFFUSE_ROUGHNESS, ModelTextureType::DiffuseRoughness },
-            { aiTextureType_AMBIENT_OCCLUSION, ModelTextureType::AmbientOcclusion }
+            { aiTextureType_AMBIENT_OCCLUSION, ModelTextureType::AmbientOcclusion },
         };
 
+        ModelMaterial mat;
         for (auto& mapType : mapTypes)
         {
             for (uint32_t texNum = 0; texNum < pMaterial->GetTextureCount(mapType.first); texNum++)
@@ -66,18 +113,17 @@ void model_load(Model& model, const std::string& filename, const VertexLayout& l
                 aiString str;
                 pMaterial->GetTexture(mapType.first, texNum, &str);
                 LOG(DBG, "MapType: " << (int)mapType.first << ", Index: " << texNum << ", Path: " << str.C_Str());
+
+                auto itrTex = model.embeddedTextures.find(str.C_Str());
+                if (itrTex != model.embeddedTextures.end())
+                {
+                    mat.mapTextures[std::make_pair(mapType.second, texNum)] = &itrTex->second;
+                }
             }
         }
+        mat.name = pMaterial->GetName().C_Str();
+        model.materials.push_back(mat);
     }
-
-    /*
-    * Embedded textures
-    model.textures.resize(pScene->mNumTextures);
-    for (unsigned int i = 0; i < pScene->mNumTextures; i++)
-    {
-        model.textures.push_back(pScene->mTextures[i]->mFilename)
-    }
-    */
 
     model.parts.clear();
     model.parts.resize(pScene->mNumMeshes);

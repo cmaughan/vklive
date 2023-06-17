@@ -48,7 +48,10 @@ enum ModelTextureType
 
     // PBR
     BaseColor,
+    Diffuse,
+    LightMap,
     NormalCamera,
+    Normal,
     EmissionColor,
     Metalness,
     DiffuseRoughness,
@@ -57,7 +60,9 @@ enum ModelTextureType
 
 struct ModelTexture
 {
-    fs::path filePath;
+    glm::uvec2 size;
+    std::string pathName;
+    std::vector<uint8_t> data;
 };
 
 struct ModelMaterial
@@ -68,7 +73,7 @@ struct ModelMaterial
     glm::vec4 specular;
     glm::vec4 emissive;
     glm::vec4 reflective;
-    std::map<ModelTextureType, std::vector<ModelTexture>> mapTextures;
+    std::map<std::pair<ModelTextureType, int>, ModelTexture*> mapTextures;
 };
 
 // Model
@@ -91,6 +96,8 @@ struct Model
     std::vector<ModelPart> parts;
 
     std::vector<ModelMaterial> materials;
+
+    std::map<std::string, ModelTexture> embeddedTextures;
 
     struct Dimension
     {

@@ -1,8 +1,10 @@
 #include <tinyfiledialogs/tinyfiledialogs.h>
 #include <nfd.h>
+#include <fmt/format.h>
 
 #include <vklive/scene.h>
 #include <vklive/logger/logger.h>
+#include <vklive/string/string_utils.h>
 
 #include <app/controller.h>
 #include <app/config.h>
@@ -90,9 +92,13 @@ fs::path controller_save_project_as()
         }
 
         LOG(DBG, "Copying project from: " + g_Controller.spCurrentProject->rootPath.string() + " to: " << p.string());
-        if (!project_copy(*g_Controller.spCurrentProject, p))
+        std::string error;
+        if (!project_copy(*g_Controller.spCurrentProject, p, error))
         {
-            tinyfd_messageBox("Error", "The project could not be copied!", "ok", "error", (int)BoxRet::No);
+            // tfd doesn't like quotes inside messages
+            string_replace_in_place(error, "\"", "");
+            string_replace_in_place(error, "'", "");
+            tinyfd_messageBox("Error", fmt::format("The project could not be copied!\n{}", error).c_str(), "ok", "error", (int)BoxRet::No);
             return fs::path(); 
         }
         return p;
