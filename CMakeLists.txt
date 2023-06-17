@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.15)
 
-set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
@@ -35,7 +35,7 @@ find_package(assimp CONFIG REQUIRED) # Asset import for loading models
 find_package(clipp CONFIG REQUIRED) # Commandline parser for command line arguments
 find_package(fmt CONFIG REQUIRED) # String formatting library
 find_package(reproc++ REQUIRED) # Process launch library for loading shader compiler binary
-find_package(SDL2 REQUIRED) # SDL UI library for creating windows, etc.
+find_package(SDL2 CONFIG REQUIRED) # SDL UI library for creating windows, etc.
 find_package(tomlplusplus CONFIG REQUIRED) # Toml file format parser for reading config files
 find_package(unofficial-concurrentqueue REQUIRED) # Concurrent lock/free queue for thread interactions
 find_package(tinyfiledialogs CONFIG REQUIRED) # File dialogs that look OS specific and more standard
@@ -199,10 +199,10 @@ set(VK_SOURCES
 set(LIB_SOURCES
     ${VULKAN_SOURCES}
     ${VK_SOURCES}
-    ${IMGUI_SOURCE} 
+    ${IMGUI_SOURCE}
     )
 
-set(APP_SOURCES 
+set(APP_SOURCES
     TODO.md
     README.md
     app/src/config.cpp
@@ -278,13 +278,13 @@ target_include_directories(Rezonality
     ${STB_INCLUDE_DIRS}
     )
 
-target_link_libraries(Rezonality 
+target_link_libraries(Rezonality
     PUBLIC
         vklive
         tinyfiledialogs::tinyfiledialogs
     PRIVATE
-        SDL2::SDL2-static
-        SDL2::SDL2main 
+        $<TARGET_NAME_IF_EXISTS:SDL2::SDL2main>
+        $<IF:$<TARGET_EXISTS:SDL2::SDL2>,SDL2::SDL2,SDL2::SDL2-static>
         freetype
         unofficial::concurrentqueue::concurrentqueue
         clipp::clipp
@@ -324,12 +324,12 @@ if (APPLE)
 else()
     # Artifacts are seperate, not in the bundle
     install(
-        DIRECTORY 
+        DIRECTORY
             ${REZONALITY_ROOT}/run_tree
         TYPE BIN
     )
 
-    install(TARGETS Rezonality 
+    install(TARGETS Rezonality
         EXPORT rezonality-targets
         COMPONENT binaries
         ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
