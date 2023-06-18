@@ -47,7 +47,7 @@ find_package(unofficial-vulkan-memory-allocator CONFIG REQUIRED)
 find_package(gli CONFIG REQUIRED)
 find_package(portaudio CONFIG REQUIRED)
 find_path(STB_INCLUDE_DIRS "stb_c_lexer.h")
-find_package(unofficial-kissfft CONFIG REQUIRED)
+find_package(kissfft CONFIG REQUIRED)
 find_package(range-v3 CONFIG REQUIRED)
 
 # Set this if we are sitting on SDL
@@ -280,7 +280,7 @@ target_link_libraries(Rezonality
         unofficial::vulkan-memory-allocator::vulkan-memory-allocator
         gli
         portaudio_static
-        unofficial::kissfft::kissfft
+        kissfft::kissfft-float
         Zing::Zing
     )
 
