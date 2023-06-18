@@ -12,7 +12,7 @@
 
 #include "vklive/file/runtree.h"
 
-#include "imgui/imgui_impl_sdl.h"
+#include "imgui_impl_sdl2.h"
 
 #include "config_app.h"
 

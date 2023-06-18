@@ -1,6 +1,6 @@
 #include <iostream>
 
-#include "imgui_impl_sdl.h"
+#include "imgui_impl_sdl2.h"
 #include "vklive/vulkan/vulkan_context.h"
 #include "vklive/vulkan/vulkan_utils.h"
 

@@ -8,8 +8,8 @@
 #include <SDL2/SDL.h>
 #include <SDL2/SDL_vulkan.h>
 
-#include <imgui/imgui.h>
-#include <imgui/imgui_impl_sdl.h>
+#include <zest/imgui/imgui.h>
+#include <zest/imgui/imgui_impl_sdl2.h>
 
 #include <vklive/file/file.h>
 #include <vklive/file/runtree.h>

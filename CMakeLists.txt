@@ -1,5 +1,7 @@
 cmake_minimum_required(VERSION 3.15)
 
+set(CMAKE_POLICY_DEFAULT_CMP0077 NEW)
+
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
@@ -61,11 +63,13 @@ else()
     set(CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG} -D_DEBUG -DDEBUG" )
 endif()
 
-include_directories(external/imgui)
+set(ZING_LIBRARY_ONLY ON)
+set(ZEST_BUILD_TESTS OFF)
+add_definitions(-DIMGUI_DISABLE_INCLUDE_IMCONFIG_H)
+add_subdirectory(external/zing)
 
 # Set this to use a lib instead of the single header build
 set (ZEP_LIB 1)
-add_definitions(-DIMGUI_DISABLE_INCLUDE_IMCONFIG_H)
 if (DEFINED ZEP_LIB)
     add_subdirectory(zep/src)
 else()
@@ -125,22 +129,6 @@ set(CLIP_SOURCE
     ${EXTERNAL_DIR}/clip/image.cpp
     )
 
-set(IMGUI_SOURCE
-    ${EXTERNAL_DIR}/imgui/imconfig.h
-    ${EXTERNAL_DIR}/imgui/imgui.cpp
-    ${EXTERNAL_DIR}/imgui/imgui.h
-    ${EXTERNAL_DIR}/imgui/imgui_demo.cpp
-    ${EXTERNAL_DIR}/imgui/imgui_draw.cpp
-    ${EXTERNAL_DIR}/imgui/imgui_internal.h
-    ${EXTERNAL_DIR}/imgui/imgui_tables.cpp
-    ${EXTERNAL_DIR}/imgui/imgui_widgets.cpp
-    ${EXTERNAL_DIR}/imgui/imgui_freetype.cpp
-    ${EXTERNAL_DIR}/imgui/imstb_rectpack.h
-    ${EXTERNAL_DIR}/imgui/imstb_textedit.h
-    ${EXTERNAL_DIR}/imgui/imstb_truetype.h
-    ${EXTERNAL_DIR}/imgui/imgui_impl_sdl.cpp
-    ${EXTERNAL_DIR}/imgui/imgui_impl_sdl.h
-)
 
 if(WIN32)
     LIST(APPEND CLIP_SOURCE
@@ -199,7 +187,6 @@ set(VK_SOURCES
 set(LIB_SOURCES
     ${VULKAN_SOURCES}
     ${VK_SOURCES}
-    ${IMGUI_SOURCE}
     )
 
 set(APP_SOURCES
@@ -233,6 +220,7 @@ target_link_libraries(vklive
         range-v3-meta
         range-v3::meta
         range-v3-concepts
+        Zing::Zing
     )
 target_precompile_headers(vklive
   PRIVATE
@@ -257,7 +245,6 @@ target_include_directories(vklive
     PRIVATE
         ${CMAKE_BINARY_DIR}
         ${CMAKE_CURRENT_SOURCE_DIR}/external
-        ${CMAKE_CURRENT_SOURCE_DIR}/external/imgui
     )
 
 # App
@@ -294,6 +281,7 @@ target_link_libraries(Rezonality
         gli
         portaudio_static
         unofficial::kissfft::kissfft
+        Zing::Zing
     )
 
 if(WIN32)
@@ -342,4 +330,3 @@ endif()
 source_group (vklive//vulkan FILES ${VULKAN_SOURCES})
 source_group (vklive FILES ${VK_SOURCES})
 source_group (app FILES ${APP_SOURCES})
-source_group (imgui FILES ${IMGUI_SOURCES})

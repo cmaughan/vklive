@@ -1,5 +1,5 @@
 #include <chrono>
-#include <imgui/imgui.h>
+#include <imgui.h>
 #include <vklive/audio/audio.h>
 #include <vklive/audio/audio_analysis.h>
 #include <vklive/memory.h>

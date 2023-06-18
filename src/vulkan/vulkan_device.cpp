@@ -8,7 +8,7 @@
 #include <vklive/vulkan/vulkan_render.h>
 #include <vklive/vulkan/vulkan_scene.h>
 
-#include <imgui/imgui_impl_sdl.h>
+#include <imgui_impl_sdl2.h>
 
 // Thin wrapper around vulkan
 namespace vulkan

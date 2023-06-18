@@ -934,11 +934,11 @@ void vulkan_pass_prepare_pipeline(VulkanContext& ctx, VulkanPassSwapFrameData& f
     {
         auto layouts = frameData.descriptorSetLayouts | views::transform([](auto& p) { return p.second; }) | to<std::vector>();
         frameData.geometryPipelineLayout = ctx.device.createPipelineLayout({ {}, layouts });
-        debug_set_pipelinelayout_name(ctx.device, frameData.geometryPipelineLayout, fmt::format("GeomPipeLayout:" + frameData.debugName));
+        debug_set_pipelinelayout_name(ctx.device, frameData.geometryPipelineLayout, fmt::format("GeomPipeLayout: {}", frameData.debugName));
     }
 
     frameData.geometryPipeline = pipeline_create(ctx, g_vertexLayout, frameData.geometryPipelineLayout, vulkanPassTargets, shaderStages);
-    debug_set_pipeline_name(ctx.device, frameData.geometryPipeline, fmt::format("GeomPipe:" + frameData.debugName));
+    debug_set_pipeline_name(ctx.device, frameData.geometryPipeline, fmt::format("GeomPipe: {}", frameData.debugName));
 
     LOG(DBG, "Create GeometryPipe: " << frameData.geometryPipeline);
 }

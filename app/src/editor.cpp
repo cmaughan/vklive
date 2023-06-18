@@ -73,7 +73,7 @@ private:
 struct ZepWrapper : public Zep::IZepComponent
 {
     ZepWrapper(const fs::path& configRoot, const Zep::NVec2f& pixelScale, std::function<void(std::shared_ptr<Zep::ZepMessage>)> fnCommandCB)
-        : zepEditor(Zep::ZepPath(configRoot.string()), pixelScale)
+        : zepEditor(configRoot, pixelScale)
         , Callback(fnCommandCB)
     {
         zepEditor.RegisterCallback(this);
@@ -155,7 +155,7 @@ ZepEditor& zep_get_editor()
 void zep_load(const fs::path& file, bool activate, uint32_t flags)
 {
     // Get the buffer, or create
-    auto pBuffer = zep_get_editor().GetFileBuffer(ZepPath(file.string()), flags, true);
+    auto pBuffer = zep_get_editor().GetFileBuffer(file, flags, true);
 
     // TODO: Theme/color.  Hijack Zep's theme for now
     auto& theme = pBuffer->GetTheme();
@@ -256,7 +256,7 @@ void zep_show(bool focus)
 
 void zep_update_files(const fs::path& root, bool reset)
 {
-    zep_get_editor().GetFileSystem().SetWorkingDirectory(ZepPath(root.string()));
+    zep_get_editor().GetFileSystem().SetWorkingDirectory(root);
 
     if (reset)
     {

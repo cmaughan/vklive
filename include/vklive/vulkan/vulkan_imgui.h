@@ -1,7 +1,7 @@
 #pragma once
 
 #include <vklive/vulkan/vulkan_context.h>
-#include <imgui/imgui.h>
+#include <imgui.h>
 
 struct Scene;
 struct ImDrawData;
