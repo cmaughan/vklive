@@ -10,7 +10,7 @@ if not exist "vcpkg\vcpkg.exe" (
 
 cd vcpkg
 echo Installing Libraries
-vcpkg install ableton-link cppcodec concurrentqueue kissfft portaudio range-v3 freetype stb gli reproc fmt nativefiledialog tinyfiledialogs clipp tomlplusplus freetype concurrentqueue assimp glm tinydir vulkan-memory-allocator spirv-reflect sdl2[vulkan] --triplet x64-windows-static-md --recurse
+vcpkg install ableton-link cppcodec concurrentqueue portaudio range-v3 stb gli reproc fmt nativefiledialog tinyfiledialogs clipp tomlplusplus assimp glm tinydir vulkan-memory-allocator spirv-reflect sdl2[vulkan] --triplet x64-windows-static-md --recurse
 cd %~dp0
 
 echo %Time%

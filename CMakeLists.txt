@@ -31,7 +31,6 @@ set(COMPANY "Rezonality")
 set(COPYRIGHT "Copyright (c) 2022 Rezonality")
 set(IDENTIFIER "com.rezonality.vklive")
 
-find_package(freetype CONFIG REQUIRED) # Better font rendering
 find_package(Vulkan REQUIRED) # Vulkan API
 find_package(assimp CONFIG REQUIRED) # Asset import for loading models
 find_package(clipp CONFIG REQUIRED) # Commandline parser for command line arguments
@@ -47,7 +46,6 @@ find_package(unofficial-vulkan-memory-allocator CONFIG REQUIRED)
 find_package(gli CONFIG REQUIRED)
 find_package(portaudio CONFIG REQUIRED)
 find_path(STB_INCLUDE_DIRS "stb_c_lexer.h")
-find_package(kissfft CONFIG REQUIRED)
 find_package(range-v3 CONFIG REQUIRED)
 
 # Set this if we are sitting on SDL
@@ -272,7 +270,6 @@ target_link_libraries(Rezonality
     PRIVATE
         $<TARGET_NAME_IF_EXISTS:SDL2::SDL2main>
         $<IF:$<TARGET_EXISTS:SDL2::SDL2>,SDL2::SDL2,SDL2::SDL2-static>
-        freetype
         unofficial::concurrentqueue::concurrentqueue
         clipp::clipp
         unofficial::nativefiledialog::nfd
@@ -280,7 +277,6 @@ target_link_libraries(Rezonality
         unofficial::vulkan-memory-allocator::vulkan-memory-allocator
         gli
         portaudio_static
-        kissfft::kissfft-float
         Zing::Zing
     )
 
