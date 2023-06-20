@@ -2,9 +2,10 @@
 #include <nfd.h>
 #include <fmt/format.h>
 
+#include <zest/logger/logger.h>
+#include <zest/string/string_utils.h>
+
 #include <vklive/scene.h>
-#include <vklive/logger/logger.h>
-#include <vklive/string/string_utils.h>
 
 #include <app/controller.h>
 #include <app/config.h>
@@ -31,7 +32,7 @@ fs::path controller_open_project()
 {
     nfdchar_t *pszPath = NULL;
 
-    auto docPath = (file_documents_path() / "VkLive");
+    auto docPath = (Zest::file_documents_path() / "VkLive");
     if (!appConfig.last_folder_path.empty() && fs::exists(appConfig.last_folder_path) && fs::is_directory(appConfig.last_folder_path))
     {
         docPath = appConfig.last_folder_path;
@@ -65,7 +66,7 @@ fs::path controller_save_project_as()
     {
         return fs::path(); 
     }
-    auto docPath = (file_documents_path() / "VkLive");
+    auto docPath = (Zest::file_documents_path() / "VkLive");
 
     fs::create_directories(docPath);
     nfdchar_t *pszPath = NULL;
@@ -81,7 +82,7 @@ fs::path controller_save_project_as()
         }
 
         // Stop the user overwriting
-        auto existing = file_gather_files(p);
+        auto existing = Zest::file_gather_files(p);
         if (!existing.empty())
         {
             auto ret = (BoxRet)tinyfd_messageBox("Overwrite?", "The target folder is not empty\ndo you wish to overwrite it?", "yesno", "warning", (int)BoxRet::No);
@@ -96,8 +97,8 @@ fs::path controller_save_project_as()
         if (!project_copy(*g_Controller.spCurrentProject, p, error))
         {
             // tfd doesn't like quotes inside messages
-            string_replace_in_place(error, "\"", "");
-            string_replace_in_place(error, "'", "");
+            Zest::string_replace_in_place(error, "\"", "");
+            Zest::string_replace_in_place(error, "'", "");
             tinyfd_messageBox("Error", fmt::format("The project could not be copied!\n{}", error).c_str(), "ok", "error", (int)BoxRet::No);
             return fs::path(); 
         }
@@ -134,7 +135,7 @@ bool controller_check_exit()
         }
         else if (ret == BoxRet::Yes)
         {
-            auto docPath = (file_documents_path() / "VkLive");
+            auto docPath = (Zest::file_documents_path() / "VkLive");
             fs::create_directories(docPath);
 
             auto newPath = controller_save_project_as();

@@ -1,7 +1,7 @@
 // Loads model; no device specific stuff, just reads it
-#include <vklive/file/file.h>
-#include <vklive/model.h>
-#include <vklive/string/string_utils.h>
+#include <zest/file/file.h>
+#include <zest/string/string_utils.h>
+#include <zest/logger/logger.h>
 
 #include <assimp/Importer.hpp>
 #include <assimp/cimport.h>
@@ -9,7 +9,7 @@
 #include <assimp/postprocess.h>
 #include <assimp/scene.h>
 
-#include <vklive/logger/logger.h>
+#include <vklive/model.h>
 
 const int DefaultModelFlags = aiProcess_FlipWindingOrder | aiProcess_Triangulate | aiProcess_PreTransformVertices | aiProcess_CalcTangentSpace | aiProcess_GenSmoothNormals;
 
@@ -19,7 +19,7 @@ std::set<std::string> model_file_extensions()
     std::string ext;
     importer.GetExtensionList(ext);
 
-    auto v = string_split(ext, ";* ");
+    auto v = Zest::string_split(ext, ";* ");
     return std::set<std::string>(v.begin(), v.end());
 }
 

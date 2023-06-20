@@ -44,7 +44,6 @@ find_package(unofficial-nativefiledialog CONFIG REQUIRED) # File dialogs that lo
 find_package(unofficial-spirv-reflect CONFIG REQUIRED)
 find_package(unofficial-vulkan-memory-allocator CONFIG REQUIRED)
 find_package(gli CONFIG REQUIRED)
-find_package(portaudio CONFIG REQUIRED)
 find_path(STB_INCLUDE_DIRS "stb_c_lexer.h")
 find_package(range-v3 CONFIG REQUIRED)
 
@@ -143,41 +142,22 @@ if (UNIX)
 endif() # UNIX
 
 set(VK_SOURCES
-    src/audio/audio.cpp
-    src/audio/audio_analysis.cpp
     src/camera.cpp
-    src/file/file.cpp
-    src/file/runtree.cpp
-    src/file/toml_utils.cpp
-    #src/imgui/imgui_sdl.cpp
-    src/imgui/imgui_utils.cpp
+    #src/imgui/imgui_utils.cpp
     src/model.cpp
     src/pass.cpp
     src/process/process.cpp
     src/scene.cpp
-    src/string/murmur_hash.cpp
-    src/string/string_utils.cpp
-    src/time/timer.cpp
     src/validation.cpp
 
     external/mpc/mpc.c
 
     include/vklive/IDevice.h
-    include/vklive/audio/audio.h
-    include/vklive/audio/audio_analysis_settings.h
-    include/vklive/audio/audio_device_settings.h
     include/vklive/camera.h
-    include/vklive/file/file.h
-    include/vklive/file/runtree.h
-    include/vklive/file/toml_utils.h
-    #include/vklive/imgui/imgui_sdl.h
-    include/vklive/imgui/imgui_utils.h
     include/vklive/model.h
     include/vklive/pass.h
     include/vklive/process/process.h
     include/vklive/scene.h
-    include/vklive/string/string_utils.h
-    include/vklive/time/timer.h
     include/vklive/validation.h
 
 )
@@ -276,7 +256,6 @@ target_link_libraries(Rezonality
         unofficial::spirv-reflect::spirv-reflect
         unofficial::vulkan-memory-allocator::vulkan-memory-allocator
         gli
-        portaudio_static
         Zing::Zing
     )
 

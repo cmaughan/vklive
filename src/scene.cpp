@@ -5,13 +5,17 @@
 
 #include "toml++/toml.h"
 
-#include <vklive/file/file.h>
-#include <vklive/file/runtree.h>
-#include <vklive/logger/logger.h>
+#include <zest/file/file.h>
+#include <zest/file/runtree.h>
+#include <zest/logger/logger.h>
+#include <zest/string/string_utils.h>
+
 #include <vklive/scene.h>
-#include <vklive/string/string_utils.h>
 
 #include "config_app.h"
+    
+uint64_t Scene::GlobalFrameCount = 0;
+double Scene::GlobalElapsedSeconds = 0.0;
 
 extern "C" {
 #include "mpc/mpc.h"
@@ -105,7 +109,7 @@ std::string sanitize_mpc_error(mpc_err_t* pErr)
     {
         errString = errString.substr(startPos);
     }
-    return string_trim(errString);
+    return Zest::string_trim(errString);
 }
 
 void scene_init_parser()
@@ -247,7 +251,7 @@ fs::path scene_get_scenegraph(const fs::path& root, const std::vector<fs::path>&
         sceneGraphPath = root / "scene.scenegraph";
         try
         {
-            file_write(sceneGraphPath, "# Scenegraph");
+            Zest::file_write(sceneGraphPath, "# Scenegraph");
         }
         catch (std::exception& ex)
         {
@@ -347,7 +351,7 @@ std::shared_ptr<Scene> scene_build(const fs::path& root)
 
     std::shared_ptr<Scene> spScene = std::make_shared<Scene>(root);
 
-    auto files = file_gather_files(root);
+    auto files = Zest::file_gather_files(root);
 
     spScene->sceneGraphPath = scene_get_scenegraph(root, files);
     spScene->headers = scene_get_headers(files);
@@ -552,7 +556,7 @@ std::shared_ptr<Scene> scene_build(const fs::path& root)
                 {
                     auto pFormatNode = getChild(pSurfaceNode, T_FORMAT);
                     auto strFormat = getChild(pFormatNode, T_IDENT)->contents;
-                    auto strLowerFormat = string_tolower(strFormat);
+                    auto strLowerFormat = Zest::string_tolower(strFormat);
                     auto itrFormat = Formats.find(strLowerFormat);
                     if (itrFormat == Formats.end())
                     {
@@ -701,9 +705,9 @@ std::shared_ptr<Scene> scene_build(const fs::path& root)
                     for (auto& sampler : vecSamplers)
                     {
                         PassSampler passSampler{ sampler, false };
-                        if (string_starts_with(passSampler.sampler, "!"))
+                        if (Zest::string_starts_with(passSampler.sampler, "!"))
                         {
-                            passSampler.sampler = string_left_trim(passSampler.sampler, "!");
+                            passSampler.sampler = Zest::string_left_trim(passSampler.sampler, "!");
                             passSampler.sampleAlternate = true;
                         }
                         spPass->samplers.push_back(passSampler);
@@ -836,11 +840,11 @@ fs::path scene_find_asset(Scene& scene, const fs::path& path, AssetType type)
         trialPaths.push_back(scene.root / itr->second / path);
     }
 
-    trialPaths.push_back(runtree_path() / path);
+    trialPaths.push_back(Zest::runtree_path() / path);
 
     if (itr != subTypePaths.end())
     {
-        trialPaths.push_back(runtree_path() / itr->second / path);
+        trialPaths.push_back(Zest::runtree_path() / itr->second / path);
     }
 
     for (auto& test : trialPaths)

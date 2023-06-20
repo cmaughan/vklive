@@ -7,10 +7,10 @@
 #include <range/v3/view/filter.hpp>
 #include <range/v3/view/transform.hpp>
 
-#include <vklive/logger/logger.h>
+#include <zest/logger/logger.h>
+#include <zest/file/runtree.h>
+#include <zest/time/timer.h>
 
-#include <vklive/file/runtree.h>
-#include <vklive/time/timer.h>
 #include <vklive/validation.h>
 
 #include <vklive/vulkan/vulkan_command.h>
@@ -24,7 +24,7 @@
 #include <vklive/vulkan/vulkan_uniform.h>
 #include <vklive/vulkan/vulkan_utils.h>
 
-#include <vklive/audio/audio.h>
+#include <zing/audio/audio.h>
 
 using namespace ranges;
 
@@ -113,7 +113,7 @@ void vulkan_scene_destroy_output_descriptors(VulkanContext& ctx, VulkanScene& vu
 
 void vulkan_scene_destroy(VulkanContext& ctx, VulkanScene& vulkanScene)
 {
-    LOG_SCOPE(0, "Scene Destroy: " << vulkanScene.pScene);
+    LOG_SCOPE(DBG, "Scene Destroy: " << vulkanScene.pScene);
 
     // Destroying a scene means we might be destroying something that is in flight.
     // Lets wait for everything to finish
@@ -231,7 +231,7 @@ void vulkan_scene_target_set_descriptor(VulkanContext& ctx, VulkanScene& vulkanS
     write_desc.setImageInfo(desc_image);
     ctx.device.updateDescriptorSets(write_desc, {});
     
-    LOG(0, fmt::format("Set DescriptorSet for: {}, Layout:{}, Set:{}, Sampler:{}", key.DebugName(), (void*)(VkDescriptorSetLayout)targetData.descriptorSetLayout, (void*)(VkDescriptorSet)targetData.descriptorSet, (void*)desc_image.sampler));
+    LOG(DBG, fmt::format("Set DescriptorSet for: {}, Layout:{}, Set:{}, Sampler:{}", key.DebugName(), (void*)(VkDescriptorSetLayout)targetData.descriptorSetLayout, (void*)(VkDescriptorSet)targetData.descriptorSet, (void*)desc_image.sampler));
 }
 
 void vulkan_scene_prepare_output_descriptors(VulkanContext& ctx, VulkanScene& vulkanScene)
@@ -244,7 +244,7 @@ void vulkan_scene_prepare_output_descriptors(VulkanContext& ctx, VulkanScene& vu
     for (auto& [initKey, pVulkanSurface] : vulkanScene.surfaces)
     {
         // Find the correct surface for this frame
-        SurfaceKey key(pVulkanSurface->pSurface->name, globalFrameCount, false);
+        SurfaceKey key(pVulkanSurface->pSurface->name, Scene::GlobalFrameCount, false);
         auto itrTarget = vulkanScene.surfaces.find(key);
         if (itrTarget != vulkanScene.surfaces.end())
         {
@@ -260,7 +260,7 @@ void vulkan_scene_prepare_output_descriptors(VulkanContext& ctx, VulkanScene& vu
                 if (!pTarget->sampler)
                 {
                     surface_set_sampling(ctx, *pVulkanSurface);
-                    LOG(0, "Adding sampler to rendered target for UI: " << pVulkanSurface->debugName);
+                    LOG(DBG, "Adding sampler to rendered target for UI: " << pVulkanSurface->debugName);
                 }
             }
 
@@ -297,10 +297,13 @@ void vulkan_scene_render(VulkanContext& ctx, VulkanScene& vulkanScene)
 {
     assert(vulkanScene.pScene->valid);
 
-    LOG(0, "Vulkan Scene Render: " << vulkanScene.pScene);
+    LOG(DBG, "Vulkan Scene Render: " << vulkanScene.pScene);
 
 
-    globalElapsedSeconds = timer_get_elapsed_seconds(globalTimer);
+    Scene::GlobalElapsedSeconds = Zest::timer_get_elapsed_seconds(Zest::globalTimer);
+    ctx.descriptorCacheIndex++;
+    Scene::GlobalFrameCount++;
+
     try
     {
         // Descriptor

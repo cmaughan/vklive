@@ -3,12 +3,13 @@
 #define ZEP_SINGLE_HEADER_BUILD
 #endif
 
+#include <zest/file/file.h>
+
 //#define ZEP_CONSOLE
 #include "app/editor.h"
 #include "app/config.h"
 #include "config_app.h"
 
-#include <vklive/file/file.h>
 #include <vklive/message.h>
 
 #include <clip/clip.h>
@@ -267,7 +268,7 @@ void zep_update_files(const fs::path& root, bool reset)
         }
     }
 
-    auto files = file_gather_files(root);
+    auto files = Zest::file_gather_files(root);
     for (auto& f : files)
     {
         if (f.extension() == ".vert" || f.extension() == ".frag" || f.extension() == ".geom" || f.extension() == ".scenegraph" || f.extension() == ".h")

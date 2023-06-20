@@ -5,7 +5,8 @@
 #include <string>
 #include <vector>
 
-#include "file/file.h"
+#include <zest/file/file.h>
+
 #include <vklive/camera.h>
 #include <vklive/message.h>
 
@@ -141,6 +142,9 @@ struct Scene
     Surface* finalColorTarget;
 
     bool valid = true;
+
+    static uint64_t GlobalFrameCount;
+    static double GlobalElapsedSeconds;
 };
 
 enum class AssetType

@@ -1,12 +1,13 @@
 #include <sstream>
-#include <vklive/file/toml_utils.h>
+
+#include <zest/file/toml_utils.h>
+#include <zest/logger/logger.h>
+#include <zest/file/file.h>
+#include <zest/file/toml_utils.h>
+
+#include <zing/audio/audio.h>
 
 #include "app/config.h"
-
-#include <vklive/logger/logger.h>
-#include <vklive/file/file.h>
-#include <vklive/file/toml_utils.h>
-#include <vklive/audio/audio.h>
 
 AppConfig appConfig;
 
@@ -37,12 +38,12 @@ void config_load(const fs::path& path)
         auto pDeviceTable = tbl["settings"]["audio_device"].as_table();
         if (pAnalysisTable)
         {
-            appConfig.audioAnalysisSettings = Audio::audioanalysis_load_settings(*pAnalysisTable);
+            appConfig.audioAnalysisSettings = Zing::audioanalysis_load_settings(*pAnalysisTable);
         }
 
         if (pDeviceTable)
         {
-            appConfig.audioDeviceSettings = Audio::audiodevice_load_settings(*pDeviceTable);
+            appConfig.audioDeviceSettings = Zing::audiodevice_load_settings(*pDeviceTable);
         }
     }
     catch (const toml::parse_error& err)
@@ -66,8 +67,8 @@ void config_save(const fs::path& path)
 
     settings.insert_or_assign("last_folder_path", appConfig.last_folder_path.string());
 
-    toml::table analysis_settings = Audio::audioanalysis_save_settings(Audio::GetAudioContext().audioAnalysisSettings);
-    toml::table device_settings = Audio::audiodevice_save_settings(Audio::GetAudioContext().audioDeviceSettings);
+    toml::table analysis_settings = Zing::audioanalysis_save_settings(Zing::GetAudioContext().audioAnalysisSettings);
+    toml::table device_settings = Zing::audiodevice_save_settings(Zing::GetAudioContext().audioDeviceSettings);
 
     settings.insert_or_assign("audio_analysis", analysis_settings);
     settings.insert_or_assign("audio_device", device_settings);
@@ -78,6 +79,6 @@ void config_save(const fs::path& path)
     std::ostringstream str;
     str << tbl;
 
-    file_write(path, str.str());
+    Zest::file_write(path, str.str());
 
 }

@@ -6,13 +6,14 @@
 
 #include <concurrentqueue/concurrentqueue.h>
 
+#include <zest/string/string_utils.h>
+#include <zest/logger/logger.h>
+
 #include "vklive/vulkan/vulkan_context.h"
 #include "vklive/vulkan/vulkan_scene.h"
 #include "vklive/vulkan/vulkan_surface.h"
 #include "vklive/vulkan/vulkan_pass.h"
-
 #include "vklive/scene.h"
-#include "vklive/string/string_utils.h"
 #include "vklive/validation.h"
 
 #ifdef _WIN32
@@ -21,7 +22,6 @@
 
 #include <mutex>
 #include <set>
-#include "vklive/logger/logger.h"
 
 std::mutex mut;
 std::map<std::string, std::string> Names;
@@ -95,8 +95,8 @@ VKAPI_ATTR VkBool32 VKAPI_CALL debugMessageFunc(VkDebugUtilsMessageSeverityFlagB
     if (messageSeverity == VkDebugUtilsMessageSeverityFlagBitsEXT::VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT)
     {
         std::string text = pCallbackData->pMessage;
-        string_replace_in_place(text, ":", "\n");
-        string_replace_in_place(text, "|", "\n");
+        Zest::string_replace_in_place(text, ":", "\n");
+        Zest::string_replace_in_place(text, "|", "\n");
         validation_error(text);
     }
 

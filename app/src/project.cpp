@@ -1,16 +1,16 @@
 #include <set>
 #include <fmt/format.h>
 
-#include <app/project.h>
+#include <zest/file/file.h>
+#include <zest/string/string_utils.h>
+#include <zest/file/runtree.h>
+#include <zest/logger/logger.h>
 
-#include <vklive/file/file.h>
-#include <vklive/string/string_utils.h>
-#include <vklive/file/runtree.h>
-#include <vklive/logger/logger.h>
 #include <vklive/scene.h>
 #include <vklive/model.h>
 #include <vklive/IDevice.h>
 
+#include <app/project.h>
 #include <app/config.h>
 
 IDevice* GetDevice();
@@ -74,11 +74,11 @@ std::shared_ptr<Project> project_load_to_temp(const fs::path& projectPath)
     try
     {
         // Copy the default project
-        file_folder_copy(projectPath, pathTemp);
+        Zest::file_folder_copy(projectPath, pathTemp);
     } 
     catch(std::exception& ex)
     {
-        LOG(ERROR, "Failed project copy: " << ex.what());
+        LOG(ERR, "Failed project copy: " << ex.what());
     }
     spProject->rootPath = fs::canonical(pathTemp);
     spProject->temporary = true;
@@ -98,7 +98,7 @@ std::shared_ptr<Project> project_load(const fs::path& projectPath)
     }
   
     LOG(DBG, "Loading temp project, since not found: " << projectPath.string());
-    return project_load_to_temp(runtree_find_path("projects/default"));
+    return project_load_to_temp(Zest::runtree_find_path("projects/default"));
 }
 
 std::set<std::string> project_file_extensions()
@@ -137,10 +137,10 @@ bool project_copy(Project& project, const fs::path& destPath, std::string& error
         auto extensions = project_file_extensions();
 
         // Walk the source files
-        auto files = file_gather_files(project.rootPath);
+        auto files = Zest::file_gather_files(project.rootPath);
         for (auto& file : files)
         {
-            auto ext = string_tolower(file.extension().string());
+            auto ext = Zest::string_tolower(file.extension().string());
             auto itrFound = extensions.find(ext);
             if (itrFound != extensions.end())
             {
@@ -169,9 +169,9 @@ bool project_copy(Project& project, const fs::path& destPath, std::string& error
 
         for (auto& source : sourcePaths)
         {
-            auto dest = destPath / file_get_relative_path(root, source);
-            dest = fs::canonical(dest);
-            if (fs::equivalent(source, dest))
+            auto dest = destPath / Zest::file_get_relative_path(root, source);
+            dest = fs::weakly_canonical(dest);
+            if (fs::exists(source) && fs::exists(dest) && fs::equivalent(source, dest))
             {
                 LOG(DBG, fmt::format("Not copying: {}", dest.string()));
                 continue;

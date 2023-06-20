@@ -1,23 +1,25 @@
+// Include me first!
 #include <zest/imgui/imgui.h>
 
 #include <SDL.h>
 #include <fmt/format.h>
 
-#include <app/menu.h>
+#include <zest/file/file.h>
+#include <zest/file/runtree.h>
+#include <zest/string/string_utils.h>
+#include <zest/time/timer.h>
+
+#include <zing/audio/audio.h>
 
 #include <vklive/IDevice.h>
-#include <vklive/audio/audio.h>
-#include <vklive/file/file.h>
-#include <vklive/file/runtree.h>
 #include <vklive/scene.h>
-#include <vklive/string/string_utils.h>
-#include <vklive/time/timer.h>
 
 #include <config_app.h>
 
 #include <app/config.h>
 #include <app/controller.h>
 #include <app/editor.h>
+#include <app/menu.h>
 
 extern IDevice* GetDevice();
 
@@ -41,10 +43,10 @@ void show_audio_popup()
 
     // TODO: Center
     ImGui::SetNextWindowSize(ImVec2(dpi * 500, dpi * 500), ImGuiCond_Appearing);
-    if (ImGui::BeginPopup("Audio", ImGuiWindowFlags_Popup))
+    if (ImGui::BeginPopup("Audio"))
     {
         bool show = true;
-        Audio::audio_show_gui();
+        Zing::audio_show_settings_gui();
 
         if (ImGui::Button("OK"))
         {
@@ -84,8 +86,8 @@ void menu_show()
                 {
                     auto generateName = [=](auto& folder) {
                         std::string name = folder.stem().string();
-                        name = string_tolower(name);
-                        auto words = string_split(name, " _");
+                        name = Zest::string_tolower(name);
+                        auto words = Zest::string_split(name, " _");
                         std::ostringstream str;
                         for (auto& word : words)
                         {
@@ -96,12 +98,12 @@ void menu_show()
                             str << word << " ";
                         }
 
-                        return string_trim(str.str());
+                        return Zest::string_trim(str.str());
                     };
 
                     using fnAddFolder = std::function<void(const fs::path&)>;
                     fnAddFolder addFolder = [&](auto folder) -> void {
-                        auto files = file_gather_files(folder, false);
+                        auto files = Zest::file_gather_files(folder, false);
                         auto name = generateName(folder);
                         if (!name.empty())
                         {
@@ -110,7 +112,7 @@ void menu_show()
                             {
                                 if (ImGui::BeginMenu(name.c_str()))
                                 {
-                                    auto folders = file_gather_folders(folder);
+                                    auto folders = Zest::file_gather_folders(folder);
                                     for (auto& f : folders)
                                     {
                                         addFolder(f);
@@ -129,7 +131,7 @@ void menu_show()
                         }
                     };
 
-                    auto folders = file_gather_folders(runtree_path() / "projects");
+                    auto folders = Zest::file_gather_folders(Zest::runtree_path() / "projects");
                     for (auto& f : folders)
                     {
                         addFolder(f);
@@ -291,8 +293,8 @@ void menu_show()
 
             if (ImGui::MenuItem("Restart Scene"))
             {
-                globalFrameCount = 0;
-                timer_restart(globalTimer);
+                Scene::GlobalFrameCount = 0;
+                timer_restart(Zest::globalTimer);
             }
 
             ImGui::EndMenu();
@@ -302,7 +304,7 @@ void menu_show()
         {
             if (ImGui::MenuItem("Getting Started"))
             {
-                zep_load(runtree_find_path("docs/intro.md"), true, Zep::FileFlags::ReadOnly | Zep::FileFlags::Locked);
+                zep_load(Zest::runtree_find_path("docs/intro.md"), true, Zep::FileFlags::ReadOnly | Zep::FileFlags::Locked);
             }
             ImGui::EndMenu();
         }
@@ -326,10 +328,9 @@ void menu_show()
             ImGui::EndMenu();
         }
 
-        // Display FPS on the menu
-        float time = globalElapsedSeconds;
+        float time = Scene::GlobalElapsedSeconds;
 
-        static auto lastTime = time;
+        static auto lastTime = 0.0f;
         static auto fps = 0.0;
         if ((time - lastTime) > 1.0)
         {
@@ -337,7 +338,7 @@ void menu_show()
             lastTime = time;
         }
 
-        auto strSceneData = fmt::format(" FPS: {:.0f} Frame: {}", fps, globalFrameCount);
+        auto strSceneData = fmt::format(" FPS: {:.0f} Frame: {}", fps, Scene::GlobalFrameCount);
         if (ImGui::BeginMenu(strSceneData.c_str()))
         {
             ImGui::EndMenu();

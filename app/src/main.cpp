@@ -11,17 +11,17 @@
 #include <zest/imgui/imgui.h>
 #include <zest/imgui/imgui_impl_sdl2.h>
 
-#include <vklive/file/file.h>
-#include <vklive/file/runtree.h>
-#include <vklive/logger/logger.h>
-#include <vklive/time/timer.h>
+#include <zest/file/file.h>
+#include <zest/file/runtree.h>
+#include <zest/logger/logger.h>
+#include <zest/time/timer.h>
 
 #include <vklive/IDevice.h>
 #include <vklive/scene.h>
 
 #include <vklive/validation.h>
 
-#include <vklive/audio/audio.h>
+#include <zing/audio/audio.h>
 
 #include <config_app.h>
 
@@ -39,8 +39,11 @@
 #include <windows.h>
 #endif
 
-Logger vklogger{ false, DBG };
+namespace Zest
+{
+Logger logger{ false, LT::DBG };
 bool Log::disabled = false;
+} // namespace Zest
 
 Controller g_Controller;
 // using namespace clipp;
@@ -127,6 +130,8 @@ void save_state()
 
 int main(int argc, char** argv)
 {
+    Zest::Profiler::Init();
+
 #ifdef _WIN32
 #ifdef _DEBUG
     if (!AttachConsole(ATTACH_PARENT_PROCESS))
@@ -144,22 +149,22 @@ int main(int argc, char** argv)
     }
 
     // Asset paths
-    runtree_init(SDL_GetBasePath(), VKLIVE_ROOT);
+    Zest::runtree_init(SDL_GetBasePath(), VKLIVE_ROOT);
 
     // Get the settings
-    auto settings_path = file_init_settings("VkLive",
-        runtree_find_path("settings.toml"),
+    auto settings_path = Zest::file_init_settings("VkLive",
+        Zest::runtree_find_path("settings.toml"),
         fs::path("settings") / "settings.toml");
     config_load(settings_path);
 
-    auto imSettingsPath = file_init_settings("VkLive",
-        runtree_find_path("imgui.ini"),
+    auto imSettingsPath = Zest::file_init_settings("VkLive",
+        Zest::runtree_find_path("imgui.ini"),
         fs::path("settings") / "imgui.ini")
                               .string();
 
     // Set the audio config from the loaded config. We copy it back when closing the app
-    Audio::GetAudioContext().audioAnalysisSettings = appConfig.audioAnalysisSettings;
-    Audio::GetAudioContext().audioDeviceSettings = appConfig.audioDeviceSettings;
+    Zing::GetAudioContext().audioAnalysisSettings = appConfig.audioAnalysisSettings;
+    Zing::GetAudioContext().audioDeviceSettings = appConfig.audioDeviceSettings;
 
     // Project
     project_startup();
@@ -171,12 +176,12 @@ int main(int argc, char** argv)
         return -1;
     }
 
-    timer_restart(globalTimer);
+    Zest::timer_restart(Zest::globalTimer);
 
     // Main device
     g_pDevice = vulkan::create_vulkan_device(init_sdl_window(), imSettingsPath, appConfig.viewports);
 
-    Audio::audio_init(nullptr);
+    Zing::audio_init(nullptr);
 
     // This update thread generates a new scene, then returns it in a queue ready for 'swapping' with the existing one
     // if it is valid
@@ -248,7 +253,7 @@ int main(int argc, char** argv)
         // creating the device always fails)
         if (g_pDevice->Context().deviceState == DeviceState::Lost)
         {
-            LOG(0, "Device Lost! (This shouldn't happen)");
+            LOG(ERR, "Device Lost! (This shouldn't happen)");
 
             // Try to restart
             if (project_has_scene(g_Controller.spCurrentProject.get()))
@@ -276,7 +281,7 @@ int main(int argc, char** argv)
         if (!z_init)
         {
             // Called once the fonts/device is guaranteed setup
-            zep_init(runtree_path(),
+            zep_init(Zest::runtree_path(),
                 Zep::NVec2f(1.0f, 1.0f),
                 [&](Zep::ZepBuffer& buffer, const Zep::GlyphIterator& itr) {
                     // Flash the buffer
@@ -336,7 +341,7 @@ int main(int argc, char** argv)
             // Do a 'pre-render'.  If this fails, then we will catch errors that might only happen during scene prepare
             if (project_scene_valid(spNewProject.get()))
             {
-                LOG_SCOPE(0, "PreRender Compiled Project, scene: " << spNewProject->spScene.get());
+                LOG_SCOPE(DBG, "PreRender Compiled Project, scene: " << spNewProject->spScene.get());
 
                 // The test flag stops things being added to IMGUI that we may not render later.
                 g_pDevice->ImGui_Render_3D(*spNewProject->spScene, appConfig.draw_on_background, true);
@@ -351,7 +356,7 @@ int main(int argc, char** argv)
                 // Copy scene data and destroy
                 if (project_scene_valid(g_Controller.spCurrentProject.get()))
                 {
-                    LOG_SCOPE(0, "Destroying previous scene: " << g_Controller.spCurrentProject->spScene.get());
+                    LOG_SCOPE(DBG, "Destroying previous scene: " << g_Controller.spCurrentProject->spScene.get());
                     g_pDevice->DestroyScene(*g_Controller.spCurrentProject->spScene);
 
                     // Copy over the old info, if appropriate - this is temporary fix for cleaner solution later.
@@ -444,7 +449,7 @@ int main(int argc, char** argv)
         {
             validation_enable_messages(true);
 
-            LOG_SCOPE(0, "\nDraw Current Scene: " << g_Controller.spCurrentProject->spScene.get());
+            LOG_SCOPE(DBG, "\nDraw Current Scene: " << g_Controller.spCurrentProject->spScene.get());
 
             // Scene may not be valid, but we want to draw the window
             g_pDevice->ImGui_Render_3D(*g_Controller.spCurrentProject->spScene, appConfig.draw_on_background, false);
@@ -456,8 +461,6 @@ int main(int argc, char** argv)
                 // - once the device is lost, only an .exe restart seems to work.
                 continue;
             }
-            globalFrameCount++;
-
             validation_enable_messages(false);
         }
 
@@ -475,14 +478,14 @@ int main(int argc, char** argv)
         {
             try
             {
-                LOG_SCOPE(0, "Draw IMGUI created data");
+                LOG_SCOPE(DBG, "Draw IMGUI created data");
                 g_pDevice->ImGui_Render(main_draw_data);
             }
             catch(std::exception& ex)
             {
                 if (g_Controller.spCurrentProject && project_has_scene(g_Controller.spCurrentProject.get()))
                 {
-                    LOG(0, "Exception drawing IMGUI! " << ex.what());
+                    LOG(ERR, "Exception drawing IMGUI! " << ex.what());
                     g_pDevice->DestroyScene(*g_Controller.spCurrentProject->spScene);
                 }
             }
@@ -523,7 +526,7 @@ int main(int argc, char** argv)
     }
     g_pDevice.reset();
 
-    Audio::audio_destroy();
+    Zing::audio_destroy();
 
     scene_destroy_parser();
 

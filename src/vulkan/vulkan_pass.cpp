@@ -5,8 +5,11 @@
 #include <range/v3/view/filter.hpp>
 #include <range/v3/view/transform.hpp>
 
-#include "vklive/logger/logger.h"
-#include "vklive/time/timer.h"
+#include <zing/audio/audio.h>
+
+#include <zest/logger/logger.h>
+#include <zest/time/timer.h>
+
 #include "vklive/validation.h"
 
 #include "vklive/vulkan/vulkan_pass.h"
@@ -15,7 +18,6 @@
 #include "vklive/vulkan/vulkan_uniform.h"
 #include "vklive/vulkan/vulkan_utils.h"
 
-#include "vklive/audio/audio.h"
 
 using namespace ranges;
 
@@ -27,9 +29,9 @@ VulkanPassSwapFrameData& vulkan_pass_frame_data(VulkanContext& ctx, VulkanPass& 
     return vulkanPass.passFrameData[ctx.mainWindowData.frameIndex];
 }
 
-VulkanPassTargets& vulkan_pass_targets(VulkanPassSwapFrameData& passFrameData)
+VulkanPassTargets& vulkan_pass_targets(VulkanContext& ctx, VulkanPassSwapFrameData& passFrameData)
 {
-    return passFrameData.passTargets[globalFrameCount % 2];
+    return passFrameData.passTargets[Scene::GlobalFrameCount % 2];
 }
 
 std::shared_ptr<VulkanPass> vulkan_pass_create(VulkanScene& vulkanScene, Pass& pass)
@@ -135,7 +137,7 @@ VulkanSurface* get_vulkan_surface(VulkanContext& ctx, VulkanPass& vulkanPass, co
     VulkanScene& vulkanScene = vulkanPass.vulkanScene;
 
     // Get or create the vulkan specific equivalent
-    auto pVulkanSurface = vulkan_scene_get_or_create_surface(vulkanScene, surfaceName, globalFrameCount, sampling);
+    auto pVulkanSurface = vulkan_scene_get_or_create_surface(vulkanScene, surfaceName, Scene::GlobalFrameCount, sampling);
     if (!pVulkanSurface)
     {
         return nullptr;
@@ -162,9 +164,9 @@ VulkanSurface* get_vulkan_surface(VulkanContext& ctx, VulkanPass& vulkanPass, co
         if (pSurface->name == "AudioAnalysis")
         {
             // Only update the audio surface once
-            if (vulkanScene.audioSurfaceFrameGeneration != globalFrameCount || (pVulkanSurface->allocationState == VulkanAllocationState::Init))
+            if (vulkanScene.audioSurfaceFrameGeneration != Scene::GlobalFrameCount || (pVulkanSurface->allocationState == VulkanAllocationState::Init))
             {
-                vulkanScene.audioSurfaceFrameGeneration = globalFrameCount;
+                vulkanScene.audioSurfaceFrameGeneration = Scene::GlobalFrameCount;
 
                 bool surfaceChanged = false;
                 surface_update_from_audio(ctx, *pVulkanSurface, surfaceChanged, vulkan_pass_frame_data(ctx, vulkanPass).commandBuffer);
@@ -584,9 +586,9 @@ void vulkan_pass_prepare_targets(VulkanContext& ctx, VulkanPassSwapFrameData& pa
     // Flip-flop between 2 pages for this swap index; so we can read the target later
     auto& pass = passFrameData.pVulkanPass->pass;
     auto& vulkanScene = passFrameData.pVulkanPass->vulkanScene;
-    auto& vulkanPassTargets = passFrameData.passTargets[globalFrameCount % 2];
+    auto& vulkanPassTargets = passFrameData.passTargets[Scene::GlobalFrameCount % 2];
 
-    vulkanPassTargets.debugName = fmt::format("PassTargets:{}:{}", globalFrameCount % 2, passFrameData.debugName);
+    vulkanPassTargets.debugName = fmt::format("PassTargets:{}:{}", Scene::GlobalFrameCount % 2, passFrameData.debugName);
 
     LOG_SCOPE(DBG, "PrepareTargets: " << vulkanPassTargets.debugName);
 
@@ -613,7 +615,7 @@ void vulkan_pass_prepare_targets(VulkanContext& ctx, VulkanPassSwapFrameData& pa
 void vulkan_pass_prepare_surfaces(VulkanContext& ctx, VulkanPassSwapFrameData& passFrameData)
 {
     auto& pass = passFrameData.pVulkanPass->pass;
-    auto& vulkanPassTargets = passFrameData.passTargets[globalFrameCount % 2];
+    auto& vulkanPassTargets = passFrameData.passTargets[Scene::GlobalFrameCount % 2];
 
     LOG_SCOPE(DBG, "Prepare Surfaces:");
 
@@ -638,7 +640,7 @@ void vulkan_pass_prepare_uniforms(VulkanContext& ctx, VulkanPass& vulkanPass)
     LOG_SCOPE(DBG, "Prepare Uniforms:");
 
     auto& passFrameData = vulkan_pass_frame_data(ctx, vulkanPass);
-    auto& passTargets = vulkan_pass_targets(passFrameData);
+    auto& passTargets = vulkan_pass_targets(ctx, passFrameData);
 
     if (!passFrameData.vsUniform.buffer)
     {
@@ -679,24 +681,29 @@ void vulkan_pass_prepare_uniforms(VulkanContext& ctx, VulkanPass& vulkanPass)
         }
     }
 
-    auto elapsed = globalElapsedSeconds;
+    auto elapsed = Scene::GlobalElapsedSeconds;
     glm::vec3 meshPos = glm::vec3(0.0f, 0.0f, 0.0f);
     ubo.iTimeDelta = (ubo.iTime == 0.0f) ? 0.0f : elapsed - ubo.iTime;
     ubo.iTime = elapsed;
-    ubo.iFrame = globalFrameCount;
+    ubo.iFrame = Scene::GlobalFrameCount;
     ubo.iFrameRate = elapsed != 0.0 ? (1.0f / elapsed) : 0.0;
     ubo.iGlobalTime = elapsed;
     ubo.iResolution = glm::vec4(size.x, size.y, 1.0, 0.0);
     ubo.iMouse = glm::vec4(0.0f); // TODO: Mouse
 
     // Audio
-    auto& audioCtx = Audio::GetAudioContext();
+    auto& audioCtx = Zing::GetAudioContext();
     ubo.iSampleRate = audioCtx.audioDeviceSettings.sampleRate;
-    auto channels = std::min(audioCtx.analysisChannels.size(), (size_t)2);
-    for (int channel = 0; channel < channels; channel++)
+    auto channels = std::clamp(audioCtx.analysisChannels.size(), (size_t)1, (size_t)4);
+    // TBD: We can have more channels (2 in, 2 out, for example).
+    // Need to let the shader author map what they want
+    for (auto [Id, pAnalysis] : audioCtx.analysisChannels)
     {
-        // Lock free atomic
-        ubo.iSpectrumBands[channel] = audioCtx.analysisChannels[channel]->spectrumBands;
+        if (pAnalysis->thisChannel.second < 2)
+        {
+            // Lock free atomic
+            ubo.iSpectrumBands[pAnalysis->thisChannel.second] = pAnalysis->spectrumBands.load();
+        }
     }
 
     // TODO: year, month, day, seconds since EPOCH
@@ -725,7 +732,7 @@ void vulkan_pass_build_descriptors(VulkanContext& ctx, VulkanPass& vulkanPass)
 {
     VulkanScene& vulkanScene = vulkanPass.vulkanScene;
     auto& passFrameData = vulkan_pass_frame_data(ctx, vulkanPass);
-    auto& passTargets = vulkan_pass_targets(passFrameData);
+    auto& passTargets = vulkan_pass_targets(ctx, passFrameData);
 
     if (passFrameData.builtDescriptors)
     {
@@ -795,7 +802,7 @@ void vulkan_pass_set_descriptors(VulkanContext& ctx, VulkanPass& vulkanPass)
     VulkanScene& vulkanScene = vulkanPass.vulkanScene;
 
     auto& passFrameData = vulkan_pass_frame_data(ctx, vulkanPass);
-    auto& passTargets = vulkan_pass_targets(passFrameData);
+    auto& passTargets = vulkan_pass_targets(ctx, passFrameData);
 
     // Build pointers to image infos for later
     std::map<std::string, vk::DescriptorImageInfo> imageInfos;
@@ -917,7 +924,7 @@ void vulkan_pass_prepare_pipeline(VulkanContext& ctx, VulkanPassSwapFrameData& f
     auto& vulkanScene = frameData.pVulkanPass->vulkanScene;
     auto& vulkanPass = *frameData.pVulkanPass;
     auto& pass = frameData.pVulkanPass->pass;
-    auto& vulkanPassTargets = vulkan_pass_targets(frameData);
+    auto& vulkanPassTargets = vulkan_pass_targets(ctx, frameData);
 
     // Get the shader stage info
     std::vector<vk::PipelineShaderStageCreateInfo> shaderStages;
@@ -962,7 +969,7 @@ void vulkan_pass_transition_samplers(VulkanContext& ctx, VulkanPassSwapFrameData
 void vulkan_pass_submit(VulkanContext& ctx, VulkanPass& vulkanPass)
 {
     auto& passFrameData = vulkan_pass_frame_data(ctx, vulkanPass);
-    auto& passTargets = vulkan_pass_targets(passFrameData);
+    auto& passTargets = vulkan_pass_targets(ctx, passFrameData);
 
     LOG_SCOPE(DBG, "Pass Submit: " << passFrameData.debugName);
 
@@ -1050,14 +1057,14 @@ bool vulkan_pass_draw(VulkanContext& ctx, VulkanPass& vulkanPass)
 {
     // Data for rendering the pass at the current swap frame
     auto& passFrameData = vulkan_pass_frame_data(ctx, vulkanPass);
-    auto& passTargets = vulkan_pass_targets(passFrameData);
+    auto& passTargets = vulkan_pass_targets(ctx, passFrameData);
     auto& scene = vulkanPass.pass.scene;
 
     passFrameData.pVulkanPass = &vulkanPass;
     passFrameData.debugName = fmt::format("{}:I{}", vulkanPass.pass.name, ctx.mainWindowData.frameIndex);
     passTargets.pFrameData = &passFrameData;
 
-    LOG_SCOPE(DBG, "Pass Draw: " << passFrameData.debugName << " Global Frame: " << globalFrameCount);
+    LOG_SCOPE(DBG, "Pass Draw: " << passFrameData.debugName << " Global Frame: " << Scene::GlobalFrameCount);
 
     // Wait for the fence the last time we drew with this pass information
     vulkan_pass_wait(ctx, passFrameData);

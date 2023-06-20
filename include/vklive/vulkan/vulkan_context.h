@@ -37,6 +37,7 @@ struct VulkanContext : DeviceContext
     vk::PipelineCache pipelineCache;
 
     // Currently used by IMGui for the font.  Maybe factor this out later
+    uint64_t descriptorCacheIndex = 0;
     vk::DescriptorPool descriptorPool;
 
     vk::DeviceSize BufferMemoryAlignment = 256;

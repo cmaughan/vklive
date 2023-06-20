@@ -9,8 +9,10 @@
 #include "vklive/vulkan/vulkan_surface.h"
 #include "vklive/vulkan/vulkan_utils.h"
 
-#include <vklive/audio/audio_analysis.h>
-#include <vklive/memory.h>
+#include <zest/logger/logger.h>
+#include <zest/memory/memory.h>
+
+#include <zing/audio/audio_analysis.h>
 
 namespace vulkan
 {
@@ -386,7 +388,7 @@ bool surface_create_from_file(VulkanContext& ctx, VulkanSurface& vulkanSurface, 
 
     std::shared_ptr<gli::texture2d> tex2Dptr;
 
-    auto data = file_read(filename);
+    auto data = Zest::file_read(filename);
     if (data.empty())
     {
         vulkanSurface.allocationState = VulkanAllocationState::Failed;
@@ -398,7 +400,7 @@ bool surface_create_from_file(VulkanContext& ctx, VulkanSurface& vulkanSurface, 
 
 void surface_update_from_audio(VulkanContext& ctx, VulkanSurface& surface, bool& surfaceChanged, vk::CommandBuffer& commandBuffer)
 {
-    auto& audioContext = Audio::GetAudioContext();
+    auto& audioCtx = Zing::GetAudioContext();
 
     auto updateSurface = [&](auto width, auto height) {
         if (surface.extent.width != width || surface.extent.height != height)
@@ -450,7 +452,7 @@ void surface_update_from_audio(VulkanContext& ctx, VulkanSurface& surface, bool&
         }
     };
 
-    if (audioContext.analysisChannels.empty() || audioContext.analysisReadGeneration.load() == audioContext.analysisWriteGeneration.load())
+    if (audioCtx.analysisChannels.empty() || audioCtx.analysisReadGeneration.load() == audioCtx.analysisWriteGeneration.load())
     {
         // Ensure a blank surface so the shader always gets something
         if (surface.extent.width == 0 || surface.extent.height == 0)
@@ -461,25 +463,36 @@ void surface_update_from_audio(VulkanContext& ctx, VulkanSurface& surface, bool&
         updateSurface(surface.extent.width, surface.extent.height);
     }
 
-    audioContext.analysisReadGeneration.store(audioContext.analysisWriteGeneration.load());
+    audioCtx.analysisReadGeneration.store(audioCtx.analysisWriteGeneration.load());
 
     static std::vector<float> uploadCache;
 
     size_t bufferWidth = 512; // default width if no data
-    const auto Channels = std::max(audioContext.analysisChannels.size(), size_t(1));
+    const auto Channels = std::max(audioCtx.analysisChannels.size(), size_t(1));
     const auto BufferTypes = 2; // Spectrum + Audio
     const auto BufferHeight = Channels * BufferTypes;
 
-    for (int channel = 0; channel < Channels; channel++)
+    for (auto [Id, pAnalysis] : audioCtx.analysisChannels)
     {
-        auto& analysis = audioContext.analysisChannels[channel];
+        std::shared_ptr<Zing::AudioAnalysisData> spNewData;
+        while (pAnalysis->analysisData.try_dequeue(spNewData))
+        {
+            if (pAnalysis->uiDataCache)
+            {
+                // Return to the pool
+                pAnalysis->analysisDataCache.enqueue(pAnalysis->uiDataCache);
+            }
+            pAnalysis->uiDataCache = spNewData;
+        }
 
-        ConsumerMemLock memLock(analysis->analysisData);
-        auto& processData = memLock.Data();
-        auto currentBuffer = 1 - processData.currentBuffer;
+        // Haven't got anything yet
+        if (!pAnalysis->uiDataCache)
+        {
+            continue;
+        }
 
-        auto& spectrumBuckets = processData.spectrumBuckets[currentBuffer];
-        auto& audio = processData.audio[currentBuffer];
+        const auto& spectrumBuckets = pAnalysis->uiDataCache->spectrumBuckets;
+        const auto& audio = pAnalysis->uiDataCache->audio;
 
         // Stereo, Audio and Spectrum (4 rows total)
         if (spectrumBuckets.size() != 0)
@@ -487,11 +500,11 @@ void surface_update_from_audio(VulkanContext& ctx, VulkanSurface& surface, bool&
             bufferWidth = spectrumBuckets.size();
             uploadCache.resize(BufferHeight * spectrumBuckets.size());
 
-            memcpy(&uploadCache[channel * spectrumBuckets.size()], &spectrumBuckets[0], spectrumBuckets.size() * sizeof(float));
+            memcpy(&uploadCache[pAnalysis->thisChannel.second * spectrumBuckets.size()], &spectrumBuckets[0], spectrumBuckets.size() * sizeof(float));
 
             // Copy audio, note that we always make the audio at least as big as the spectrum
             assert(audio.size() >= spectrumBuckets.size());
-            memcpy(&uploadCache[(channel + Channels) * spectrumBuckets.size()], &audio[0], spectrumBuckets.size() * sizeof(float));
+            memcpy(&uploadCache[(pAnalysis->thisChannel.second + Channels) * spectrumBuckets.size()], &audio[0], spectrumBuckets.size() * sizeof(float));
         }
         else
         {
@@ -501,7 +514,7 @@ void surface_update_from_audio(VulkanContext& ctx, VulkanSurface& surface, bool&
         }
     }
 
-    // Left/Right FFT and Audio (4 rows)
+    // Left/Right FFT and Audio (4 rows, typically - though there is scope for more)
     updateSurface(bufferWidth, Channels * BufferTypes);
 
     utils_copy_to_memory(ctx, surface.stagingBuffer.memory, uploadCache);

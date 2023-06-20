@@ -1,8 +1,9 @@
 #include <fmt/format.h>
 
+#include <zest/file/runtree.h>
+
 #include "vklive/vulkan/vulkan_model.h"
 
-#include <vklive/file/runtree.h>
 
 namespace vulkan
 {
@@ -97,7 +98,7 @@ std::shared_ptr<VulkanModel> vulkan_model_create(VulkanContext& ctx,
     }
     else if (geom.type == GeometryType::Rect)
     {
-        loadPath = runtree_find_path("models/quad.obj");
+        loadPath = Zest::runtree_find_path("models/quad.obj");
         if (loadPath.empty())
         {
             scene_report_error(*vulkanScene.pScene, MessageSeverity::Error,

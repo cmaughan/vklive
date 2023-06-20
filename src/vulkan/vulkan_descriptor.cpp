@@ -1,6 +1,8 @@
 #include <algorithm>
+
+#include <zest/time/timer.h>
+
 #include <vklive/vulkan/vulkan_descriptor.h>
-#include <vklive/time/timer.h>
 
 namespace vulkan
 {
@@ -8,8 +10,10 @@ namespace vulkan
 DescriptorCache& descriptor_get_cache(VulkanContext& ctx)
 {
     // Keep enough descriptor pools to ensure we aren't re-using ones in flight
-    // With 3 swap chains, we need at most 4.
-    return ctx.descriptorCache[globalFrameCount % 4];
+    // With 3 swap chains, we need at most 4, but I'm begin careful here because I haven't
+    // decided the chain of events when a scene is compiled in the background while a foreground one is running.
+    // The caches will be unique, since each scene render uses a new index, but I want to be sure I'm never resetting here
+    return ctx.descriptorCache[ctx.descriptorCacheIndex % 10];
 }
 
 namespace

@@ -9,12 +9,13 @@
 #define SPIRV_REFLECT_USE_SYSTEM_SPIRV_H
 #include <spirv_reflect.h>
 
+#include <zest/file/file.h>
+#include <zest/file/runtree.h>
+#include <zest/logger/logger.h>
+#include <zest/string/string_utils.h>
+
 #include "config_app.h"
-#include <vklive/file/file.h>
-#include <vklive/file/runtree.h>
-#include <vklive/logger/logger.h>
 #include <vklive/process/process.h>
-#include <vklive/string/string_utils.h>
 #include <vklive/vulkan/vulkan_reflect.h>
 #include <vklive/vulkan/vulkan_shader.h>
 
@@ -38,7 +39,7 @@ bool shader_parse_output(const std::string& strOutput, const fs::path& shaderPat
     std::map<int32_t, std::vector<Message>> messageLines;
 
     std::vector<Message> noLineMessages;
-    auto error_lines = string_split(strOutput, "\r\n");
+    auto error_lines = Zest::string_split(strOutput, "\r\n");
     for (auto& error_line : error_lines)
     {
         Message msg;
@@ -66,7 +67,7 @@ bool shader_parse_output(const std::string& strOutput, const fs::path& shaderPat
 
             if (std::regex_search(error_line, match, messageRegex) && match.size() > 1)
             {
-                msg.text = string_trim(match[1].str());
+                msg.text = Zest::string_trim(match[1].str());
             }
             else
             {
@@ -211,7 +212,7 @@ std::shared_ptr<VulkanShader> vulkan_shader_create(VulkanContext& ctx, VulkanSce
     fs::path compiler_path;
     // fs::path cross_path;
 #ifdef WIN32
-    compiler_path = runtree_find_path("bin/win/glslangValidator.exe");
+    compiler_path = Zest::runtree_find_path("bin/win/glslangValidator.exe");
     // cross_path = runtree_find_path("bin/win/spirv-cross.exe");
 #elif defined(__APPLE__)
     compiler_path = runtree_find_path("bin/mac/glslangValidator");
@@ -226,7 +227,7 @@ std::shared_ptr<VulkanShader> vulkan_shader_create(VulkanContext& ctx, VulkanSce
             "-V",
             "-l",
             "-g",
-            fmt::format("-I{}", fs::canonical(runtree_path() / "shaders/include").string()),
+            fmt::format("-I{}", fs::canonical(Zest::runtree_path() / "shaders/include").string()),
             "-o",
             out_path.string(),
             shader.path.string() },
@@ -242,7 +243,7 @@ std::shared_ptr<VulkanShader> vulkan_shader_create(VulkanContext& ctx, VulkanSce
         return nullptr;
     }
 
-    auto spirv = file_read(out_path);
+    auto spirv = Zest::file_read(out_path);
 
     shader_reflect(spirv, *spShader);
 

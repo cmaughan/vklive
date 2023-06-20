@@ -5,7 +5,8 @@
 
 #include "config_app.h"
 
-#include <vklive/logger/logger.h>
+#include <zest/logger/logger.h>
+
 #include <vklive/vulkan/vulkan_bindings.h>
 #include <vklive/vulkan/vulkan_reflect.h>
 

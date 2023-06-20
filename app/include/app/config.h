@@ -2,9 +2,10 @@
 
 #include <glm/glm.hpp>
 
-#include <vklive/file/file.h>
-#include <vklive/audio/audio_analysis_settings.h>
-#include <vklive/audio/audio_device_settings.h>
+#include <zest/file/file.h>
+
+#include <zing/audio/audio_analysis_settings.h>
+#include <zing/audio/audio_device_settings.h>
 
 enum class WindowState
 {
@@ -31,8 +32,8 @@ struct AppConfig
 
     fs::path last_folder_path;
 
-    Audio::AudioAnalysisSettings audioAnalysisSettings;
-    Audio::AudioDeviceSettings audioDeviceSettings;
+    Zing::AudioAnalysisSettings audioAnalysisSettings;
+    Zing::AudioDeviceSettings audioDeviceSettings;
 
 };
 

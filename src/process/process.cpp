@@ -1,14 +1,15 @@
-#include <reproc++/drain.hpp>
-#include <reproc++/reproc.hpp>
-#include <reproc++/run.hpp>
-
 #include <vector>
 #include <cassert>
 #include <iostream>
 #include <sstream>
 
+#include <reproc++/drain.hpp>
+#include <reproc++/reproc.hpp>
+#include <reproc++/run.hpp>
+
+#include <zest/logger/logger.h>
+
 #include <vklive/process/process.h>
-#include <vklive/logger/logger.h>
 
 std::error_code run_process(const std::vector<std::string>& args, std::string* pOutput)
 {
@@ -36,12 +37,12 @@ std::error_code run_process(const std::vector<std::string>& args, std::string* p
         str << "RunProcess - Program Not Found";
         if (!args.empty())
             str << " : " << args[0];
-        LOG(ERROR, str.str());
+        LOG(ERR, str.str());
         return ec;
     }
     else if (ec)
     {
-        LOG(ERROR, "RunProcess - " << ec.message());
+        LOG(ERR, "RunProcess - " << ec.message());
         return ec;
     }
 
@@ -51,7 +52,7 @@ std::error_code run_process(const std::vector<std::string>& args, std::string* p
         ec = reproc::drain(proc, sink, sink);
         if (ec)
         {
-            LOG(ERROR, "RunProcess Draining - " << ec.message());
+            LOG(ERR, "RunProcess Draining - " << ec.message());
             return ec;
         }
     }
@@ -61,7 +62,7 @@ std::error_code run_process(const std::vector<std::string>& args, std::string* p
     std::tie(status, ec) = proc.stop(options.stop);
     if (ec)
     {
-        LOG(ERROR, "RunProcess - " << ec.message());
+        LOG(ERR, "RunProcess - " << ec.message());
         return ec;
     }
     return ec;

@@ -1,7 +1,11 @@
 #include <filesystem>
 
-#include "vklive/logger/logger.h"
-#include "vklive/time/timer.h"
+#include <zest/logger/logger.h>
+#include <zest/time/timer.h>
+#include <zest/file/runtree.h>
+#include <zest/file/file.h>
+#include <zest/file/runtree.h>
+
 #include "vklive/vulkan/vulkan_command.h"
 #include "vklive/vulkan/vulkan_context.h"
 #include "vklive/vulkan/vulkan_framebuffer.h"
@@ -10,14 +14,10 @@
 #include "vklive/vulkan/vulkan_scene.h"
 #include "vklive/vulkan/vulkan_utils.h"
 
-#include "vklive/file/runtree.h"
-
 #include "imgui_impl_sdl2.h"
 
 #include "config_app.h"
 
-#include <vklive/file/file.h>
-#include <vklive/file/runtree.h>
 #include <vklive/process/process.h>
 #include <vklive/vulkan/vulkan_shader.h>
 
@@ -41,11 +41,11 @@ void imgui_create_shaders(VulkanContext& ctx)
     VulkanShader data(nullptr);
 
     // A bit of a hack for now; temporary scene required for shader create!
-    Scene scene(runtree_path() / "shaders");
+    Scene scene(Zest::runtree_path() / "shaders");
     VulkanScene vulkanScene(&scene);
 
-    Shader vertShader(runtree_find_path("shaders/imgui.vert"));
-    Shader fragShader(runtree_find_path("shaders/imgui.frag"));
+    Shader vertShader(Zest::runtree_find_path("shaders/imgui.vert"));
+    Shader fragShader(Zest::runtree_find_path("shaders/imgui.frag"));
 
     // Create the shader modules
     if (!imgui->shaderModuleVert)
@@ -256,7 +256,7 @@ void imgui_upload_font(VulkanContext& ctx)
     ImGuiIO& io = ImGui::GetIO();
 
     // Note: Adjust font size as appropriate!
-    auto fontPath = runtree_find_path("fonts/Cousine-Regular.ttf");
+    auto fontPath = Zest::runtree_find_path("fonts/Cousine-Regular.ttf");
     io.Fonts->AddFontFromFileTTF(fontPath.string().c_str(), 16 * ctx.vdpi);
 
     // Upload Fonts
@@ -757,7 +757,7 @@ void imgui_render_3d(VulkanContext& ctx, Scene& scene, bool background, bool tes
                         auto& targetData = itrTargetData->second;
                         if (targetData.descriptorSetLayout && targetData.descriptorSet)
                         {
-                            LOG(0, "Showing RT with Descriptor: " << targetData.descriptorSet);
+                            LOG(DBG, "Showing RT with Descriptor: " << targetData.descriptorSet);
                             pDrawList->AddImage((ImTextureID)targetData.descriptorSet,
                                 ImVec2(canvas_pos.x, canvas_pos.y),
                                 ImVec2(canvas_pos.x + canvas_size.x, canvas_pos.y + canvas_size.y));
@@ -832,7 +832,7 @@ void imgui_render_targets(VulkanContext& ctx, Scene& scene)
                     auto& targetData = itrTargetData->second;
                     if (targetData.descriptorSetLayout && targetData.descriptorSet)
                     {
-                        LOG(0, "Showing RT:Target with Descriptor: " << targetData.descriptorSet);
+                        LOG(DBG, "Showing RT:Target with Descriptor: " << targetData.descriptorSet);
                         pDrawList->AddImage((ImTextureID)targetData.descriptorSet,
                             ImVec2(canvas_pos.x, canvas_pos.y),
                             ImVec2(canvas_pos.x + canvas_size.x, canvas_pos.y + height_per_tile));
