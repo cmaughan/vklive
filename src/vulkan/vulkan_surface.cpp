@@ -400,6 +400,7 @@ bool surface_create_from_file(VulkanContext& ctx, VulkanSurface& vulkanSurface, 
 
 void surface_update_from_audio(VulkanContext& ctx, VulkanSurface& surface, bool& surfaceChanged, vk::CommandBuffer& commandBuffer)
 {
+    PROFILE_SCOPE(surface_update_audio);
     auto& audioCtx = Zing::GetAudioContext();
 
     auto updateSurface = [&](auto width, auto height) {

@@ -637,6 +637,7 @@ void vulkan_pass_prepare_surfaces(VulkanContext& ctx, VulkanPassSwapFrameData& p
 // Ensure we have setup the buffers for this pass
 void vulkan_pass_prepare_uniforms(VulkanContext& ctx, VulkanPass& vulkanPass)
 {
+    PROFILE_SCOPE(prepare_uniforms);
     LOG_SCOPE(DBG, "Prepare Uniforms:");
 
     auto& passFrameData = vulkan_pass_frame_data(ctx, vulkanPass);
@@ -730,6 +731,8 @@ void vulkan_pass_prepare_uniforms(VulkanContext& ctx, VulkanPass& vulkanPass)
 
 void vulkan_pass_build_descriptors(VulkanContext& ctx, VulkanPass& vulkanPass)
 {
+    PROFILE_SCOPE(build_descriptors);
+
     VulkanScene& vulkanScene = vulkanPass.vulkanScene;
     auto& passFrameData = vulkan_pass_frame_data(ctx, vulkanPass);
     auto& passTargets = vulkan_pass_targets(ctx, passFrameData);
@@ -797,6 +800,8 @@ void vulkan_pass_build_descriptors(VulkanContext& ctx, VulkanPass& vulkanPass)
 
 void vulkan_pass_set_descriptors(VulkanContext& ctx, VulkanPass& vulkanPass)
 {
+    PROFILE_SCOPE(set_descriptors);
+
     LOG_SCOPE(DBG, "Set Descriptors:");
 
     VulkanScene& vulkanScene = vulkanPass.vulkanScene;
@@ -913,6 +918,8 @@ void vulkan_pass_set_descriptors(VulkanContext& ctx, VulkanPass& vulkanPass)
 // 2. Remember the pass stage info to catch validation errors
 void vulkan_pass_prepare_pipeline(VulkanContext& ctx, VulkanPassSwapFrameData& frameData)
 {
+    PROFILE_SCOPE(prepare_pipeline);
+
     // No need to recreate the geometry pipeline
     if (frameData.geometryPipeline)
     {
@@ -953,6 +960,7 @@ void vulkan_pass_prepare_pipeline(VulkanContext& ctx, VulkanPassSwapFrameData& f
 // Transition samplers to read, if they are not already
 void vulkan_pass_transition_samplers(VulkanContext& ctx, VulkanPassSwapFrameData& passFrameData)
 {
+    PROFILE_SCOPE(transition_samplers);
     auto& vulkanPass = *passFrameData.pVulkanPass;
 
     for (auto& passSampler : passFrameData.pVulkanPass->pass.samplers)
@@ -968,6 +976,7 @@ void vulkan_pass_transition_samplers(VulkanContext& ctx, VulkanPassSwapFrameData
 
 void vulkan_pass_submit(VulkanContext& ctx, VulkanPass& vulkanPass)
 {
+    PROFILE_SCOPE(pass_submit);
     auto& passFrameData = vulkan_pass_frame_data(ctx, vulkanPass);
     auto& passTargets = vulkan_pass_targets(ctx, passFrameData);
 
@@ -1055,6 +1064,7 @@ void vulkan_pass_submit(VulkanContext& ctx, VulkanPass& vulkanPass)
 
 bool vulkan_pass_draw(VulkanContext& ctx, VulkanPass& vulkanPass)
 {
+    PROFILE_SCOPE(pass_draw);
     // Data for rendering the pass at the current swap frame
     auto& passFrameData = vulkan_pass_frame_data(ctx, vulkanPass);
     auto& passTargets = vulkan_pass_targets(ctx, passFrameData);

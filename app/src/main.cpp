@@ -225,6 +225,10 @@ int main(int argc, char** argv)
     bool done = false;
     while (!done)
     {
+        Zest::Profiler::NewFrame();
+    
+        PROFILE_NAME_THREAD(UI);
+
         // Poll and handle events (inputs, window resize, etc.)
         // You can read the io.WantCaptureMouse, io.WantCaptureKeyboard flags to tell if dear imgui wants to use your inputs.
         // - When io.WantCaptureMouse is true, do not dispatch mouse input data to your main application.
@@ -468,6 +472,8 @@ int main(int argc, char** argv)
         zep_show(focusEditor);
         focusEditor = false;
 
+        Zest::Profiler::ShowProfile();
+
         // Rendering
         ImGui::Render();
 
@@ -531,6 +537,9 @@ int main(int argc, char** argv)
     scene_destroy_parser();
 
     SDL_Quit();
+    
+    Zest::Profiler::Finish();
+
 
     return 0;
 }
