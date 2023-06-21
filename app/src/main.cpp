@@ -128,6 +128,7 @@ void save_state()
     }
 }
 
+
 int main(int argc, char** argv)
 {
     Zest::Profiler::Init();
@@ -277,7 +278,7 @@ int main(int argc, char** argv)
 
         menu_show();
 
-        // ImGui::ShowDemoWindow();
+        //ImGui::ShowDemoWindow();
 
         static bool update = false;
         static bool z_init = false;

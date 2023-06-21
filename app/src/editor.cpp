@@ -5,9 +5,9 @@
 
 #include <zest/file/file.h>
 
-//#define ZEP_CONSOLE
-#include "app/editor.h"
+// #define ZEP_CONSOLE
 #include "app/config.h"
+#include "app/editor.h"
 #include "config_app.h"
 
 #include <vklive/message.h>
@@ -170,7 +170,7 @@ void zep_load(const fs::path& file, bool activate, uint32_t flags)
     }
     else if (file.extension() == ".frag")
     {
-        pBuffer->SetToneColor(theme.GetColor(theme.GetUniqueColor(4)));
+        pBuffer->SetToneColor(theme.GetColor(theme.GetUniqueColor(2)));
     }
     else if (file.extension() == ".geom")
     {
@@ -198,28 +198,87 @@ void zep_load(const fs::path& file, bool activate, uint32_t flags)
     }
 }
 
+void zep_modify_style()
+{
+    if (!spZep)
+    {
+        return;
+    }
+
+    // There is some conflict here with Dock that I don't understand; pushing the colors doesn't work.  Setting them does
+    // Note we override the style everywhere here!
+    auto oldBg = ImGui::GetStyleColorVec4(ImGuiCol_TitleBg);
+    auto oldBgActive = ImGui::GetStyleColorVec4(ImGuiCol_TitleBgActive);
+    auto oldMenuBg = ImGui::GetStyleColorVec4(ImGuiCol_MenuBarBg);
+    auto oldWindowBg = ImGui::GetStyleColorVec4(ImGuiCol_WindowBg);
+    auto back = toImVec4(spZep->GetEditor().ModifyBackgroundColor(toNVec4f(oldBg)));
+    auto backActive = toImVec4(spZep->GetEditor().ModifyBackgroundColor(toNVec4f(oldBgActive)));
+    auto menuBg = toImVec4(spZep->GetEditor().ModifyBackgroundColor(toNVec4f(oldMenuBg)));
+    auto windowBg = toImVec4(spZep->GetEditor().ModifyBackgroundColor(toNVec4f(oldWindowBg)));
+
+    auto& style = ImGui::GetStyle();
+    style.Colors[ImGuiCol_TitleBg] = back;
+    style.Colors[ImGuiCol_TitleBgActive] = backActive;
+    style.Colors[ImGuiCol_MenuBarBg] = menuBg;
+    style.Colors[ImGuiCol_WindowBg] = windowBg;
+}
+
+void zep_reset_style()
+{
+    if (!spZep)
+    {
+        return;
+    }
+
+    // There is some conflict here with Dock that I don't understand; pushing the colors doesn't work.  Setting them does
+    // Note we override the style everywhere here!
+    auto oldBg = ImGui::GetStyleColorVec4(ImGuiCol_TitleBg);
+    auto oldBgActive = ImGui::GetStyleColorVec4(ImGuiCol_TitleBgActive);
+    auto oldMenuBg = ImGui::GetStyleColorVec4(ImGuiCol_MenuBarBg);
+    auto oldWindowBg = ImGui::GetStyleColorVec4(ImGuiCol_WindowBg);
+    oldWindowBg.w = 255.0f;
+    oldMenuBg.w = 255.0f;
+    oldBg.w = 255.0f;
+    oldBgActive.w = 255.0f;
+
+    auto& style = ImGui::GetStyle();
+    style.Colors[ImGuiCol_TitleBg] = oldBg;
+    style.Colors[ImGuiCol_TitleBgActive] = oldBgActive;
+    style.Colors[ImGuiCol_MenuBarBg] = oldMenuBg;
+    style.Colors[ImGuiCol_WindowBg] = oldWindowBg;
+}
+
 void zep_show(bool focus)
 {
+    zep_modify_style();
+
     // Required for CTRL+P and flashing cursor.
     spZep->GetEditor().RefreshRequired();
 
-    auto windowFlags = ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_MenuBar;
+    auto windowFlags = uint32_t(ImGuiWindowFlags_NoScrollbar); // | ImGuiWindowFlags_MenuBar;
     if (appConfig.transparent_editor && appConfig.draw_on_background)
     {
         // With transparent editor, we don't draw the window back.
         windowFlags |= ImGuiWindowFlags_NoBackground;
     }
 
-
     ImGui::SetNextWindowSize(ImVec2(800, 600), ImGuiCond_FirstUseEver);
     ImGui::SetNextWindowPos(ImVec2(10, 50), ImGuiCond_FirstUseEver);
 
     static int focus_count = 0;
+    /*
+    if (!ImGui::GetIO().WantCaptureKeyboard &&
+        !ImGui::IsWindowFocused(ImGuiFocusedFlags_RootWindow))
+    {
+        focus_count = 0;
+    }
+    */
+
     if (focus)
     {
-        focus_count = 0; 
+        focus_count = 0;
     }
-    
+
     if (focus_count++ < 4)
     {
         ImGui::SetNextWindowFocus();
@@ -253,6 +312,8 @@ void zep_show(bool focus)
     }
 
     ImGui::End();
+    
+    zep_reset_style();
 }
 
 void zep_update_files(const fs::path& root, bool reset)

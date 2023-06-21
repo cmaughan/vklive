@@ -11,9 +11,10 @@
 #define iResolution ubo.iResolution
 #define iMouse ubo.iMouse
 #define iDate ubo.iDate
-#define iSpectrumBands[2] ubo.iSpectrumBands
+#define iSpectrumBands ubo.iSpectrumBands
 #define iChannelTime ubo.iChannelTime
-#define iChannelResolution[4] ubo.iChannelResolution
+#define iChannelResolution ubo.iChannelResolution
 #define ifFragCoordOffsetUniform ubo.ifFragCoordOffsetUniform
 #define iChannel ubo.iChannel
+
 

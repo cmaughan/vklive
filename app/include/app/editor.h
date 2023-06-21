@@ -39,6 +39,7 @@ using BufferUpdateCB = std::function<void(Zep::ZepBuffer&, const Zep::GlyphItera
 // Helpers to create zep editor
 Zep::ZepEditor& zep_get_editor();
 void zep_init(const fs::path& root, const Zep::NVec2f& pixelScale, const BufferUpdateCB& fnBufferUpdate);
+void zep_modify_style();
 void zep_show(bool focus = false);
 void zep_destroy();
 void zep_load(const fs::path& file, bool activate = false, uint32_t flags = 0);
