@@ -224,6 +224,7 @@ int main(int argc, char** argv)
 
     // Main loop
     bool done = false;
+    uint32_t zepFocusFlags = 0;
     while (!done)
     {
         Zest::Profiler::NewFrame();
@@ -247,6 +248,11 @@ int main(int argc, char** argv)
             if (event.type == SDL_WINDOWEVENT && event.window.event == SDL_WINDOWEVENT_CLOSE && event.window.windowID == SDL_GetWindowID(g_pDevice->Context().window))
             {
                 done = controller_check_exit();
+            }
+
+            if (event.type == SDL_KEYDOWN)
+            {
+                zepFocusFlags |= ZepFocusFlags::CheckFocus;
             }
         }
 
@@ -282,7 +288,6 @@ int main(int argc, char** argv)
 
         static bool update = false;
         static bool z_init = false;
-        static bool focusEditor = false;
         if (!z_init)
         {
             // Called once the fonts/device is guaranteed setup
@@ -411,7 +416,7 @@ int main(int argc, char** argv)
                 }
             }
 
-            focusEditor = true;
+            zepFocusFlags |= ZepFocusFlags::Focus;
         }
 
         if (g_Controller.spCurrentProject)
@@ -469,11 +474,11 @@ int main(int argc, char** argv)
             validation_enable_messages(false);
         }
 
-        // Show the editor
-        zep_show(focusEditor);
-        focusEditor = false;
-
         Zest::Profiler::ShowProfile();
+
+        // Show the editor
+        zep_show(zepFocusFlags);
+        zepFocusFlags = 0;
 
         // Rendering
         ImGui::Render();

@@ -36,11 +36,17 @@ private:
 
 using BufferUpdateCB = std::function<void(Zep::ZepBuffer&, const Zep::GlyphIterator& itr)>;
 
+enum ZepFocusFlags
+{
+    Focus = 1,
+    CheckFocus = 2
+};
+
 // Helpers to create zep editor
 Zep::ZepEditor& zep_get_editor();
 void zep_init(const fs::path& root, const Zep::NVec2f& pixelScale, const BufferUpdateCB& fnBufferUpdate);
 void zep_modify_style();
-void zep_show(bool focus = false);
+void zep_show(uint32_t focusFlags);
 void zep_destroy();
 void zep_load(const fs::path& file, bool activate = false, uint32_t flags = 0);
 void zep_update_files(const fs::path& root, bool reset);

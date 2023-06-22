@@ -248,7 +248,7 @@ void zep_reset_style()
     style.Colors[ImGuiCol_WindowBg] = oldWindowBg;
 }
 
-void zep_show(bool focus)
+void zep_show(uint32_t focusFlags)
 {
     zep_modify_style();
 
@@ -266,15 +266,14 @@ void zep_show(bool focus)
     ImGui::SetNextWindowPos(ImVec2(10, 50), ImGuiCond_FirstUseEver);
 
     static int focus_count = 0;
-    /*
-    if (!ImGui::GetIO().WantCaptureKeyboard &&
-        !ImGui::IsWindowFocused(ImGuiFocusedFlags_RootWindow))
-    {
-        focus_count = 0;
-    }
-    */
 
-    if (focus)
+    // Focus this window if another window hasn't captured keyboard and we are being asked to check the focus
+    if (focusFlags & ZepFocusFlags::CheckFocus)
+    {
+        focusFlags |= ZepFocusFlags::Focus;
+    }
+
+    if (focusFlags & ZepFocusFlags::Focus)
     {
         focus_count = 0;
     }
