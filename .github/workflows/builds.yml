@@ -48,14 +48,14 @@ jobs:
       working-directory: ${{github.workspace}}
       shell: bash
       run: |
-        git submodule update --init
+        git submodule update --init --recursive
         ./prebuild.bat
       if: matrix.os == 'windows-latest'
-    
+
     - name: Prebuild Linux_Mac
       working-directory: ${{github.workspace}}
       run: |
-        git submodule update --init
+        git submodule update --init --recursive
         ./prebuild.sh
       if: matrix.os == 'ubuntu-latest' || matrix.os == 'macos-latest'
 
@@ -68,7 +68,7 @@ jobs:
         echo "CXX=clang++-14" >> $GITHUB_ENV
         echo "CC=clang-14" >> $GITHUB_ENV
       if: matrix.os == 'ubuntu-latest' && matrix.cc == 'clang-14'
-    
+
     - name: Clang14_Mac
       run: |
         echo "CXX=$(brew --prefix llvm@14)/bin/clang++" >> $GITHUB_ENV
@@ -85,8 +85,8 @@ jobs:
       # access regardless of the host operating system
       shell: bash
       working-directory: ${{github.workspace}}/build
-      # Note the current convention is to use the -S and -B options here to specify source 
-      # and build directories, but this is only available with CMake 3.13 and higher.  
+      # Note the current convention is to use the -S and -B options here to specify source
+      # and build directories, but this is only available with CMake 3.13 and higher.
       # The CMake binaries on the Github Actions machines are (as of this writing) 3.12
       run: cmake $GITHUB_WORKSPACE -DLIBCXX_ENABLE_INCOMPLETE_FEATURES=ON -DCMAKE_BUILD_TYPE=${{ matrix.build_type }}
 

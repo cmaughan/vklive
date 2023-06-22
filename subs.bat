@@ -1,5 +1,4 @@
 git pull
-git submodule update --init --recursive
 cd external/zing
 git checkout main
 git pull
