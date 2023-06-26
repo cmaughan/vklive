@@ -9,7 +9,3 @@ cd zep
 git checkout master
 git pull
 cd ..
-cd vcpkg
-git checkout master
-git pull
-cd ..

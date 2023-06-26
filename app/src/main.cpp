@@ -2,7 +2,7 @@
 #include <mutex>
 #include <thread>
 
-//#include <clipp.h> Awaiting c++ 20 update, or switch to something else.
+// #include <clipp.h> Awaiting c++ 20 update, or switch to something else.
 #include <tinyfiledialogs/tinyfiledialogs.h>
 
 #include <SDL2/SDL.h>
@@ -15,6 +15,8 @@
 #include <zest/file/runtree.h>
 #include <zest/logger/logger.h>
 #include <zest/time/timer.h>
+
+#include <vklive/process/process.h>
 
 #include <vklive/IDevice.h>
 #include <vklive/scene.h>
@@ -41,7 +43,7 @@
 
 namespace Zest
 {
-Logger logger{ false, LT::DBG };
+Logger logger{ false, LT::WARNING };
 bool Log::disabled = false;
 } // namespace Zest
 
@@ -228,7 +230,7 @@ int main(int argc, char** argv)
     while (!done)
     {
         Zest::Profiler::NewFrame();
-    
+
         PROFILE_NAME_THREAD(UI);
 
         // Poll and handle events (inputs, window resize, etc.)
@@ -284,55 +286,60 @@ int main(int argc, char** argv)
 
         menu_show();
 
-        //ImGui::ShowDemoWindow();
+        // ImGui::ShowDemoWindow();
 
         static bool update = false;
         static bool z_init = false;
         if (!z_init)
         {
+            ZepEditorCB cb;
+            cb.updateCB = [=](auto& buffer, auto& itr) {
+                // Flash the buffer
+                Zep::FlashType type = Zep::FlashType::Flash;
+
+                buffer.BeginFlash(0.75f,
+                    type,
+                    Zep::GlyphRange(buffer.Begin(), buffer.End()));
+
+                // Save the buffers
+                if (buffer.HasFileFlags(Zep::FileFlags::Dirty))
+                {
+                    int64_t sz;
+                    buffer.Save(sz);
+                }
+
+                if (project_scene_valid(g_Controller.spCurrentProject.get()))
+                {
+                    auto spScene = g_Controller.spCurrentProject->spScene;
+
+                    auto updateFile = [](const auto& f) {
+                        auto shader = zep_get_editor().FindFileBuffer(f.string());
+                        if (shader && shader->HasFileFlags(Zep::FileFlags::Dirty))
+                        {
+                            int64_t sz;
+                            shader->Save(sz);
+                        }
+                        return f;
+                    };
+
+                    ranges::for_each(spScene->shaders | ranges::views::keys, updateFile);
+                    ranges::for_each(spScene->headers, updateFile);
+                }
+
+                // Make a new project from the existing and queue it for loading
+                auto spProject = std::make_shared<Project>();
+                spProject->rootPath = g_Controller.spCurrentProject->rootPath;
+                spProject->temporary = g_Controller.spCurrentProject->temporary;
+                spProject->modified = true;
+                g_Controller.spProjectQueue->enqueue(spProject);
+            };
+
+            cb.formatCB = [=](auto& buffer, auto& itr) {
+                zep_format_buffer(buffer, itr.Index());
+            };
+
             // Called once the fonts/device is guaranteed setup
-            zep_init(Zest::runtree_path(),
-                Zep::NVec2f(1.0f, 1.0f),
-                [&](Zep::ZepBuffer& buffer, const Zep::GlyphIterator& itr) {
-                    // Flash the buffer
-                    Zep::FlashType type = Zep::FlashType::Flash;
-
-                    buffer.BeginFlash(0.75f,
-                        type,
-                        Zep::GlyphRange(buffer.Begin(), buffer.End()));
-
-                    // Save the buffers
-                    if (buffer.HasFileFlags(Zep::FileFlags::Dirty))
-                    {
-                        int64_t sz;
-                        buffer.Save(sz);
-                    }
-
-                    if (project_scene_valid(g_Controller.spCurrentProject.get()))
-                    {
-                        auto spScene = g_Controller.spCurrentProject->spScene;
-
-                        auto updateFile = [](const auto& f) {
-                            auto shader = zep_get_editor().FindFileBuffer(f.string());
-                            if (shader && shader->HasFileFlags(Zep::FileFlags::Dirty))
-                            {
-                                int64_t sz;
-                                shader->Save(sz);
-                            }
-                            return f;
-                        };
-
-                        ranges::for_each(spScene->shaders | ranges::views::keys, updateFile);
-                        ranges::for_each(spScene->headers, updateFile);
-                    }
-
-                    // Make a new project from the existing and queue it for loading
-                    auto spProject = std::make_shared<Project>();
-                    spProject->rootPath = g_Controller.spCurrentProject->rootPath;
-                    spProject->temporary = g_Controller.spCurrentProject->temporary;
-                    spProject->modified = true;
-                    g_Controller.spProjectQueue->enqueue(spProject);
-                });
+            zep_init(Zest::runtree_path(), Zep::NVec2f(1.0f, 1.0f), cb);
 
             z_init = true;
         }
@@ -407,7 +414,7 @@ int main(int argc, char** argv)
                     zep_add_file_message(err);
                 }
             }
-            
+
             for (auto& err : spNewProject->spScene->warnings)
             {
                 if (!err.path.empty())
@@ -493,7 +500,7 @@ int main(int argc, char** argv)
                 LOG_SCOPE(DBG, "Draw IMGUI created data");
                 g_pDevice->ImGui_Render(main_draw_data);
             }
-            catch(std::exception& ex)
+            catch (std::exception& ex)
             {
                 if (g_Controller.spCurrentProject && project_has_scene(g_Controller.spCurrentProject.get()))
                 {
@@ -522,6 +529,8 @@ int main(int argc, char** argv)
         validation_enable_messages(false);
     }
 
+    Zing::audio_destroy();
+
     quit_thread = true;
     update_thread.join();
 
@@ -538,14 +547,11 @@ int main(int argc, char** argv)
     }
     g_pDevice.reset();
 
-    Zing::audio_destroy();
-
     scene_destroy_parser();
 
     SDL_Quit();
-    
-    Zest::Profiler::Finish();
 
+    Zest::Profiler::Finish();
 
     return 0;
 }

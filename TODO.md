@@ -1,6 +1,10 @@
 TODO
 ----
 
+# Top Priority Features
+Auto Indent
+Shadertoy compatibility entry point, add a header?
+
 ## General
 - Cleanup the binding code, separate it out a bit more.  Bindings are typically built dynamically.
 
@@ -29,6 +33,7 @@ TODO
 
 - Check low DPI; need a machine to do this on
 
+- Full screen mode
 ## Mac
 - Get correct documents folder; I don't think this is correctly located yet
 
@@ -47,15 +52,25 @@ Bugs
 ----
 ## General
 - Left over objects on shut down ; need to reconfirm this.
+Undo shouldn't affect other buffers; need to understand how that even happens.
+Tweak the blend fade out.  Understand the ImGui strange behavior
+insert a bad character near the top of the primitives demo before the macros, and the scene goes.
+
+- Tabs need to work properly
+- CTRL A B needs to wait for B before choosing A
+- Visible lines calculation seems incorrect.
 
 ## Zep
-- Flicker when too small
-- Tabs can be hard to delete/change to spaces
+- Key presses should direct back to Zep and active it
 - Word wrapping on words in the help docs would be useful.
+
 - Normal mode; Shift+ doesn't work for swapping tabs
 - Normal mode; insertion of <> when shift/arrow, etc.
+
 - Support clang format for easy shader formatting; even after micro edits?
+
 - Convert tabs to spaces / vice versa
+- Tabs can be hard to delete/change to spaces
 - Paste should probably normalize tabs to spaces
 
 Fridge

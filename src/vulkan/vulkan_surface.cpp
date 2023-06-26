@@ -225,6 +225,7 @@ void surface_set_layout(VulkanContext& ctx, vk::CommandBuffer cmdbuffer, vk::Ima
 
 void surface_set_layout(VulkanContext& ctx, vk::Image image, vk::ImageLayout oldImageLayout, vk::ImageLayout newImageLayout, vk::ImageSubresourceRange subresourceRange)
 {
+    LOG(ALWAYS, "Surface Set Layout");
     utils_with_command_buffer(ctx, [&](const auto& commandBuffer) {
         debug_set_commandbuffer_name(ctx.device, commandBuffer, "Buffer::ImageSetLayout");
         surface_set_layout(ctx, commandBuffer, image, oldImageLayout, newImageLayout, subresourceRange);
@@ -234,6 +235,7 @@ void surface_set_layout(VulkanContext& ctx, vk::Image image, vk::ImageLayout old
 // Fixed sub resource on first mip level and layer
 void surface_set_layout(VulkanContext& ctx, vk::Image image, vk::ImageAspectFlags aspectMask, vk::ImageLayout oldImageLayout, vk::ImageLayout newImageLayout)
 {
+    LOG(ALWAYS, "Surface Set Layout");
     utils_with_command_buffer(ctx, [&](const auto& commandBuffer) {
         debug_set_commandbuffer_name(ctx.device, commandBuffer, "Buffer::ImageSetLayout");
         surface_set_layout(ctx, commandBuffer, image, aspectMask, oldImageLayout, newImageLayout);
@@ -249,6 +251,7 @@ void surface_stage_to_device(VulkanContext& ctx, VulkanSurface& surface, vk::Ima
 
     vulkan_surface_create(ctx, surface, imageCreateInfo, memoryPropertyFlags);
 
+    LOG(ALWAYS, "Surface Stage To Device");
     utils_with_command_buffer(ctx, [&](const vk::CommandBuffer& copyCmd) {
         debug_set_commandbuffer_name(ctx.device, copyCmd, "Buffer::StageToDevice");
         vk::ImageSubresourceRange range(vk::ImageAspectFlagBits::eColor, 0, imageCreateInfo.mipLevels, 0, 1);

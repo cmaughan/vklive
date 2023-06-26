@@ -60,7 +60,7 @@ std::error_code run_process(const std::vector<std::string>& args, std::string* p
     // Call `process::stop` manually so we can access the exit status.
     int status = 0;
     std::tie(status, ec) = proc.stop(options.stop);
-    if (ec)
+    if (status)
     {
         LOG(ERR, "RunProcess - " << ec.message());
         return ec;

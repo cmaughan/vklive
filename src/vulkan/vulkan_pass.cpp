@@ -1057,9 +1057,10 @@ void vulkan_pass_submit(VulkanContext& ctx, VulkanPass& vulkanPass)
     passFrameData.commandBuffer.end();
     passFrameData.inFlight = true;
 
-    LOG(DBG, "Submit CommandBuffer: " << passFrameData.commandBuffer << ", Fence: " << &passFrameData.fence);
+    LOG(DBG, "Submit CommandBuffer: " << passFrameData.commandBuffer << ", Fence: " << &passFrameData.fence << ", TID: " << std::this_thread::get_id());
 
-    ctx.queue.submit(vk::SubmitInfo{ 0, nullptr, nullptr, 1, &passFrameData.commandBuffer }, passFrameData.fence);
+    LOG(ALWAYS, "Submit Pass");
+    context_get_queue(ctx).submit(vk::SubmitInfo{ 0, nullptr, nullptr, 1, &passFrameData.commandBuffer }, passFrameData.fence);
 }
 
 bool vulkan_pass_draw(VulkanContext& ctx, VulkanPass& vulkanPass)

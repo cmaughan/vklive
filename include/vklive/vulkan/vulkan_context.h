@@ -28,7 +28,6 @@ struct VulkanContext : DeviceContext
     vk::Instance instance;
     vk::PhysicalDevice physicalDevice;
     vk::Device device;
-    vk::Queue queue;
     uint32_t graphicsQueue = (uint32_t)-1;
     uint32_t presentQueue = (uint32_t)-1;
 
@@ -54,13 +53,16 @@ struct VulkanContext : DeviceContext
 
 #ifdef WIN32
     static __declspec(thread) vk::CommandPool commandPool;
+    static __declspec(thread) vk::Queue queue;
 #else
     static thread_local vk::CommandPool commandPool;
+    static thread_local vk::Queue queue;
 #endif
     std::map<Scene*, std::shared_ptr<VulkanScene>> mapVulkanScene;
 };
 
 bool context_init(VulkanContext& ctx);
 void context_destroy(VulkanContext& ctx);
+vk::Queue& context_get_queue(VulkanContext& ctx);
 
 } // namespace vulkan

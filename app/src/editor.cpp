@@ -3,7 +3,11 @@
 #define ZEP_SINGLE_HEADER_BUILD
 #endif
 
+#include <fmt/format.h>
+
 #include <zest/file/file.h>
+#include <zest/file/runtree.h>
+#include <vklive/process/process.h>
 
 // #define ZEP_CONSOLE
 #include "app/config.h"
@@ -71,6 +75,53 @@ private:
     BufferUpdateCB m_fnCallback;
 };
 
+class ZepFormatCommand : public ZepExCommand
+{
+public:
+    ZepFormatCommand(ZepEditor& editor, const BufferUpdateCB& fmt)
+        : ZepExCommand(editor)
+        , m_fnCallback(fmt)
+    {
+        keymap_add(m_keymap, { "<C-i><C-d>" }, ExCommandId());
+    }
+
+    static void Register(ZepEditor& editor, const BufferUpdateCB& cb)
+    {
+        editor.RegisterExCommand(std::make_shared<ZepFormatCommand>(editor, cb));
+    }
+
+    virtual void Run(const std::vector<std::string>& tokens) override
+    {
+        ZEP_UNUSED(tokens);
+        if (!GetEditor().GetActiveTabWindow())
+        {
+            return;
+        }
+
+        auto& buffer = GetEditor().GetActiveTabWindow()->GetActiveWindow()->GetBuffer();
+        auto cursor = GetEditor().GetActiveTabWindow()->GetActiveWindow()->GetBufferCursor();
+
+        m_fnCallback(buffer, cursor);
+    }
+
+    virtual void Notify(std::shared_ptr<ZepMessage> message) override
+    {
+        ZEP_UNUSED(message);
+    }
+    virtual const char* ExCommandName() const override
+    {
+        return "VkFormatCommand";
+    }
+    virtual const KeyMap* GetKeyMappings(ZepMode&) const override
+    {
+        return &m_keymap;
+    }
+
+private:
+    KeyMap m_keymap;
+    BufferUpdateCB m_fnCallback;
+};
+
 struct ZepWrapper : public Zep::IZepComponent
 {
     ZepWrapper(const fs::path& configRoot, const Zep::NVec2f& pixelScale, std::function<void(std::shared_ptr<Zep::ZepMessage>)> fnCommandCB)
@@ -107,7 +158,7 @@ std::shared_ptr<ImGui::ZepConsole> spZep;
 std::shared_ptr<ZepWrapper> spZep;
 #endif
 
-void zep_init(const fs::path& configRoot, const Zep::NVec2f& pixelScale, const BufferUpdateCB& fnBufferUpdate)
+void zep_init(const fs::path& configRoot, const Zep::NVec2f& pixelScale, const ZepEditorCB& editorCB)
 {
 #ifdef ZEP_CONSOLE
     spZep = std::make_shared<ImGui::ZepConsole>(Zep::ZepPath(VKLIVE_ROOT));
@@ -127,7 +178,8 @@ void zep_init(const fs::path& configRoot, const Zep::NVec2f& pixelScale, const B
     });
 #endif
 
-    ZepEvaluateCommand::Register(spZep->GetEditor(), fnBufferUpdate);
+    ZepEvaluateCommand::Register(spZep->GetEditor(), editorCB.updateCB);
+    ZepFormatCommand::Register(spZep->GetEditor(), editorCB.formatCB);
 
     auto& display = spZep->GetEditor().GetDisplay();
     auto pImFont = ImGui::GetIO().Fonts[0].Fonts[0];
@@ -262,6 +314,9 @@ void zep_show(uint32_t focusFlags)
         windowFlags |= ImGuiWindowFlags_NoBackground;
     }
 
+    // TODO: Set theme at start of day
+    spZep->GetEditor().GetTheme().SetColor(ThemeColor::TabActive, NVec4f(0.5f, 0.7f, 0.5f, 1.0f));
+
     ImGui::SetNextWindowSize(ImVec2(800, 600), ImGuiCond_FirstUseEver);
     ImGui::SetNextWindowPos(ImVec2(10, 50), ImGuiCond_FirstUseEver);
 
@@ -311,7 +366,7 @@ void zep_show(uint32_t focusFlags)
     }
 
     ImGui::End();
-    
+
     zep_reset_style();
 }
 
@@ -434,4 +489,107 @@ void zep_add_file_message(Message& err)
     }
     spMarker->SetRange(range);
     pBuffer->AddRangeMarker(spMarker);
+}
+
+void zep_replace_text(ZepBuffer& buffer, const std::string& text)
+{
+    auto cmd = std::make_shared<ZepCommand_ReplaceRange>(
+        buffer,
+        ReplaceRangeMode::Replace,
+        buffer.Begin(),
+        buffer.End(),
+        text,
+        buffer.GetMode()->GetCurrentWindow()->GetBufferCursor(),
+        buffer.GetMode()->GetCurrentWindow()->GetBufferCursor());
+    
+    buffer.GetMode()->AddCommand(cmd);
+}
+
+bool format_file(const fs::path& path, std::string& out, uint32_t& cursorIndex)
+{
+    auto valid = std::vector{ ".vert", ".frag", ".geom" };
+    if (!path.has_extension() || 
+        std::find(valid.begin(), valid.end(), path.extension().string()) == valid.end())
+    {
+        return false;
+    }
+
+#ifdef WIN32
+    auto tool_path = Zest::runtree_find_path("bin/win/clang-format.exe");
+#elif defined(__APPLE__)
+    auto tool_path = Zest::runtree_find_path("bin/mac/clang-format");
+#elif defined(__linux__)
+    auto tool_path = Zest::runtree_find_path("bin/linux/clang-format");
+#endif
+
+    if (!fs::exists(tool_path))
+    {
+        LOG(ERR, "Can't find format tool");
+        return false;
+    }
+
+    if (!fs::exists(path))
+    {
+        LOG(ERR, "Can't find format tool");
+        return false;
+    }
+
+    // Note; I couldn't get passing the style file to work, whatever I tried!
+    // Manually supply these values; which I guess might make it easy for the user to
+    // change them in a dialog, since we could build this dynamically
+    std::string error;
+    auto ret = run_process(
+        { tool_path.string(),
+            R"L(--style={
+                Language: Cpp,
+                IndentWidth: 4,
+                TabWidth: 4,
+                BreakBeforeBraces: Custom,
+                BraceWrapping: {
+                  AfterClass:      true,
+                  AfterControlStatement: true,
+                  AfterCaseLabel: true,
+                  AfterEnum:       true,
+                  AfterFunction:   true,
+                  AfterNamespace:  true,
+                  AfterStruct:     true,
+                  AfterUnion:      true,
+                  BeforeCatch:     true,
+                  BeforeElse:      true,
+                  IndentBraces:    false,
+                },
+                UseTab: Never,
+                MaxEmptyLinesToKeep: 1})L",
+            fmt::format("--cursor={}", cursorIndex),
+            path.string() },
+        &out);
+
+    if (ret || out.empty())
+    {
+        LOG(DBG, "Could not run clang-format");
+        LOG(DBG, out);
+        return false;
+    }
+    cursorIndex = Zest::string_extract_integer(Zest::string_remove_first_line(out));
+
+
+    return true;
+}
+
+void zep_format_buffer(ZepBuffer& buffer, uint32_t cursor)
+{
+    // Save the buffers
+    if (buffer.HasFileFlags(Zep::FileFlags::Dirty))
+    {
+        int64_t sz;
+        buffer.Save(sz);
+    }
+
+    std::string out;
+    if (format_file(buffer.GetFilePath(), out, cursor) && !out.empty())
+    {
+        zep_replace_text(buffer, out);
+
+        buffer.GetMode()->GetCurrentWindow()->SetBufferCursor(buffer.Begin() + cursor);
+    }
 }

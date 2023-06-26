@@ -388,7 +388,9 @@ void imgui_upload_font(VulkanContext& ctx)
         debug_end_region(command_buffer);
         command_buffer.end();
 
-        command_submit_wait(ctx, ctx.queue, command_buffer);
+
+        LOG(INFO, "Font Upload Submit: ");
+        command_submit_wait(ctx, context_get_queue(ctx), command_buffer);
 
         imgui_destroy_font_upload_objects(ctx);
     }
@@ -648,6 +650,7 @@ void imgui_setup_renderstate(VulkanContext& ctx, ImDrawData* draw_data, vk::Pipe
 
 void imgui_render(VulkanContext& ctx, VulkanWindow* wd, ImDrawData* draw_data)
 {
+    LOG_SCOPE(DBG, "ImGui: Render");
     auto imgui = imgui_context(ctx);
     VkResult err;
 
@@ -687,13 +690,13 @@ void imgui_render(VulkanContext& ctx, VulkanWindow* wd, ImDrawData* draw_data)
             debug_end_region(fd->commandBuffer);
             fd->commandBuffer.end();
 
-            ctx.queue.submit(info, fd->fence);
+            LOG(ALWAYS, "Submit ImGui");
+            context_get_queue(ctx).submit(info, fd->fence);
         }
     }
     catch (std::exception& ex)
     {
     }
-    LOG(DBG, "ImGui: Rendered");
 }
 
 void imgui_destroy_font_upload_objects(VulkanContext& ctx)

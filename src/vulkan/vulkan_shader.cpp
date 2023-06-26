@@ -182,6 +182,7 @@ void shader_reflect(const std::string& spirv, VulkanShader& vulkanShader)
     spvReflectDestroyShaderModule(&module);
 }
 
+
 std::shared_ptr<VulkanShader> vulkan_shader_create(VulkanContext& ctx, VulkanScene& vulkanScene, Shader& shader)
 {
     std::shared_ptr<VulkanShader> spShader = std::make_shared<VulkanShader>(&shader);
@@ -213,13 +214,10 @@ std::shared_ptr<VulkanShader> vulkan_shader_create(VulkanContext& ctx, VulkanSce
     // fs::path cross_path;
 #ifdef WIN32
     compiler_path = Zest::runtree_find_path("bin/win/glslangValidator.exe");
-    // cross_path = runtree_find_path("bin/win/spirv-cross.exe");
 #elif defined(__APPLE__)
-    compiler_path = runtree_find_path("bin/mac/glslangValidator");
-    // cross_path = runtree_find_path("bin/win/spriv-cross.exe");
+    compiler_path = Zest::runtree_find_path("bin/mac/glslangValidator");
 #elif defined(__linux__)
-    compiler_path = runtree_find_path("bin/linux/glslangValidator");
-    // cross_path = runtree_find_path("bin/linux/spriv-cross.exe");
+    compiler_path = Zest::runtree_find_path("bin/linux/glslangValidator");
 #endif
     std::string output;
     auto ret = run_process(

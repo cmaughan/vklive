@@ -24,5 +24,6 @@ struct VulkanShader
 
 std::shared_ptr<VulkanShader> vulkan_shader_create(VulkanContext& ctx, VulkanScene& scene, Shader& shader);
 void vulkan_shader_destroy(VulkanContext& ctx, VulkanShader& shader);
+bool vulkan_shader_format(const fs::path& path);
 
 } // namespace vulkan

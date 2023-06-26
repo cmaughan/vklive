@@ -307,7 +307,7 @@ void main_window_present(VulkanContext& ctx)
     auto wnd = &ctx.mainWindowData;
     vk::Semaphore render_complete_semaphore = wnd->frameSemaphores[wnd->semaphoreIndex].renderCompleteSemaphore;
     auto info = vk::PresentInfoKHR(1, &render_complete_semaphore, 1, &wnd->swapchain, &wnd->frameIndex);
-    vk::Result err = ctx.queue.presentKHR(&info);
+    vk::Result err = context_get_queue(ctx).presentKHR(&info);
     if (err == vk::Result::eErrorOutOfDateKHR || err == vk::Result::eSuboptimalKHR)
     {
         ctx.swapChainRebuild = true;

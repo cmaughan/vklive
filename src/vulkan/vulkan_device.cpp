@@ -81,6 +81,7 @@ void VulkanDevice::DestroyScene(Scene& scene)
     auto pVulkanScene = vulkan::vulkan_scene_get(ctx, scene);
     if (pVulkanScene)
     {
+        ctx.device.waitIdle();
         vulkan::vulkan_scene_destroy(ctx, *pVulkanScene);
     }
 }

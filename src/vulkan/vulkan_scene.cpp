@@ -117,7 +117,7 @@ void vulkan_scene_destroy(VulkanContext& ctx, VulkanScene& vulkanScene)
 
     // Destroying a scene means we might be destroying something that is in flight.
     // Lets wait for everything to finish
-    ctx.device.waitIdle();
+    //ctx.device.waitIdle();
 
     vulkan_scene_destroy_output_descriptors(ctx, vulkanScene);
 

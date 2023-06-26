@@ -1,3 +1,5 @@
+#include <zest/logger/logger.h>
+
 #include "vklive/vulkan/vulkan_buffer.h"
 #include "vklive/vulkan/vulkan_command.h"
 #include "vklive/vulkan/vulkan_debug.h"
@@ -59,6 +61,7 @@ void buffer_create_or_resize(VulkanContext& ctx, vk::Buffer& buffer, vk::DeviceM
 
 VulkanBuffer buffer_stage_to_device(VulkanContext& ctx, const vk::BufferUsageFlags& usage, size_t size, const void* data)
 {
+    LOG(ALWAYS, "Buffer Stage: ");
     VulkanBuffer staging = buffer_create_staging(ctx, size, data);
     VulkanBuffer result = buffer_create_on_device(ctx, usage | vk::BufferUsageFlagBits::eTransferDst, size);
     utils_with_command_buffer(ctx, [&](vk::CommandBuffer copyCmd) {

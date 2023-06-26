@@ -117,6 +117,7 @@ void imgui_viewport_set_size(ImGuiViewport* viewport, ImVec2 size)
 
 void imgui_viewport_render(ImGuiViewport* viewport, void*)
 {
+    LOG(INFO, "ImGui Viewport Render: " << std::this_thread::get_id());
     VulkanContext& ctx = GetVulkanContext();
     ImGuiViewportData* vd = (ImGuiViewportData*)viewport->RendererUserData;
     VulkanWindow* wd = &vd->window;
@@ -159,8 +160,9 @@ void imgui_viewport_render(ImGuiViewport* viewport, void*)
 
     ctx.device.resetFences(fd->fence);
 
+    LOG(ALWAYS, "Submit ImGui Viewport");
     vk::PipelineStageFlags wait_stage = vk::PipelineStageFlagBits::eColorAttachmentOutput;
-    ctx.queue.submit(vk::SubmitInfo(fsd->imageAcquiredSemaphore, wait_stage, fd->commandBuffer, fsd->renderCompleteSemaphore), fd->fence);
+    context_get_queue(ctx).submit(vk::SubmitInfo(fsd->imageAcquiredSemaphore, wait_stage, fd->commandBuffer, fsd->renderCompleteSemaphore), fd->fence);
 }
 
 void imgui_viewport_swap_buffers(ImGuiViewport* viewport, void*)
@@ -172,7 +174,7 @@ void imgui_viewport_swap_buffers(ImGuiViewport* viewport, void*)
     uint32_t present_index = wd->frameIndex;
 
     VulkanFrameSemaphores* fsd = &wd->frameSemaphores[wd->semaphoreIndex];
-    auto result = ctx.queue.presentKHR(vk::PresentInfoKHR(fsd->renderCompleteSemaphore, wd->swapchain, present_index));
+    auto result = context_get_queue(ctx).presentKHR(vk::PresentInfoKHR(fsd->renderCompleteSemaphore, wd->swapchain, present_index));
 
     if (result == vk::Result::eErrorOutOfDateKHR || result == vk::Result::eSuboptimalKHR)
     {

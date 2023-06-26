@@ -15,8 +15,10 @@ namespace vulkan
 {
 #ifdef WIN32
 __declspec(thread) vk::CommandPool VulkanContext::commandPool;
+__declspec(thread) vk::Queue VulkanContext::queue;
 #else
 thread_local vk::CommandPool VulkanContext::commandPool;
+thread_local vk::Queue VulkanContext::queue;
 #endif
 
 bool context_init(VulkanContext& ctx)
@@ -110,9 +112,6 @@ bool context_init(VulkanContext& ctx)
     ctx.pipelineCache = ctx.device.createPipelineCache(vk::PipelineCacheCreateInfo());
     debug_set_pipelinecache_name(ctx.device, ctx.pipelineCache, "Context::PipelineCache");
 
-    ctx.queue = ctx.device.getQueue(ctx.graphicsQueue, 0);
-    debug_set_queue_name(ctx.device, ctx.queue, "Context::Queue");
-
     // Create Descriptor Pool
     {
         std::vector<vk::DescriptorPoolSize> pool_sizes = {
@@ -165,6 +164,16 @@ void context_destroy(VulkanContext& ctx)
     
     ctx.layerNames.clear();
     ctx.extensionNames.clear();
+}
+
+vk::Queue& context_get_queue(VulkanContext& ctx)
+{
+    if (!ctx.queue)
+    {
+        ctx.queue = ctx.device.getQueue(ctx.graphicsQueue, 0);
+        debug_set_queue_name(ctx.device, ctx.queue, "Context::Queue");
+    }
+    return ctx.queue;
 }
 
 } // namespace vulkan
