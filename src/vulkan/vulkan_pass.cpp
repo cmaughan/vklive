@@ -1059,7 +1059,7 @@ void vulkan_pass_submit(VulkanContext& ctx, VulkanPass& vulkanPass)
 
     LOG(DBG, "Submit CommandBuffer: " << passFrameData.commandBuffer << ", Fence: " << &passFrameData.fence << ", TID: " << std::this_thread::get_id());
 
-    LOG(ALWAYS, "Submit Pass");
+    LOG(DBG, "Submit Pass");
     context_get_queue(ctx).submit(vk::SubmitInfo{ 0, nullptr, nullptr, 1, &passFrameData.commandBuffer }, passFrameData.fence);
 }
 

@@ -690,7 +690,7 @@ void imgui_render(VulkanContext& ctx, VulkanWindow* wd, ImDrawData* draw_data)
             debug_end_region(fd->commandBuffer);
             fd->commandBuffer.end();
 
-            LOG(ALWAYS, "Submit ImGui");
+            LOG(DBG, "Submit ImGui");
             context_get_queue(ctx).submit(info, fd->fence);
         }
     }

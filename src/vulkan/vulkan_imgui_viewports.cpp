@@ -160,7 +160,7 @@ void imgui_viewport_render(ImGuiViewport* viewport, void*)
 
     ctx.device.resetFences(fd->fence);
 
-    LOG(ALWAYS, "Submit ImGui Viewport");
+    LOG(DBG, "Submit ImGui Viewport");
     vk::PipelineStageFlags wait_stage = vk::PipelineStageFlagBits::eColorAttachmentOutput;
     context_get_queue(ctx).submit(vk::SubmitInfo(fsd->imageAcquiredSemaphore, wait_stage, fd->commandBuffer, fsd->renderCompleteSemaphore), fd->fence);
 }

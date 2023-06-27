@@ -10,7 +10,7 @@ const uint64_t FenceTimeout = 100000000;
 
 void command_submit_wait(VulkanContext& ctx, vk::Queue const& queue, vk::CommandBuffer const& commandBuffer)
 {
-    LOG(ALWAYS, "Submit Wait");
+    LOG(DBG, "Submit Wait");
     vk::Fence fence = ctx.device.createFence(vk::FenceCreateInfo());
     debug_set_fence_name(ctx.device, fence, "CommandSubmitWait::Fence");
     queue.submit(vk::SubmitInfo(0, nullptr, nullptr, 1, &commandBuffer), fence);
@@ -25,7 +25,7 @@ void utils_flush_command_buffer(VulkanContext& ctx, vk::CommandBuffer& commandBu
     {
         return;
     }
-    LOG(ALWAYS, "Flush Command Buffer");
+    LOG(DBG, "Flush Command Buffer");
     context_get_queue(ctx).submit(vk::SubmitInfo{ 0, nullptr, nullptr, 1, &commandBuffer }, vk::Fence());
     context_get_queue(ctx).waitIdle();
     ctx.device.waitIdle();
