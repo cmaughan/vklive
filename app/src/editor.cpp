@@ -175,6 +175,31 @@ void zep_init(const fs::path& configRoot, const Zep::NVec2f& pixelScale, const Z
             clip::set_text(spMessage->str);
             spMessage->handled = true;
         }
+        else if (spMessage->messageId == Zep::Msg::ModifyCommand)
+        {
+            auto spModify = std::static_pointer_cast<ModifyCommandMessage>(spMessage);
+            auto& ctx = spModify->context;
+            if (ctx.keymap.foundMapping == id_InsertCarriageReturn)
+            {
+                // Add 4 spaces after open bracket
+                long numSpaces = 0;
+                auto lastChar = ctx.buffer.GetLinePos(ctx.bufferCursor, LineLocation::LineLastGraphChar);
+                if (lastChar.Valid() && (*lastChar == '{'))
+                {
+                    numSpaces += 4;
+                }
+
+                // TODO: Search for matching bracket and do the indent...
+                // Add matching indent for new line
+                auto firstPos = ctx.buffer.GetLinePos(ctx.bufferCursor, LineLocation::LineFirstGraphChar);
+                auto begin = ctx.buffer.GetLinePos(ctx.bufferCursor, LineLocation::LineBegin);
+                numSpaces += (firstPos.Index() - begin.Index());
+                if (numSpaces > 0)
+                {
+                    spModify->context.tempReg.text.append(numSpaces, ' ');
+                }
+            }
+        }
     });
 #endif
 
