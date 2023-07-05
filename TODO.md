@@ -4,7 +4,7 @@ TODO
 # Backlog
 ---------
 ## Priority
-- Auto Indent.  Adding a return after a { should indent for convenience.  Return within that same group should indent to the previous line begin level
+- Auto Indent.  Adding a return after a { should indent for convenience.  Return within that same group should indent to the previous line begin level.  Experiment with VC and try to copy the behavior.
 
 ## General
 - Cleanup the binding code, separate it out a bit more.  Bindings are typically built dynamically.

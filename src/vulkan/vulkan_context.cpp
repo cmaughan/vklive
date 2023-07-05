@@ -8,7 +8,6 @@
 
 #include "SDL2/SDL_vulkan.h"
 
-
 #define IMGUI_VULKAN_DEBUG_REPORT
 
 namespace vulkan
@@ -23,44 +22,45 @@ thread_local vk::Queue VulkanContext::queue;
 
 bool context_init(VulkanContext& ctx)
 {
+    ctx.layerNames.clear();
+    ctx.instanceExtensionNames.clear();
+
     // Setup Vulkan
     uint32_t extensions_count = 0;
     SDL_Vulkan_GetInstanceExtensions(ctx.window, &extensions_count, NULL);
-    ctx.extensionNames.resize(extensions_count);
-    SDL_Vulkan_GetInstanceExtensions(ctx.window, &extensions_count, ctx.extensionNames.data());
+    ctx.requestedInstanceExtensions.resize(extensions_count);
+    SDL_Vulkan_GetInstanceExtensions(ctx.window, &extensions_count, ctx.requestedInstanceExtensions.data());
 
     static std::string AppName = "Demo";
     static std::string EngineName = "VkLive";
 
-    std::vector<vk::ExtensionProperties> extensionProperties = vk::enumerateInstanceExtensionProperties();
-    std::vector<vk::LayerProperties> layerProperties = vk::enumerateInstanceLayerProperties();
+    ctx.supportedInstanceExtensions = vk::enumerateInstanceExtensionProperties();
+    ctx.supportedInstancelayerProperties = vk::enumerateInstanceLayerProperties();
 
     // sort the extensions alphabetically
 
-    std::sort(extensionProperties.begin(),
-        extensionProperties.end(),
+    std::sort(ctx.supportedInstanceExtensions.begin(),
+        ctx.supportedInstanceExtensions.end(),
         [](vk::ExtensionProperties const& a, vk::ExtensionProperties const& b) { return strcmp(a.extensionName, b.extensionName) < 0; });
 
     LOG(DBG, "Instance Extensions:");
-    for (auto const& ep : extensionProperties)
+    for (auto const& ep : ctx.supportedInstanceExtensions)
     {
         LOG(DBG, ep.extensionName << ":");
         LOG(DBG, "\tVersion: " << ep.specVersion);
     }
 
     LOG(DBG, "Layer Properties:");
-    for (auto const& l : layerProperties)
+    for (auto const& l : ctx.supportedInstancelayerProperties)
     {
         LOG(DBG, l.layerName);
     }
-
-    ctx.layerNames.clear();
 
     vk::InstanceCreateFlags flags;
 
     // initialize the vk::ApplicationInfo structure
     vk::ApplicationInfo applicationInfo(AppName.c_str(), 1, EngineName.c_str(), 1, VK_API_VERSION_1_2);
-    
+
 #ifdef __APPLE__
     flags |= vk::InstanceCreateFlagBits::eEnumeratePortabilityKHR;
     ctx.extensionNames.push_back("VK_KHR_portability_enumeration");
@@ -68,11 +68,27 @@ bool context_init(VulkanContext& ctx)
 
 #ifdef IMGUI_VULKAN_DEBUG_REPORT
     ctx.layerNames.push_back("VK_LAYER_KHRONOS_validation");
-    ctx.extensionNames.push_back("VK_EXT_debug_utils");
+    ctx.requestedInstanceExtensions.push_back("VK_EXT_debug_utils");
 #endif
 
+    // Pick instance extensions
+    for (auto& ext : ctx.requestedInstanceExtensions)
+    {
+        auto itr = std::find_if(ctx.supportedInstanceExtensions.begin(), ctx.supportedInstanceExtensions.end(), [&](auto val) {
+            return (strcmp(val.extensionName, ext) == 0);
+        });
+        if (itr != ctx.supportedInstanceExtensions.end())
+        {
+            ctx.instanceExtensionNames.push_back(ext);
+        }
+        else
+        {
+            LOG(DBG, "Instance extension not available: " << ext);
+        }
+    }
+
     // create an Instance
-    ctx.instance = vk::createInstance(vk::InstanceCreateInfo(flags, &applicationInfo, ctx.layerNames, ctx.extensionNames));
+    ctx.instance = vk::createInstance(vk::InstanceCreateInfo(flags, &applicationInfo, ctx.layerNames, ctx.instanceExtensionNames));
 
 #ifdef IMGUI_VULKAN_DEBUG_REPORT
     debug_init(ctx);
@@ -83,10 +99,33 @@ bool context_init(VulkanContext& ctx)
     {
         if ((VkPhysicalDeviceType)device.getProperties().deviceType == VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU)
         {
-            //std::cerr << "Selected: " << device.getProperties().deviceName << "\n";
+            // std::cerr << "Selected: " << device.getProperties().deviceName << "\n";
             ctx.physicalDevice = device;
         }
     }
+
+    ctx.supportedDeviceExtensions = ctx.physicalDevice.enumerateDeviceExtensionProperties();
+    LOG(DBG, "Device Extensions:");
+    for (auto const& ep : ctx.supportedDeviceExtensions)
+    {
+        LOG(DBG, ep.extensionName << ":");
+        LOG(DBG, "\tVersion: " << ep.specVersion);
+    }
+
+    // Ray tracing related extensions required by this sample
+    ctx.requestedDeviceExtensions.push_back(VK_KHR_ACCELERATION_STRUCTURE_EXTENSION_NAME);
+    ctx.requestedDeviceExtensions.push_back(VK_KHR_RAY_TRACING_PIPELINE_EXTENSION_NAME);
+
+    // Required by VK_KHR_acceleration_structure
+    ctx.requestedDeviceExtensions.push_back(VK_KHR_BUFFER_DEVICE_ADDRESS_EXTENSION_NAME);
+    ctx.requestedDeviceExtensions.push_back(VK_KHR_DEFERRED_HOST_OPERATIONS_EXTENSION_NAME);
+    ctx.requestedDeviceExtensions.push_back(VK_EXT_DESCRIPTOR_INDEXING_EXTENSION_NAME);
+
+    // Required for VK_KHR_ray_tracing_pipeline
+    ctx.requestedDeviceExtensions.push_back(VK_KHR_SPIRV_1_4_EXTENSION_NAME);
+
+    // Required by VK_KHR_spirv_1_4
+    ctx.requestedDeviceExtensions.push_back(VK_KHR_SHADER_FLOAT_CONTROLS_EXTENSION_NAME);
 
     ctx.physicalDevice.getMemoryProperties(&ctx.memoryProperties);
 
@@ -97,13 +136,31 @@ bool context_init(VulkanContext& ctx)
     vk::DeviceQueueCreateInfo deviceQueueCreateInfo(vk::DeviceQueueCreateFlags(), static_cast<uint32_t>(ctx.graphicsQueue), 1, &queuePriority);
 
     vk::PhysicalDeviceFeatures features;
-    //features.
+    // features.
 #if WIN32
     features.geometryShader = true;
 #endif
-            
-    //std::cerr << "Creating Device...";
-    ctx.device = utils_create_device(ctx.physicalDevice, ctx.graphicsQueue, utils_get_device_extensions(), &features);
+
+    auto required = utils_get_device_extensions();
+    ctx.requestedDeviceExtensions.insert(ctx.requestedDeviceExtensions.end(), required.begin(), required.end());
+
+    for (auto& ext : ctx.requestedDeviceExtensions)
+    {
+        auto itr = std::find_if(ctx.supportedDeviceExtensions.begin(), ctx.supportedDeviceExtensions.end(), [&](auto val) {
+            return (strcmp(val.extensionName, ext.c_str()) == 0);
+        });
+        if (itr != ctx.supportedDeviceExtensions.end())
+        {
+            ctx.deviceExtensionNames.push_back(ext);
+        }
+        else
+        {
+            LOG(DBG, "Device extension not available: " << ext);
+        }
+    }
+
+    // std::cerr << "Creating Device...";
+    ctx.device = utils_create_device(ctx.physicalDevice, ctx.graphicsQueue, ctx.deviceExtensionNames, &features);
 
     debug_set_device_name(ctx.device, ctx.device, "Context::Device");
     debug_set_physicaldevice_name(ctx.device, ctx.physicalDevice, "Context::PhysicalDevice");
@@ -133,6 +190,32 @@ bool context_init(VulkanContext& ctx)
         debug_set_descriptorpool_name(ctx.device, ctx.descriptorPool, "Context::DescriptorPool(ImGui)");
     }
 
+    // Get ray tracing pipeline properties, which will be used later on in the sample
+    ctx.rayTracingPipelineProperties.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_TRACING_PIPELINE_PROPERTIES_KHR;
+    VkPhysicalDeviceProperties2 deviceProperties2{};
+    deviceProperties2.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2;
+    deviceProperties2.pNext = &ctx.rayTracingPipelineProperties;
+    vkGetPhysicalDeviceProperties2(ctx.physicalDevice, &deviceProperties2);
+
+    // Get acceleration structure properties, which will be used later on in the sample
+    ctx.accelerationStructureFeatures.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_ACCELERATION_STRUCTURE_FEATURES_KHR;
+    VkPhysicalDeviceFeatures2 deviceFeatures2{};
+    deviceFeatures2.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2;
+    deviceFeatures2.pNext = &ctx.accelerationStructureFeatures;
+    vkGetPhysicalDeviceFeatures2(ctx.physicalDevice, &deviceFeatures2);
+    
+    // Get the ray tracing and accelertion structure related function pointers required by this sample
+    ctx.vkGetBufferDeviceAddressKHR = reinterpret_cast<PFN_vkGetBufferDeviceAddressKHR>(vkGetDeviceProcAddr(ctx.device, "vkGetBufferDeviceAddressKHR"));
+    ctx.vkCmdBuildAccelerationStructuresKHR = reinterpret_cast<PFN_vkCmdBuildAccelerationStructuresKHR>(vkGetDeviceProcAddr(ctx.device, "vkCmdBuildAccelerationStructuresKHR"));
+    ctx.vkBuildAccelerationStructuresKHR = reinterpret_cast<PFN_vkBuildAccelerationStructuresKHR>(vkGetDeviceProcAddr(ctx.device, "vkBuildAccelerationStructuresKHR"));
+    ctx.vkCreateAccelerationStructureKHR = reinterpret_cast<PFN_vkCreateAccelerationStructureKHR>(vkGetDeviceProcAddr(ctx.device, "vkCreateAccelerationStructureKHR"));
+    ctx.vkDestroyAccelerationStructureKHR = reinterpret_cast<PFN_vkDestroyAccelerationStructureKHR>(vkGetDeviceProcAddr(ctx.device, "vkDestroyAccelerationStructureKHR"));
+    ctx.vkGetAccelerationStructureBuildSizesKHR = reinterpret_cast<PFN_vkGetAccelerationStructureBuildSizesKHR>(vkGetDeviceProcAddr(ctx.device, "vkGetAccelerationStructureBuildSizesKHR"));
+    ctx.vkGetAccelerationStructureDeviceAddressKHR = reinterpret_cast<PFN_vkGetAccelerationStructureDeviceAddressKHR>(vkGetDeviceProcAddr(ctx.device, "vkGetAccelerationStructureDeviceAddressKHR"));
+    ctx.vkCmdTraceRaysKHR = reinterpret_cast<PFN_vkCmdTraceRaysKHR>(vkGetDeviceProcAddr(ctx.device, "vkCmdTraceRaysKHR"));
+    ctx.vkGetRayTracingShaderGroupHandlesKHR = reinterpret_cast<PFN_vkGetRayTracingShaderGroupHandlesKHR>(vkGetDeviceProcAddr(ctx.device, "vkGetRayTracingShaderGroupHandlesKHR"));
+    ctx.vkCreateRayTracingPipelinesKHR = reinterpret_cast<PFN_vkCreateRayTracingPipelinesKHR>(vkGetDeviceProcAddr(ctx.device, "vkCreateRayTracingPipelinesKHR"));
+
     return true;
 }
 
@@ -140,7 +223,7 @@ void context_destroy(VulkanContext& ctx)
 {
     ctx.device.destroyDescriptorPool(ctx.descriptorPool);
     ctx.descriptorPool = nullptr;
-    
+
     ctx.device.destroyPipelineCache(ctx.pipelineCache);
     ctx.pipelineCache = nullptr;
 
@@ -161,9 +244,9 @@ void context_destroy(VulkanContext& ctx)
 
     ctx.instance.destroy();
     ctx.instance = nullptr;
-    
+
     ctx.layerNames.clear();
-    ctx.extensionNames.clear();
+    ctx.instanceExtensionNames.clear();
 }
 
 vk::Queue& context_get_queue(VulkanContext& ctx)

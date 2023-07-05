@@ -43,7 +43,7 @@
 
 namespace Zest
 {
-Logger logger{ false, LT::WARNING };
+Logger logger{ false, LT::DBG };
 bool Log::disabled = false;
 } // namespace Zest
 
