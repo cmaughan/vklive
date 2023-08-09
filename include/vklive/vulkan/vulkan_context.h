@@ -1,19 +1,19 @@
 #pragma once
 
 #include <map>
-#include <vector>
-#include <mutex>
 #include <memory>
+#include <mutex>
+#include <vector>
 
 #pragma warning(disable : 26812)
 #include <vulkan/vulkan.hpp>
 #pragma warning(default : 26812)
 
-#include <vklive/vulkan/vulkan_window.h>
-#include <vklive/vulkan/vulkan_debug.h>
-#include <vklive/vulkan/vulkan_scene.h>
-#include <vklive/vulkan/vulkan_descriptor.h>
 #include <vklive/IDevice.h>
+#include <vklive/vulkan/vulkan_debug.h>
+#include <vklive/vulkan/vulkan_descriptor.h>
+#include <vklive/vulkan/vulkan_scene.h>
+#include <vklive/vulkan/vulkan_window.h>
 
 namespace vulkan
 {
@@ -21,8 +21,6 @@ namespace vulkan
 struct VulkanContext : DeviceContext
 {
     // Members
-    std::vector<const char*> extensionNames;
-    std::vector<const char*> layerNames;
 
     vk::AllocationCallbacks allocator;
     vk::Instance instance;
@@ -59,6 +57,36 @@ struct VulkanContext : DeviceContext
     static thread_local vk::Queue queue;
 #endif
     std::map<Scene*, std::shared_ptr<VulkanScene>> mapVulkanScene;
+
+    std::vector<vk::LayerProperties> supportedInstancelayerProperties;
+    
+    std::vector<vk::ExtensionProperties> supportedInstanceExtensions;
+    std::vector<const char*> requestedInstanceExtensions;
+    std::vector<const char*> instanceExtensionNames;
+
+    std::vector<vk::ExtensionProperties> supportedDeviceExtensions;
+    std::vector<std::string> requestedDeviceExtensions;
+    std::vector<std::string> deviceExtensionNames;
+
+    std::vector<const char*> layerNames;
+
+    PFN_vkGetBufferDeviceAddressKHR vkGetBufferDeviceAddressKHR;
+    PFN_vkCreateAccelerationStructureKHR vkCreateAccelerationStructureKHR;
+    PFN_vkDestroyAccelerationStructureKHR vkDestroyAccelerationStructureKHR;
+    PFN_vkGetAccelerationStructureBuildSizesKHR vkGetAccelerationStructureBuildSizesKHR;
+    PFN_vkGetAccelerationStructureDeviceAddressKHR vkGetAccelerationStructureDeviceAddressKHR;
+    PFN_vkCmdBuildAccelerationStructuresKHR vkCmdBuildAccelerationStructuresKHR;
+    PFN_vkBuildAccelerationStructuresKHR vkBuildAccelerationStructuresKHR;
+    PFN_vkCmdTraceRaysKHR vkCmdTraceRaysKHR;
+    PFN_vkGetRayTracingShaderGroupHandlesKHR vkGetRayTracingShaderGroupHandlesKHR;
+    PFN_vkCreateRayTracingPipelinesKHR vkCreateRayTracingPipelinesKHR;
+
+    VkPhysicalDeviceRayTracingPipelinePropertiesKHR rayTracingPipelineProperties{};
+    VkPhysicalDeviceAccelerationStructureFeaturesKHR accelerationStructureFeatures{};
+
+    VkPhysicalDeviceBufferDeviceAddressFeatures enabledBufferDeviceAddresFeatures{};
+    VkPhysicalDeviceRayTracingPipelineFeaturesKHR enabledRayTracingPipelineFeatures{};
+    VkPhysicalDeviceAccelerationStructureFeaturesKHR enabledAccelerationStructureFeatures{};
 };
 
 bool context_init(VulkanContext& ctx);

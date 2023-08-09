@@ -156,7 +156,6 @@ inline vk::ClearColorValue clearColor(const glm::vec4& v)
     return result;
 }
 
-
 void utils_copy_to_memory(VulkanContext& ctx, const vk::DeviceMemory& memory, const void* data, vk::DeviceSize size, vk::DeviceSize offset)
 {
     void* mapped = ctx.device.mapMemory(memory, offset, size, vk::MemoryMapFlags());
@@ -293,7 +292,7 @@ std::vector<std::string> utils_get_device_extensions()
 #ifdef __APPLE__
     return { VK_KHR_SWAPCHAIN_EXTENSION_NAME, "VK_KHR_portability_subset" };
 #else
-    return { VK_KHR_SWAPCHAIN_EXTENSION_NAME};
+    return { VK_KHR_SWAPCHAIN_EXTENSION_NAME };
 #endif
 }
 

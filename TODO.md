@@ -4,8 +4,7 @@ TODO
 # Backlog
 ---------
 ## Priority
-- Auto Indent.  Adding a return after a { should indent for convenience.
-    - Probably best to examine the local bracket group and format it given events such as return.  VC is the guide here.
+- Auto Indent.  Adding a return after a { should indent for convenience.  Return within that same group should indent to the previous line begin level.  Experiment with VC and try to copy the behavior.
 
 ## General
 - Cleanup the binding code, separate it out a bit more.  Bindings are typically built dynamically.
@@ -34,7 +33,7 @@ TODO
 - Support Volume and Cubemap textures
 
 - Full screen mode
-- 
+-
 ## Mac
 - Get correct documents folder; I don't think this is correctly located yet
 
@@ -54,7 +53,7 @@ TODO
 ------
 ## General
 - Check low DPI; need a machine to do this on
- 
+
 - Left over objects on shut down ; need to reconfirm this.
 
 - Tabs need to scroll horizontally in the correct way
@@ -75,7 +74,7 @@ TODO
 - Default shapes, sphere, torus, etc. (5)
 - Variable panel for user tweakables (20)
 - Cubemap/Volume (10)
- 
+
 # Zep
 - Highlight multiple lines and tab for faster block indenting (10)
 - Wordwrapping on word boundaries (20)
