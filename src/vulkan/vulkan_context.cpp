@@ -112,7 +112,7 @@ bool context_init(VulkanContext& ctx)
         LOG(DBG, "\tVersion: " << ep.specVersion);
     }
 
-    // Ray tracing related extensions required by this sample
+    // Ray tracing related extensions we'd like
     ctx.requestedDeviceExtensions.push_back(VK_KHR_ACCELERATION_STRUCTURE_EXTENSION_NAME);
     ctx.requestedDeviceExtensions.push_back(VK_KHR_RAY_TRACING_PIPELINE_EXTENSION_NAME);
 
@@ -190,14 +190,14 @@ bool context_init(VulkanContext& ctx)
         debug_set_descriptorpool_name(ctx.device, ctx.descriptorPool, "Context::DescriptorPool(ImGui)");
     }
 
-    // Get ray tracing pipeline properties, which will be used later on in the sample
+    // Get ray tracing pipeline properties, which will be used later on
     ctx.rayTracingPipelineProperties.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_TRACING_PIPELINE_PROPERTIES_KHR;
     VkPhysicalDeviceProperties2 deviceProperties2{};
     deviceProperties2.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2;
     deviceProperties2.pNext = &ctx.rayTracingPipelineProperties;
     vkGetPhysicalDeviceProperties2(ctx.physicalDevice, &deviceProperties2);
 
-    // Get acceleration structure properties, which will be used later on in the sample
+    // Get acceleration structure properties, which will be used later on
     ctx.accelerationStructureFeatures.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_ACCELERATION_STRUCTURE_FEATURES_KHR;
     VkPhysicalDeviceFeatures2 deviceFeatures2{};
     deviceFeatures2.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2;
