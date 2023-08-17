@@ -51,6 +51,9 @@ find_package(range-v3 CONFIG REQUIRED)
 # Set this if we are sitting on SDL
 add_definitions(-DZEP_USE_SDL)
 
+# Vulkan can use dynamic dispatch extensions
+add_definitions(-DVULKAN_HPP_DISPATCH_LOADER_DYNAMIC=1)
+
 # Set this to get the default file system
 add_definitions(-DZEP_FEATURE_CPP_FILE_SYSTEM)
 if(MSVC)
@@ -89,6 +92,7 @@ set(VULKAN_SOURCES
     src/vulkan/vulkan_imgui.cpp
     src/vulkan/vulkan_imgui_viewports.cpp
     src/vulkan/vulkan_model.cpp
+    src/vulkan/vulkan_model_as.cpp
     src/vulkan/vulkan_pass.cpp
     src/vulkan/vulkan_pipeline.cpp
     src/vulkan/vulkan_reflect.cpp

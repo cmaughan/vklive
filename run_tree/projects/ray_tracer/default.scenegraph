@@ -1,0 +1,18 @@
+// Background
+
+camera: default_camera {
+    position: (-0.25, -2.5, 6.0)
+    look_at: (-0.25, -2.5, 0.0)
+    field_of_view: 45.0
+    near_far: (0.01, 20.0)
+}
+
+pass: Trace {
+    clear: (0.1, 0.1, 0.1, 1.0) // Clear done every pass
+    geometry : shape {
+        path: cornell-box.obj
+        vs: default.vert
+        fs: default.frag
+    }
+}
+

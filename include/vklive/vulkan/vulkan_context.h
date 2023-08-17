@@ -21,7 +21,7 @@ namespace vulkan
 struct VulkanContext : DeviceContext
 {
     // Members
-
+    vk::DynamicLoader dl;
     vk::AllocationCallbacks allocator;
     vk::Instance instance;
     vk::PhysicalDevice physicalDevice;

@@ -75,6 +75,7 @@ struct Geometry
     glm::mat4 transform = glm::mat4(1.0f);
     glm::vec3 loadScale = glm::vec3(1.0f);
     GeometryType type = GeometryType::Model;
+    bool buildAS = false;
 };
 
 struct Shader
