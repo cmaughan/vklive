@@ -34,6 +34,7 @@ extern "C" {
 #define T_PASS "pass"
 #define T_PATH "path"
 #define T_PATH_NAME "path_name"
+#define T_BUILD_AS "build_as"
 #define T_SAMPLERS "samplers"
 #define T_SCALE "scale"
 #define T_SCENEGRAPH "scenegraph"
@@ -47,6 +48,7 @@ extern "C" {
 #define T_NEAR_FAR "near_far"
 #define T_TARGETS "targets"
 #define T_VECTOR "vector"
+#define T_BOOL "bool"
 #define T_VS "vs"
 
 #include <concurrentqueue/concurrentqueue.h>
@@ -138,6 +140,7 @@ void scene_init_parser()
     ADD_PARSER(ident_array, T_IDENT_ARRAY);
     ADD_PARSER(pass, T_PASS);
     ADD_PARSER(path_id, T_PATH);
+    ADD_PARSER(build_as, T_BUILD_AS);
     ADD_PARSER(path_name, T_PATH_NAME);
     ADD_PARSER(samplers, T_SAMPLERS);
     ADD_PARSER(scale, T_SCALE);
@@ -152,6 +155,7 @@ void scene_init_parser()
     ADD_PARSER(field_of_view, T_FIELD_OF_VIEW);
 
     ADD_PARSER(targets, T_TARGETS);
+    ADD_PARSER(bool_id, T_BOOL);
     ADD_PARSER(vector, T_VECTOR);
     ADD_PARSER(vs, T_VS);
 
@@ -165,8 +169,10 @@ path             : "path" ":" <path_name> ;
 comment          : /\/\/[^\n\r]*/ ;
 ident            : /[!]?[a-zA-Z_][a-zA-Z0-9_-]*/ ;
 float            : /[+-]?\d+(\.\d+)?([eE][+-]?[0-9]+)?/ ;
+bool             : "true" | "false" ;
 vector           : ('(' <float> (','? <float>)? (','? <float>)? (','? <float>)? ')') | <float> ;
 ident_array      : ('(' <ident> (','? <ident>)? (','? <ident>)? (','? <ident>)? (','? <ident>)? ')') | <ident> ;
+build_as         : "build_as" ":" <bool> ;
 scale            : "scale" ':' <vector> ;
 size             : "size" ':' <vector> ;
 clear            : "clear" ':' <vector> ;
@@ -183,12 +189,12 @@ gs               : "gs" ':' <path_name> ;
 fs               : "fs" ':' <path_name> ;
 surface          : "surface" ':' <ident> '{' (<comment> | <path> | <clear> | <format> | <scale> | <size>)* '}';
 camera           : "camera" ':' <ident> '{' (<comment> | <position> | <look_at> | <field_of_view> | <near_far>)* '}';
-geometry         : "geometry" ':' <ident> '{' (<path> | <scale> | <vs> | <fs> | <gs> | <comment>)* '}';
+geometry         : "geometry" ':' <ident> '{' (<path> | <scale> | <build_as> | <vs> | <fs> | <gs> | <comment>)* '}';
 disable          : '!' ;
 pass             : <disable>? "pass" ':' <ident> '{' (<geometry> | <targets> | <samplers> | <camera_id> | <comment> | <clear>)* '}'; 
 scenegraph       : /^/ (<comment> | <surface> | <camera>)* (<comment> | <pass> )* /$/ ;
     )",
-        path_name, path_id, comment, ident, flt, vector, ident_array, scale, size, clear, format,
+        path_name, path_id, comment, ident, bool_id, flt, vector, ident_array, build_as, scale, size, clear, format,
         samplers, targets, vs, gs, fs, surface, camera, camera_id, position, look_at, field_of_view, near_far, geometry, disable, pass, parser.pSceneGraph, nullptr);
 }
 
@@ -438,6 +444,15 @@ std::shared_ptr<Scene> scene_build(const fs::path& root)
                 throw std::domain_error(fmt::format("tag not found {}", tags.str()).c_str());
             };
 
+            auto getBool = [&](auto entry) {
+                if (!entry)
+                {
+                    return false;
+                }
+                auto pChild = getChild(entry, T_BOOL);
+                return std::string(pChild->contents) == "true";
+            };
+
             auto getVector = [&](auto entry, auto& ret, int min, int max) {
                 auto pChild = getChild(entry, T_VECTOR);
                 auto vals = childrenOf(pChild, T_FLOAT);
@@ -602,6 +617,11 @@ std::shared_ptr<Scene> scene_build(const fs::path& root)
                             continue;
                         }
                         spGeom = std::make_shared<Geometry>(foundPath);
+                    }
+                    
+                    if (hasChild(pGeometryNode, T_BUILD_AS))
+                    {
+                        spGeom->buildAS = getBool(getChild(pGeometryNode, T_BUILD_AS));
                     }
 
                     // Shaders

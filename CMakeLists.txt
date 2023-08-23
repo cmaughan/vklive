@@ -31,6 +31,7 @@ set(COMPANY "Rezonality")
 set(COPYRIGHT "Copyright (c) 2022 Rezonality")
 set(IDENTIFIER "com.rezonality.vklive")
 
+find_package(unofficial-minizip CONFIG REQUIRED)
 find_package(Vulkan REQUIRED) # Vulkan API
 find_package(assimp CONFIG REQUIRED) # Asset import for loading models
 find_package(clipp CONFIG REQUIRED) # Commandline parser for command line arguments
@@ -42,13 +43,16 @@ find_package(unofficial-concurrentqueue REQUIRED) # Concurrent lock/free queue f
 find_package(tinyfiledialogs CONFIG REQUIRED) # File dialogs that look OS specific and more standard
 find_package(unofficial-nativefiledialog CONFIG REQUIRED) # File dialogs that look OS specific and more standard
 find_package(unofficial-spirv-reflect CONFIG REQUIRED)
-find_package(unofficial-vulkan-memory-allocator CONFIG REQUIRED)
+#find_package(VulkanMemoryAllocator CONFIG REQUIRED)
 find_package(gli CONFIG REQUIRED)
 find_path(STB_INCLUDE_DIRS "stb_c_lexer.h")
 find_package(range-v3 CONFIG REQUIRED)
 
 # Set this if we are sitting on SDL
 add_definitions(-DZEP_USE_SDL)
+
+# Vulkan can use dynamic dispatch extensions
+add_definitions(-DVULKAN_HPP_DISPATCH_LOADER_DYNAMIC=1)
 
 # Set this to get the default file system
 add_definitions(-DZEP_FEATURE_CPP_FILE_SYSTEM)
@@ -88,6 +92,7 @@ set(VULKAN_SOURCES
     src/vulkan/vulkan_imgui.cpp
     src/vulkan/vulkan_imgui_viewports.cpp
     src/vulkan/vulkan_model.cpp
+    src/vulkan/vulkan_model_as.cpp
     src/vulkan/vulkan_pass.cpp
     src/vulkan/vulkan_pipeline.cpp
     src/vulkan/vulkan_reflect.cpp
@@ -254,7 +259,6 @@ target_link_libraries(Rezonality
         clipp::clipp
         unofficial::nativefiledialog::nfd
         unofficial::spirv-reflect::spirv-reflect
-        unofficial::vulkan-memory-allocator::vulkan-memory-allocator
         gli
         Zing::Zing
     )

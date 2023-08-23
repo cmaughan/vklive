@@ -22,6 +22,8 @@ thread_local vk::Queue VulkanContext::queue;
 
 bool context_init(VulkanContext& ctx)
 {
+    VULKAN_HPP_DEFAULT_DISPATCHER.init(ctx.dl.getProcAddress<PFN_vkGetInstanceProcAddr>("vkGetInstanceProcAddr"));
+
     ctx.layerNames.clear();
     ctx.instanceExtensionNames.clear();
 
@@ -90,6 +92,8 @@ bool context_init(VulkanContext& ctx)
     // create an Instance
     ctx.instance = vk::createInstance(vk::InstanceCreateInfo(flags, &applicationInfo, ctx.layerNames, ctx.instanceExtensionNames));
 
+    VULKAN_HPP_DEFAULT_DISPATCHER.init(ctx.instance);
+
 #ifdef IMGUI_VULKAN_DEBUG_REPORT
     debug_init(ctx);
 #endif
@@ -112,12 +116,11 @@ bool context_init(VulkanContext& ctx)
         LOG(DBG, "\tVersion: " << ep.specVersion);
     }
 
-    // Ray tracing related extensions required by this sample
+    // Ray tracing related extensions we'd like
     ctx.requestedDeviceExtensions.push_back(VK_KHR_ACCELERATION_STRUCTURE_EXTENSION_NAME);
     ctx.requestedDeviceExtensions.push_back(VK_KHR_RAY_TRACING_PIPELINE_EXTENSION_NAME);
 
     // Required by VK_KHR_acceleration_structure
-    ctx.requestedDeviceExtensions.push_back(VK_KHR_BUFFER_DEVICE_ADDRESS_EXTENSION_NAME);
     ctx.requestedDeviceExtensions.push_back(VK_KHR_DEFERRED_HOST_OPERATIONS_EXTENSION_NAME);
     ctx.requestedDeviceExtensions.push_back(VK_EXT_DESCRIPTOR_INDEXING_EXTENSION_NAME);
 
@@ -127,19 +130,29 @@ bool context_init(VulkanContext& ctx)
     // Required by VK_KHR_spirv_1_4
     ctx.requestedDeviceExtensions.push_back(VK_KHR_SHADER_FLOAT_CONTROLS_EXTENSION_NAME);
 
+    //ctx.requestedDeviceExtensions.push_back(VK_BUFFER_DEVICE_ADDRESS_EXTENSION_NAME);
     ctx.physicalDevice.getMemoryProperties(&ctx.memoryProperties);
-
     ctx.graphicsQueue = utils_find_queue(ctx, vk::QueueFlagBits::eGraphics);
 
     // create a Device
     float queuePriority = 0.0f;
     vk::DeviceQueueCreateInfo deviceQueueCreateInfo(vk::DeviceQueueCreateFlags(), static_cast<uint32_t>(ctx.graphicsQueue), 1, &queuePriority);
 
-    vk::PhysicalDeviceFeatures features;
+    // Determine support for Buffer Device Address, the Vulkan 1.2 way
+    vk::PhysicalDeviceFeatures2 physicalDeviceFeatures2;
+    vk::PhysicalDeviceBufferDeviceAddressFeatures bufferDeviceAddressFeatures;
+    physicalDeviceFeatures2.pNext = &bufferDeviceAddressFeatures;
+    ctx.physicalDevice.getFeatures2(&physicalDeviceFeatures2);
+
     // features.
 #if WIN32
-    features.geometryShader = true;
+    physicalDeviceFeatures2.features.geometryShader = true;
+    //features
 #endif
+
+    //vk::PhysicalDeviceBufferDeviceAddressFeatures addressFeatures;
+    //addressFeatures.bufferDeviceAddress = true;
+    //physicalDeviceFeatures2.pNext = &addressFeatures;
 
     auto required = utils_get_device_extensions();
     ctx.requestedDeviceExtensions.insert(ctx.requestedDeviceExtensions.end(), required.begin(), required.end());
@@ -160,7 +173,7 @@ bool context_init(VulkanContext& ctx)
     }
 
     // std::cerr << "Creating Device...";
-    ctx.device = utils_create_device(ctx.physicalDevice, ctx.graphicsQueue, ctx.deviceExtensionNames, &features);
+    ctx.device = utils_create_device(ctx.physicalDevice, ctx.graphicsQueue, ctx.deviceExtensionNames, nullptr, &physicalDeviceFeatures2);
 
     debug_set_device_name(ctx.device, ctx.device, "Context::Device");
     debug_set_physicaldevice_name(ctx.device, ctx.physicalDevice, "Context::PhysicalDevice");
@@ -190,14 +203,14 @@ bool context_init(VulkanContext& ctx)
         debug_set_descriptorpool_name(ctx.device, ctx.descriptorPool, "Context::DescriptorPool(ImGui)");
     }
 
-    // Get ray tracing pipeline properties, which will be used later on in the sample
+    // Get ray tracing pipeline properties, which will be used later on
     ctx.rayTracingPipelineProperties.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_TRACING_PIPELINE_PROPERTIES_KHR;
     VkPhysicalDeviceProperties2 deviceProperties2{};
     deviceProperties2.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2;
     deviceProperties2.pNext = &ctx.rayTracingPipelineProperties;
     vkGetPhysicalDeviceProperties2(ctx.physicalDevice, &deviceProperties2);
 
-    // Get acceleration structure properties, which will be used later on in the sample
+    // Get acceleration structure properties, which will be used later on
     ctx.accelerationStructureFeatures.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_ACCELERATION_STRUCTURE_FEATURES_KHR;
     VkPhysicalDeviceFeatures2 deviceFeatures2{};
     deviceFeatures2.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2;
@@ -205,7 +218,7 @@ bool context_init(VulkanContext& ctx)
     vkGetPhysicalDeviceFeatures2(ctx.physicalDevice, &deviceFeatures2);
     
     // Get the ray tracing and accelertion structure related function pointers required by this sample
-    ctx.vkGetBufferDeviceAddressKHR = reinterpret_cast<PFN_vkGetBufferDeviceAddressKHR>(vkGetDeviceProcAddr(ctx.device, "vkGetBufferDeviceAddressKHR"));
+    //ctx.vkGetBufferDeviceAddressKHR = reinterpret_cast<PFN_vkGetBufferDeviceAddressKHR>(vkGetDeviceProcAddr(ctx.device, "vkGetBufferDeviceAddressKHR"));
     ctx.vkCmdBuildAccelerationStructuresKHR = reinterpret_cast<PFN_vkCmdBuildAccelerationStructuresKHR>(vkGetDeviceProcAddr(ctx.device, "vkCmdBuildAccelerationStructuresKHR"));
     ctx.vkBuildAccelerationStructuresKHR = reinterpret_cast<PFN_vkBuildAccelerationStructuresKHR>(vkGetDeviceProcAddr(ctx.device, "vkBuildAccelerationStructuresKHR"));
     ctx.vkCreateAccelerationStructureKHR = reinterpret_cast<PFN_vkCreateAccelerationStructureKHR>(vkGetDeviceProcAddr(ctx.device, "vkCreateAccelerationStructureKHR"));

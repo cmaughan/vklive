@@ -23,6 +23,7 @@
 #include <vklive/vulkan/vulkan_shader.h>
 #include <vklive/vulkan/vulkan_uniform.h>
 #include <vklive/vulkan/vulkan_utils.h>
+#include <vklive/vulkan/vulkan_model_as.h>
 
 #include <zing/audio/audio.h>
 
@@ -311,9 +312,13 @@ void vulkan_scene_render(VulkanContext& ctx, VulkanScene& vulkanScene)
 
         // Copy the actual vertices to the GPU, if necessary.
         // TODO: Just the pass vertices instead of all
-        for (auto& [name, pVulkanGeom] : vulkanScene.models)
+        for (auto& [_, pVulkanGeom] : vulkanScene.models)
         {
             vulkan_model_stage(ctx, *pVulkanGeom);
+            if (pVulkanGeom->geometry.buildAS)
+            {
+                vulkan_model_build_acceleration_structure(ctx, *pVulkanGeom);
+            }
         }
 
         vulkanScene.defaultTarget = SurfaceKey();

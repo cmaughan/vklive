@@ -34,11 +34,12 @@
 #include "vklive/vulkan/vulkan_surface.h"
 #include "vklive/vulkan/vulkan_utils.h"
 
-namespace vulkan
-{
 #if (VULKAN_HPP_DISPATCH_LOADER_DYNAMIC == 1)
 VULKAN_HPP_DEFAULT_DISPATCH_LOADER_DYNAMIC_STORAGE
 #endif
+
+namespace vulkan
+{
 
 uint32_t utils_memory_type(VulkanContext& ctx, vk::MemoryPropertyFlags properties, uint32_t type_bits)
 {
