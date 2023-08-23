@@ -141,6 +141,7 @@ bool context_init(VulkanContext& ctx)
     // Determine support for Buffer Device Address, the Vulkan 1.2 way
     vk::PhysicalDeviceFeatures2 physicalDeviceFeatures2;
     vk::PhysicalDeviceBufferDeviceAddressFeatures bufferDeviceAddressFeatures;
+    bufferDeviceAddressFeatures.bufferDeviceAddress = true;
     physicalDeviceFeatures2.pNext = &bufferDeviceAddressFeatures;
     ctx.physicalDevice.getFeatures2(&physicalDeviceFeatures2);
 
@@ -149,10 +150,6 @@ bool context_init(VulkanContext& ctx)
     physicalDeviceFeatures2.features.geometryShader = true;
     //features
 #endif
-
-    //vk::PhysicalDeviceBufferDeviceAddressFeatures addressFeatures;
-    //addressFeatures.bufferDeviceAddress = true;
-    //physicalDeviceFeatures2.pNext = &addressFeatures;
 
     auto required = utils_get_device_extensions();
     ctx.requestedDeviceExtensions.insert(ctx.requestedDeviceExtensions.end(), required.begin(), required.end());

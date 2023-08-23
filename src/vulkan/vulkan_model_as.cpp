@@ -281,7 +281,7 @@ void createBottomLevelAccelerationStructure()
     accelerationDeviceAddressInfo.accelerationStructure = bottomLevelAS.handle;
     bottomLevelAS.deviceAddress = vkGetAccelerationStructureDeviceAddressKHR(device, &accelerationDeviceAddressInfo);
 
-    // deleteScratchBuffer(scratchBuffer);
+    deleteScratchBuffer(scratchBuffer);
 }
 
 // The top level acceleration structure contains the scene's object instances
