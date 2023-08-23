@@ -52,6 +52,7 @@ void debug_set_shadermodule_name(VkDevice device, VkShaderModule shaderModule, c
 void debug_set_surface_name(VkDevice device, VkSurfaceKHR surface, const std::string& name);
 void debug_set_swapchain_name(VkDevice device, VkSwapchainKHR swap, const std::string& name);
 void debug_set_surface_name(VkDevice device, VulkanSurface& surface, const std::string& name);
+void debug_set_accelerationstructure_name(VkDevice device, VkAccelerationStructureKHR as, const std::string& name);
 
 // Naming engine specific things
 // Name a pass

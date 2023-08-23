@@ -83,10 +83,13 @@ void vulkan_model_destroy(VulkanContext& ctx, VulkanModel& model)
     vulkan_buffer_destroy(ctx, model.indices);
 
     // AS
-    vulkan_buffer_destroy(ctx, model.as.buffer);
-    if (model.as.handle)
+    for (auto& as : model.accelerationStructures)
     {
-        ctx.device.destroyAccelerationStructureKHR(model.as.handle);
+        vulkan_buffer_destroy(ctx, as.buffer);
+        if (as.handle)
+        {
+            ctx.device.destroyAccelerationStructureKHR(as.handle);
+        }
     }
 }
 

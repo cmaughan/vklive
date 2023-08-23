@@ -20,95 +20,114 @@ void createBottomLevelAccelerationStructure(VulkanContext& ctx, VulkanModel& mod
         0.0f, 0.0f, 1.0f, 0.0f
     };
 
-    // Create buffers
-    // For the sake of simplicity we won't stage the vertex data to the GPU memory
-    auto vertexBuffer = buffer_create(ctx, vk::BufferUsageFlagBits::eAccelerationStructureBuildInputReadOnlyKHR | vk::BufferUsageFlagBits::eShaderDeviceAddress,
-        vk::MemoryPropertyFlagBits::eHostCoherent | vk::MemoryPropertyFlagBits::eHostVisible, model.vertexData.size() * sizeof(uint8_t));
+    // Is this the right way?  Can I pack these more efficiently into a single set of buffers and refer to them?
+    for (const auto& part : model.parts)
+    {
+        std::vector<uint32_t> indices;
+        std::vector<glm::vec3> vertices;
 
-    auto indexBuffer = buffer_create(ctx, vk::BufferUsageFlagBits::eAccelerationStructureBuildInputReadOnlyKHR | vk::BufferUsageFlagBits::eShaderDeviceAddress,
-        vk::MemoryPropertyFlagBits::eHostCoherent | vk::MemoryPropertyFlagBits::eHostVisible, model.indexData.size() * sizeof(uint32_t));
-
-    auto transformBuffer = buffer_create(ctx, vk::BufferUsageFlagBits::eAccelerationStructureBuildInputReadOnlyKHR | vk::BufferUsageFlagBits::eShaderDeviceAddress,
-        vk::MemoryPropertyFlagBits::eHostCoherent | vk::MemoryPropertyFlagBits::eHostVisible, sizeof(VkTransformMatrixKHR));
-
-    debug_set_buffer_name(ctx.device, vertexBuffer.buffer, "AS Vertices");
-    debug_set_buffer_name(ctx.device, indexBuffer.buffer, "AS Indices");
-    debug_set_buffer_name(ctx.device, transformBuffer.buffer, "AS Transform");
-
-    auto pVerts = buffer_map(ctx, vertexBuffer);
-    memcpy(pVerts, &model.vertexData[0], model.vertexData.size() * sizeof(uint8_t));
-    buffer_unmap(ctx, vertexBuffer);
+        for (uint32_t i = 0; i < part.indexCount; i++)
+        {
+            indices.push_back(model.indexData[part.indexBase + i] - part.vertexBase);
+        }
     
-    auto pIndex = buffer_map(ctx, indexBuffer);
-    memcpy(pIndex, &model.indexData[0], model.indexData.size() * sizeof(uint32_t));
-    buffer_unmap(ctx, indexBuffer);
-    
-    auto pTransform = buffer_map(ctx, transformBuffer);
-    memcpy(pTransform, &transformMatrix, sizeof(transformMatrix));
-    buffer_unmap(ctx, transformBuffer);
+        uint32_t vertexStride = layout_size(model.layout);
 
+        for (uint32_t i = 0; i < part.vertexCount; i++)
+        {
+            vertices.push_back(*(glm::vec3*)&model.vertexData[(part.vertexBase + i) * vertexStride]);
+        }
 
-    vk::AccelerationStructureGeometryTrianglesDataKHR triangleData(
-        vk::Format::eR32G32B32Sfloat,
-        vertexBuffer.deviceAddress,
-        layout_size(model.layout),
-        model.vertexData.size() / layout_size(model.layout),
-        vk::IndexType::eUint32,
-        indexBuffer.deviceAddress,
-        transformBuffer.deviceAddress);
+        vertexStride = sizeof(glm::vec3);
 
-    vk::AccelerationStructureGeometryKHR accelerationStructureGeometry(vk::GeometryTypeKHR::eTriangles, triangleData, vk::GeometryFlagBitsKHR::eOpaque);
+        // Create buffers
+        // For the sake of simplicity we won't stage the vertex data to the GPU memory
+        auto vertexBuffer = buffer_create(ctx, vk::BufferUsageFlagBits::eAccelerationStructureBuildInputReadOnlyKHR | vk::BufferUsageFlagBits::eShaderDeviceAddress,
+            vk::MemoryPropertyFlagBits::eHostCoherent | vk::MemoryPropertyFlagBits::eHostVisible, vertices.size() * sizeof(glm::vec3));
 
-    vk::AccelerationStructureBuildGeometryInfoKHR accelerationStructureBuildGeometryInfo(
-        vk::AccelerationStructureTypeKHR::eBottomLevel,
-        vk::BuildAccelerationStructureFlagBitsKHR::ePreferFastTrace
-        );
+        auto indexBuffer = buffer_create(ctx, vk::BufferUsageFlagBits::eAccelerationStructureBuildInputReadOnlyKHR | vk::BufferUsageFlagBits::eShaderDeviceAddress,
+            vk::MemoryPropertyFlagBits::eHostCoherent | vk::MemoryPropertyFlagBits::eHostVisible, indices.size() * sizeof(uint32_t));
 
-    accelerationStructureBuildGeometryInfo.setGeometries(accelerationStructureGeometry);
+        auto transformBuffer = buffer_create(ctx, vk::BufferUsageFlagBits::eAccelerationStructureBuildInputReadOnlyKHR | vk::BufferUsageFlagBits::eShaderDeviceAddress,
+            vk::MemoryPropertyFlagBits::eHostCoherent | vk::MemoryPropertyFlagBits::eHostVisible, sizeof(VkTransformMatrixKHR));
 
-    const auto numTriangles = model.indexCount / 3;
-    auto buildSizes = ctx.device.getAccelerationStructureBuildSizesKHR(vk::AccelerationStructureBuildTypeKHR::eDevice, accelerationStructureBuildGeometryInfo, numTriangles);
+        debug_set_buffer_name(ctx.device, vertexBuffer.buffer, "AS Vertices");
+        debug_set_buffer_name(ctx.device, indexBuffer.buffer, "AS Indices");
+        debug_set_buffer_name(ctx.device, transformBuffer.buffer, "AS Transform");
 
-    AccelerationStructure bottomLevelAS;
-    bottomLevelAS.buffer = buffer_create(ctx, vk::BufferUsageFlagBits::eAccelerationStructureBuildInputReadOnlyKHR | vk::BufferUsageFlagBits::eAccelerationStructureStorageKHR | vk::BufferUsageFlagBits::eShaderDeviceAddress,
-        vk::MemoryPropertyFlagBits::eDeviceLocal, buildSizes.accelerationStructureSize);
+        auto pVerts = buffer_map(ctx, vertexBuffer);
+        memcpy(pVerts, &vertices[0], vertices.size() * sizeof(glm::vec3));
+        buffer_unmap(ctx, vertexBuffer);
 
-    debug_set_buffer_name(ctx.device, bottomLevelAS.buffer.buffer, "Bottom Level AS");
-    debug_set_devicememory_name(ctx.device, bottomLevelAS.buffer.memory, "Bottom Level AS");
+        auto pIndex = buffer_map(ctx, indexBuffer);
+        memcpy(pIndex, &indices[0], indices.size() * sizeof(uint32_t));
+        buffer_unmap(ctx, indexBuffer);
 
-    vk::AccelerationStructureCreateInfoKHR accelerationStructureCreateInfo(vk::AccelerationStructureCreateFlagsKHR(), bottomLevelAS.buffer.buffer, 0, buildSizes.accelerationStructureSize, vk::AccelerationStructureTypeKHR::eBottomLevel);
+        auto pTransform = buffer_map(ctx, transformBuffer);
+        memcpy(pTransform, &transformMatrix, sizeof(transformMatrix));
+        buffer_unmap(ctx, transformBuffer);
 
-    bottomLevelAS.handle = ctx.device.createAccelerationStructureKHR(accelerationStructureCreateInfo);
+        vk::AccelerationStructureGeometryTrianglesDataKHR triangleData(
+            vk::Format::eR32G32B32Sfloat,
+            vertexBuffer.deviceAddress,
+            vertexStride,
+            vertices.size(),
+            vk::IndexType::eUint32,
+            indexBuffer.deviceAddress,
+            transformBuffer.deviceAddress);
 
-    // Create a small scratch buffer used during build of the bottom level acceleration structure
-    auto scratchBuffer = buffer_create(ctx, vk::BufferUsageFlagBits::eStorageBuffer | vk::BufferUsageFlagBits::eShaderDeviceAddress, vk::MemoryPropertyFlagBits::eDeviceLocal, buildSizes.buildScratchSize);
+        vk::AccelerationStructureGeometryKHR accelerationStructureGeometry(vk::GeometryTypeKHR::eTriangles, triangleData, vk::GeometryFlagBitsKHR::eOpaque);
 
-    vk::AccelerationStructureBuildGeometryInfoKHR accelerationBuildGeometryInfo(
-        vk::AccelerationStructureTypeKHR::eBottomLevel,
-        vk::BuildAccelerationStructureFlagBitsKHR::ePreferFastTrace
-        );
-    accelerationBuildGeometryInfo.setDstAccelerationStructure(bottomLevelAS.handle);
-    accelerationBuildGeometryInfo.setGeometries(accelerationStructureGeometry);
-    accelerationBuildGeometryInfo.scratchData.deviceAddress = vk::DeviceAddress((void*)scratchBuffer.deviceAddress.deviceAddress);
+        vk::AccelerationStructureBuildGeometryInfoKHR accelerationStructureBuildGeometryInfo(
+            vk::AccelerationStructureTypeKHR::eBottomLevel,
+            vk::BuildAccelerationStructureFlagBitsKHR::ePreferFastTrace);
 
-    vk::AccelerationStructureBuildRangeInfoKHR accelerationStructureBuildRangeInfo(numTriangles);
+        accelerationStructureBuildGeometryInfo.setGeometries(accelerationStructureGeometry);
 
-    std::vector<vk::AccelerationStructureBuildRangeInfoKHR*> accelerationBuildStructureRangeInfos = { &accelerationStructureBuildRangeInfo };
+        const auto numTriangles = indices.size() / 3;
+        auto buildSizes = ctx.device.getAccelerationStructureBuildSizesKHR(vk::AccelerationStructureBuildTypeKHR::eDevice, accelerationStructureBuildGeometryInfo, numTriangles);
 
-    // Build the acceleration structure on the device via a one-time command buffer submission
-    // Some implementations may support acceleration structure building on the host (VkPhysicalDeviceAccelerationStructureFeaturesKHR->accelerationStructureHostCommands), but we prefer device builds
-    utils_with_command_buffer(ctx, [&](const vk::CommandBuffer& commandBuffer) {
-        commandBuffer.buildAccelerationStructuresKHR(accelerationBuildGeometryInfo, accelerationBuildStructureRangeInfos);
-    });
+        AccelerationStructure bottomLevelAS;
+        bottomLevelAS.buffer = buffer_create(ctx, vk::BufferUsageFlagBits::eAccelerationStructureBuildInputReadOnlyKHR | vk::BufferUsageFlagBits::eAccelerationStructureStorageKHR | vk::BufferUsageFlagBits::eShaderDeviceAddress,
+            vk::MemoryPropertyFlagBits::eDeviceLocal, buildSizes.accelerationStructureSize);
 
-    bottomLevelAS.asDeviceAddress = ctx.device.getAccelerationStructureAddressKHR(bottomLevelAS.handle);
+        debug_set_buffer_name(ctx.device, bottomLevelAS.buffer.buffer, part.name + "_Buffer_BLAS");
+        debug_set_devicememory_name(ctx.device, bottomLevelAS.buffer.memory, part.name + "_Memory_BLAS");
 
-    model.as = bottomLevelAS;
+        vk::AccelerationStructureCreateInfoKHR accelerationStructureCreateInfo(vk::AccelerationStructureCreateFlagsKHR(), bottomLevelAS.buffer.buffer, 0, buildSizes.accelerationStructureSize, vk::AccelerationStructureTypeKHR::eBottomLevel);
 
-    vulkan_buffer_destroy(ctx, scratchBuffer);
-    vulkan_buffer_destroy(ctx, vertexBuffer);
-    vulkan_buffer_destroy(ctx, transformBuffer);
-    vulkan_buffer_destroy(ctx, indexBuffer);
+        bottomLevelAS.handle = ctx.device.createAccelerationStructureKHR(accelerationStructureCreateInfo);
+        debug_set_accelerationstructure_name(ctx.device, bottomLevelAS.handle, part.name + "_BLAS");
+
+        // Create a small scratch buffer used during build of the bottom level acceleration structure
+        auto scratchBuffer = buffer_create(ctx, vk::BufferUsageFlagBits::eStorageBuffer | vk::BufferUsageFlagBits::eShaderDeviceAddress, vk::MemoryPropertyFlagBits::eDeviceLocal, buildSizes.buildScratchSize);
+
+        vk::AccelerationStructureBuildGeometryInfoKHR accelerationBuildGeometryInfo(
+            vk::AccelerationStructureTypeKHR::eBottomLevel,
+            vk::BuildAccelerationStructureFlagBitsKHR::ePreferFastTrace);
+        accelerationBuildGeometryInfo.setDstAccelerationStructure(bottomLevelAS.handle);
+        accelerationBuildGeometryInfo.setGeometries(accelerationStructureGeometry);
+        accelerationBuildGeometryInfo.scratchData.deviceAddress = vk::DeviceAddress((void*)scratchBuffer.deviceAddress.deviceAddress);
+
+        vk::AccelerationStructureBuildRangeInfoKHR accelerationStructureBuildRangeInfo(numTriangles);
+
+        std::vector<vk::AccelerationStructureBuildRangeInfoKHR*> accelerationBuildStructureRangeInfos = { &accelerationStructureBuildRangeInfo };
+
+        // Build the acceleration structure on the device via a one-time command buffer submission
+        // Some implementations may support acceleration structure building on the host (VkPhysicalDeviceAccelerationStructureFeaturesKHR->accelerationStructureHostCommands), but we prefer device builds
+        utils_with_command_buffer(ctx, [&](const vk::CommandBuffer& commandBuffer) {
+            commandBuffer.buildAccelerationStructuresKHR(accelerationBuildGeometryInfo, accelerationBuildStructureRangeInfos);
+        });
+
+        bottomLevelAS.asDeviceAddress = ctx.device.getAccelerationStructureAddressKHR(bottomLevelAS.handle);
+
+        model.accelerationStructures.push_back(bottomLevelAS);
+
+        vulkan_buffer_destroy(ctx, scratchBuffer);
+        vulkan_buffer_destroy(ctx, vertexBuffer);
+        vulkan_buffer_destroy(ctx, transformBuffer);
+        vulkan_buffer_destroy(ctx, indexBuffer);
+    }
 }
 #if 0
 
@@ -275,10 +294,12 @@ void createTopLevelAccelerationStructure()
 #endif
 void vulkan_model_build_acceleration_structure(VulkanContext& ctx, VulkanModel& model)
 {
-    if (!model.as.buffer.buffer)
+    if (!model.initAccel)
     {
         createBottomLevelAccelerationStructure(ctx, model);
     }
+    model.initAccel = true;
+
     // createTopLevelAccelerationStructure();
     //  createStorageImage();
 }

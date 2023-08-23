@@ -25,7 +25,8 @@ struct VulkanModel : Model
     VulkanBuffer vertices;
     VulkanBuffer indices;
 
-    AccelerationStructure as;
+    std::vector<AccelerationStructure> accelerationStructures;
+    bool initAccel = false;
 
     const Geometry& geometry;
     std::string debugName;

@@ -335,6 +335,11 @@ void debug_set_surface_name(VkDevice device, VkSurfaceKHR surface, const std::st
     debug_set_object_name(device, (uint64_t)surface, VK_DEBUG_REPORT_OBJECT_TYPE_SURFACE_KHR_EXT, name);
 }
 
+void debug_set_accelerationstructure_name(VkDevice device, VkAccelerationStructureKHR as, const std::string& name)
+{
+    debug_set_object_name(device, (uint64_t)as, VK_DEBUG_REPORT_OBJECT_TYPE_ACCELERATION_STRUCTURE_KHR_EXT, name);
+}
+
 std::string debug_get_pass_name(VulkanPass& vulkanPass, const std::string& postfix)
 {
     return fmt::format("Pass::{}::{}", vulkanPass.pass.name, postfix);
