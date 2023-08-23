@@ -140,8 +140,15 @@ bool context_init(VulkanContext& ctx)
 
     // Determine support for Buffer Device Address, the Vulkan 1.2 way
     vk::PhysicalDeviceFeatures2 physicalDeviceFeatures2;
+    vk::PhysicalDeviceRayTracingPipelineFeaturesKHR rayTracing;
+    vk::PhysicalDeviceAccelerationStructureFeaturesKHR rayTracingAccel;
+    
     vk::PhysicalDeviceBufferDeviceAddressFeatures bufferDeviceAddressFeatures;
     bufferDeviceAddressFeatures.bufferDeviceAddress = true;
+
+    rayTracing.pNext = &rayTracingAccel;
+    bufferDeviceAddressFeatures.pNext = &rayTracing;
+
     physicalDeviceFeatures2.pNext = &bufferDeviceAddressFeatures;
     ctx.physicalDevice.getFeatures2(&physicalDeviceFeatures2);
 

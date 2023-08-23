@@ -2,98 +2,119 @@
 
 #include <zest/file/runtree.h>
 
+#include "vklive/vulkan/vulkan_model.h"
 #include "vklive/vulkan/vulkan_utils.h"
+#include "vklive/vulkan/vulkan_command.h"
 
 namespace vulkan
 {
 
-// Holds data for a ray tracing scratch buffer that is used as a temporary storage
-struct RayTracingScratchBuffer
-{
-    uint64_t deviceAddress = 0;
-    vk::Buffer handle;
-    vk::DeviceMemory memory;
-};
-
 // Ray tracing acceleration structure
-struct AccelerationStructure
+// Create the bottom level acceleration structure contains the scene's actual geometry (vertices, triangles)
+void createBottomLevelAccelerationStructure(VulkanContext& ctx, VulkanModel& model)
 {
-    vk::AccelerationStructureTypeKHR handle;
-    uint64_t deviceAddress = 0;
-    vk::DeviceMemory memory;
-    vk::Buffer buffer;
-};
+    // Setup identity transform matrix
+    VkTransformMatrixKHR transformMatrix = {
+        1.0f, 0.0f, 0.0f, 0.0f,
+        0.0f, 1.0f, 0.0f, 0.0f,
+        0.0f, 0.0f, 1.0f, 0.0f
+    };
 
-// Create a scratch buffer to hold temporary data for a ray tracing acceleration structure
-RayTracingScratchBuffer createScratchBuffer(VulkanContext& ctx, VkDeviceSize size)
-{
-    RayTracingScratchBuffer scratchBuffer{};
+    // Create buffers
+    // For the sake of simplicity we won't stage the vertex data to the GPU memory
+    auto vertexBuffer = buffer_create(ctx, vk::BufferUsageFlagBits::eAccelerationStructureBuildInputReadOnlyKHR | vk::BufferUsageFlagBits::eShaderDeviceAddress,
+        vk::MemoryPropertyFlagBits::eHostCoherent | vk::MemoryPropertyFlagBits::eHostVisible, model.vertexData.size() * sizeof(uint8_t));
 
-    // Create buffer
-    scratchBuffer.handle = ctx.device.createBuffer(vk::BufferCreateInfo(vk::BufferCreateFlags(), size, vk::BufferUsageFlagBits::eStorageBuffer | vk::BufferUsageFlagBits::eShaderDeviceAddress));
+    auto indexBuffer = buffer_create(ctx, vk::BufferUsageFlagBits::eAccelerationStructureBuildInputReadOnlyKHR | vk::BufferUsageFlagBits::eShaderDeviceAddress,
+        vk::MemoryPropertyFlagBits::eHostCoherent | vk::MemoryPropertyFlagBits::eHostVisible, model.indexData.size() * sizeof(uint32_t));
 
-    auto req = ctx.device.getBufferMemoryRequirements(scratchBuffer.handle);
+    auto transformBuffer = buffer_create(ctx, vk::BufferUsageFlagBits::eAccelerationStructureBuildInputReadOnlyKHR | vk::BufferUsageFlagBits::eShaderDeviceAddress,
+        vk::MemoryPropertyFlagBits::eHostCoherent | vk::MemoryPropertyFlagBits::eHostVisible, sizeof(VkTransformMatrixKHR));
 
-    // Allocate memory for buffer
-    auto memAllocFlagsInfo = vk::MemoryAllocateFlagsInfo(vk::MemoryAllocateFlagBits::eDeviceAddress);
-    auto allocInfo = vk::MemoryAllocateInfo(req.size, utils_memory_type(ctx, vk::MemoryPropertyFlagBits::eDeviceLocal, req.memoryTypeBits));
-    allocInfo.pNext = &memAllocFlagsInfo;
-    scratchBuffer.memory = ctx.device.allocateMemory(allocInfo);
+    debug_set_buffer_name(ctx.device, vertexBuffer.buffer, "AS Vertices");
+    debug_set_buffer_name(ctx.device, indexBuffer.buffer, "AS Indices");
+    debug_set_buffer_name(ctx.device, transformBuffer.buffer, "AS Transform");
 
-    // Bind memory to buffer
-    ctx.device.bindBufferMemory(scratchBuffer.handle, scratchBuffer.memory, 0);
+    auto pVerts = buffer_map(ctx, vertexBuffer);
+    memcpy(pVerts, &model.vertexData[0], model.vertexData.size() * sizeof(uint8_t));
+    buffer_unmap(ctx, vertexBuffer);
+    
+    auto pIndex = buffer_map(ctx, indexBuffer);
+    memcpy(pIndex, &model.indexData[0], model.indexData.size() * sizeof(uint32_t));
+    buffer_unmap(ctx, indexBuffer);
+    
+    auto pTransform = buffer_map(ctx, transformBuffer);
+    memcpy(pTransform, &transformMatrix, sizeof(transformMatrix));
+    buffer_unmap(ctx, transformBuffer);
 
-    // get the gpu address of the memory
-    scratchBuffer.deviceAddress = ctx.device.getBufferAddress(vk::BufferDeviceAddressInfo(scratchBuffer.handle));
 
-    return scratchBuffer;
+    vk::AccelerationStructureGeometryTrianglesDataKHR triangleData(
+        vk::Format::eR32G32B32Sfloat,
+        vertexBuffer.deviceAddress,
+        layout_size(model.layout),
+        model.vertexData.size() / layout_size(model.layout),
+        vk::IndexType::eUint32,
+        indexBuffer.deviceAddress,
+        transformBuffer.deviceAddress);
+
+    vk::AccelerationStructureGeometryKHR accelerationStructureGeometry(vk::GeometryTypeKHR::eTriangles, triangleData, vk::GeometryFlagBitsKHR::eOpaque);
+
+    vk::AccelerationStructureBuildGeometryInfoKHR accelerationStructureBuildGeometryInfo(
+        vk::AccelerationStructureTypeKHR::eBottomLevel,
+        vk::BuildAccelerationStructureFlagBitsKHR::ePreferFastTrace
+        );
+
+    accelerationStructureBuildGeometryInfo.setGeometries(accelerationStructureGeometry);
+
+    const auto numTriangles = model.indexCount / 3;
+    auto buildSizes = ctx.device.getAccelerationStructureBuildSizesKHR(vk::AccelerationStructureBuildTypeKHR::eDevice, accelerationStructureBuildGeometryInfo, numTriangles);
+
+    AccelerationStructure bottomLevelAS;
+    bottomLevelAS.buffer = buffer_create(ctx, vk::BufferUsageFlagBits::eAccelerationStructureBuildInputReadOnlyKHR | vk::BufferUsageFlagBits::eAccelerationStructureStorageKHR | vk::BufferUsageFlagBits::eShaderDeviceAddress,
+        vk::MemoryPropertyFlagBits::eDeviceLocal, buildSizes.accelerationStructureSize);
+
+    debug_set_buffer_name(ctx.device, bottomLevelAS.buffer.buffer, "Bottom Level AS");
+    debug_set_devicememory_name(ctx.device, bottomLevelAS.buffer.memory, "Bottom Level AS");
+
+    vk::AccelerationStructureCreateInfoKHR accelerationStructureCreateInfo(vk::AccelerationStructureCreateFlagsKHR(), bottomLevelAS.buffer.buffer, 0, buildSizes.accelerationStructureSize, vk::AccelerationStructureTypeKHR::eBottomLevel);
+
+    bottomLevelAS.handle = ctx.device.createAccelerationStructureKHR(accelerationStructureCreateInfo);
+
+    // Create a small scratch buffer used during build of the bottom level acceleration structure
+    auto scratchBuffer = buffer_create(ctx, vk::BufferUsageFlagBits::eStorageBuffer | vk::BufferUsageFlagBits::eShaderDeviceAddress, vk::MemoryPropertyFlagBits::eDeviceLocal, buildSizes.buildScratchSize);
+
+    vk::AccelerationStructureBuildGeometryInfoKHR accelerationBuildGeometryInfo(
+        vk::AccelerationStructureTypeKHR::eBottomLevel,
+        vk::BuildAccelerationStructureFlagBitsKHR::ePreferFastTrace
+        );
+    accelerationBuildGeometryInfo.setDstAccelerationStructure(bottomLevelAS.handle);
+    accelerationBuildGeometryInfo.setGeometries(accelerationStructureGeometry);
+    accelerationBuildGeometryInfo.scratchData.deviceAddress = vk::DeviceAddress((void*)scratchBuffer.deviceAddress.deviceAddress);
+
+    vk::AccelerationStructureBuildRangeInfoKHR accelerationStructureBuildRangeInfo(numTriangles);
+
+    std::vector<vk::AccelerationStructureBuildRangeInfoKHR*> accelerationBuildStructureRangeInfos = { &accelerationStructureBuildRangeInfo };
+
+    // Build the acceleration structure on the device via a one-time command buffer submission
+    // Some implementations may support acceleration structure building on the host (VkPhysicalDeviceAccelerationStructureFeaturesKHR->accelerationStructureHostCommands), but we prefer device builds
+    utils_with_command_buffer(ctx, [&](const vk::CommandBuffer& commandBuffer) {
+        commandBuffer.buildAccelerationStructuresKHR(accelerationBuildGeometryInfo, accelerationBuildStructureRangeInfos);
+    });
+
+    bottomLevelAS.asDeviceAddress = ctx.device.getAccelerationStructureAddressKHR(bottomLevelAS.handle);
+
+    model.as = bottomLevelAS;
+
+    vulkan_buffer_destroy(ctx, scratchBuffer);
+    vulkan_buffer_destroy(ctx, vertexBuffer);
+    vulkan_buffer_destroy(ctx, transformBuffer);
+    vulkan_buffer_destroy(ctx, indexBuffer);
 }
-
-void deleteScratchBuffer(VulkanContext& ctx, RayTracingScratchBuffer& scratchBuffer)
-{
-    if (scratchBuffer.memory)
-    {
-        ctx.device.freeMemory(scratchBuffer.memory);
-    }
-    if (scratchBuffer.handle)
-    {
-        ctx.device.destroyBuffer(scratchBuffer.handle);
-    }
-}
-
 #if 0
-void createAccelerationStructureBuffer(AccelerationStructure& accelerationStructure, VkAccelerationStructureBuildSizesInfoKHR buildSizeInfo)
-{
-    VkBufferCreateInfo bufferCreateInfo{};
-    bufferCreateInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
-    bufferCreateInfo.size = buildSizeInfo.accelerationStructureSize;
-    bufferCreateInfo.usage = VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_STORAGE_BIT_KHR | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT;
-    // VK_CHECK_RESULT(vkCreateBuffer(device, &bufferCreateInfo, nullptr, &accelerationStructure.buffer));
-    VkMemoryRequirements req{};
-    // vkGetBufferMemoryRequirements(device, accelerationStructure.buffer, &req);
-    VkMemoryAllocateFlagsInfo memoryAllocateFlagsInfo{};
-    memoryAllocateFlagsInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_FLAGS_INFO;
-    memoryAllocateFlagsInfo.flags = VK_MEMORY_ALLOCATE_DEVICE_ADDRESS_BIT_KHR;
-    VkMemoryAllocateInfo memoryAllocateInfo{};
-    memoryAllocateInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
-    memoryAllocateInfo.pNext = &memoryAllocateFlagsInfo;
-    memoryAllocateInfo.allocationSize = req.size;
-    // memoryAllocateInfo.memoryTypeIndex = vulkanDevice->getMemoryType(req.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
-    // VK_CHECK_RESULT(vkAllocateMemory(device, &memoryAllocateInfo, nullptr, &accelerationStructure.memory));
-    // VK_CHECK_RESULT(vkBindBufferMemory(device, accelerationStructure.buffer, accelerationStructure.memory, 0));
-}
 
 /*
     Gets the device address from a buffer that's required for some of the buffers used for ray tracing
 */
-uint64_t getBufferDeviceAddress(VkBuffer buffer)
-{
-    VkBufferDeviceAddressInfoKHR bufferDeviceAI{};
-    bufferDeviceAI.sType = VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO;
-    bufferDeviceAI.buffer = buffer;
-    // return vkGetBufferDeviceAddressKHR(device, &bufferDeviceAI);
-    return 0;
-}
 
 /*
     Set up a storage image that the ray generation shader will be writing to
@@ -144,145 +165,6 @@ void createStorageImage()
 }
 */
 
-/*
-    Create the bottom level acceleration structure contains the scene's actual geometry (vertices, triangles)
-*/
-void createBottomLevelAccelerationStructure()
-{
-    // Setup vertices for a single triangle
-    struct Vertex
-    {
-        float pos[3];
-    };
-    std::vector<Vertex> vertices = {
-        { { 1.0f, 1.0f, 0.0f } },
-        { { -1.0f, 1.0f, 0.0f } },
-        { { 0.0f, -1.0f, 0.0f } }
-    };
-
-    // Setup indices
-    std::vector<uint32_t> indices = { 0, 1, 2 };
-    indexCount = static_cast<uint32_t>(indices.size());
-
-    // Setup identity transform matrix
-    VkTransformMatrixKHR transformMatrix = {
-        1.0f, 0.0f, 0.0f, 0.0f,
-        0.0f, 1.0f, 0.0f, 0.0f,
-        0.0f, 0.0f, 1.0f, 0.0f
-    };
-
-    // Create buffers
-    // For the sake of simplicity we won't stage the vertex data to the GPU memory
-    // Vertex buffer
-    VK_CHECK_RESULT(vulkanDevice->createBuffer(
-        VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT | VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR,
-        VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
-        &vertexBuffer,
-        vertices.size() * sizeof(Vertex),
-        vertices.data()));
-    // Index buffer
-    VK_CHECK_RESULT(vulkanDevice->createBuffer(
-        VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT | VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR,
-        VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
-        &indexBuffer,
-        indices.size() * sizeof(uint32_t),
-        indices.data()));
-    // Transform buffer
-    VK_CHECK_RESULT(vulkanDevice->createBuffer(
-        VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT | VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR,
-        VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
-        &transformBuffer,
-        sizeof(VkTransformMatrixKHR),
-        &transformMatrix));
-
-    VkDeviceOrHostAddressConstKHR vertexBufferDeviceAddress{};
-    VkDeviceOrHostAddressConstKHR indexBufferDeviceAddress{};
-    VkDeviceOrHostAddressConstKHR transformBufferDeviceAddress{};
-
-    vertexBufferDeviceAddress.deviceAddress = getBufferDeviceAddress(vertexBuffer.buffer);
-    indexBufferDeviceAddress.deviceAddress = getBufferDeviceAddress(indexBuffer.buffer);
-    transformBufferDeviceAddress.deviceAddress = getBufferDeviceAddress(transformBuffer.buffer);
-
-    // Build
-    VkAccelerationStructureGeometryKHR accelerationStructureGeometry{};
-    accelerationStructureGeometry.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_KHR;
-    accelerationStructureGeometry.flags = VK_GEOMETRY_OPAQUE_BIT_KHR;
-    accelerationStructureGeometry.geometryType = VK_GEOMETRY_TYPE_TRIANGLES_KHR;
-    accelerationStructureGeometry.geometry.triangles.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_TRIANGLES_DATA_KHR;
-    accelerationStructureGeometry.geometry.triangles.vertexFormat = VK_FORMAT_R32G32B32_SFLOAT;
-    accelerationStructureGeometry.geometry.triangles.vertexData = vertexBufferDeviceAddress;
-    accelerationStructureGeometry.geometry.triangles.maxVertex = 3;
-    accelerationStructureGeometry.geometry.triangles.vertexStride = sizeof(Vertex);
-    accelerationStructureGeometry.geometry.triangles.indexType = VK_INDEX_TYPE_UINT32;
-    accelerationStructureGeometry.geometry.triangles.indexData = indexBufferDeviceAddress;
-    accelerationStructureGeometry.geometry.triangles.transformData.deviceAddress = 0;
-    accelerationStructureGeometry.geometry.triangles.transformData.hostAddress = nullptr;
-    accelerationStructureGeometry.geometry.triangles.transformData = transformBufferDeviceAddress;
-
-    // Get size info
-    VkAccelerationStructureBuildGeometryInfoKHR accelerationStructureBuildGeometryInfo{};
-    accelerationStructureBuildGeometryInfo.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_BUILD_GEOMETRY_INFO_KHR;
-    accelerationStructureBuildGeometryInfo.type = VK_ACCELERATION_STRUCTURE_TYPE_BOTTOM_LEVEL_KHR;
-    accelerationStructureBuildGeometryInfo.flags = VK_BUILD_ACCELERATION_STRUCTURE_PREFER_FAST_TRACE_BIT_KHR;
-    accelerationStructureBuildGeometryInfo.geometryCount = 1;
-    accelerationStructureBuildGeometryInfo.pGeometries = &accelerationStructureGeometry;
-
-    const uint32_t numTriangles = 1;
-    VkAccelerationStructureBuildSizesInfoKHR accelerationStructureBuildSizesInfo{};
-    accelerationStructureBuildSizesInfo.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_BUILD_SIZES_INFO_KHR;
-    vkGetAccelerationStructureBuildSizesKHR(
-        device,
-        VK_ACCELERATION_STRUCTURE_BUILD_TYPE_DEVICE_KHR,
-        &accelerationStructureBuildGeometryInfo,
-        &numTriangles,
-        &accelerationStructureBuildSizesInfo);
-
-    createAccelerationStructureBuffer(bottomLevelAS, accelerationStructureBuildSizesInfo);
-
-    VkAccelerationStructureCreateInfoKHR accelerationStructureCreateInfo{};
-    accelerationStructureCreateInfo.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_CREATE_INFO_KHR;
-    accelerationStructureCreateInfo.buffer = bottomLevelAS.buffer;
-    accelerationStructureCreateInfo.size = accelerationStructureBuildSizesInfo.accelerationStructureSize;
-    accelerationStructureCreateInfo.type = VK_ACCELERATION_STRUCTURE_TYPE_BOTTOM_LEVEL_KHR;
-    vkCreateAccelerationStructureKHR(device, &accelerationStructureCreateInfo, nullptr, &bottomLevelAS.handle);
-
-    // Create a small scratch buffer used during build of the bottom level acceleration structure
-    // RayTracingScratchBuffer scratchBuffer = createScratchBuffer(accelerationStructureBuildSizesInfo.buildScratchSize);
-
-    VkAccelerationStructureBuildGeometryInfoKHR accelerationBuildGeometryInfo{};
-    accelerationBuildGeometryInfo.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_BUILD_GEOMETRY_INFO_KHR;
-    accelerationBuildGeometryInfo.type = VK_ACCELERATION_STRUCTURE_TYPE_BOTTOM_LEVEL_KHR;
-    accelerationBuildGeometryInfo.flags = VK_BUILD_ACCELERATION_STRUCTURE_PREFER_FAST_TRACE_BIT_KHR;
-    accelerationBuildGeometryInfo.mode = VK_BUILD_ACCELERATION_STRUCTURE_MODE_BUILD_KHR;
-    accelerationBuildGeometryInfo.dstAccelerationStructure = bottomLevelAS.handle;
-    accelerationBuildGeometryInfo.geometryCount = 1;
-    accelerationBuildGeometryInfo.pGeometries = &accelerationStructureGeometry;
-    accelerationBuildGeometryInfo.scratchData.deviceAddress = scratchBuffer.deviceAddress;
-
-    VkAccelerationStructureBuildRangeInfoKHR accelerationStructureBuildRangeInfo{};
-    accelerationStructureBuildRangeInfo.primitiveCount = numTriangles;
-    accelerationStructureBuildRangeInfo.primitiveOffset = 0;
-    accelerationStructureBuildRangeInfo.firstVertex = 0;
-    accelerationStructureBuildRangeInfo.transformOffset = 0;
-    std::vector<VkAccelerationStructureBuildRangeInfoKHR*> accelerationBuildStructureRangeInfos = { &accelerationStructureBuildRangeInfo };
-
-    // Build the acceleration structure on the device via a one-time command buffer submission
-    // Some implementations may support acceleration structure building on the host (VkPhysicalDeviceAccelerationStructureFeaturesKHR->accelerationStructureHostCommands), but we prefer device builds
-    VkCommandBuffer commandBuffer = vulkanDevice->createCommandBuffer(VK_COMMAND_BUFFER_LEVEL_PRIMARY, true);
-    vkCmdBuildAccelerationStructuresKHR(
-        commandBuffer,
-        1,
-        &accelerationBuildGeometryInfo,
-        accelerationBuildStructureRangeInfos.data());
-    vulkanDevice->flushCommandBuffer(commandBuffer, queue);
-
-    VkAccelerationStructureDeviceAddressInfoKHR accelerationDeviceAddressInfo{};
-    accelerationDeviceAddressInfo.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_DEVICE_ADDRESS_INFO_KHR;
-    accelerationDeviceAddressInfo.accelerationStructure = bottomLevelAS.handle;
-    bottomLevelAS.deviceAddress = vkGetAccelerationStructureDeviceAddressKHR(device, &accelerationDeviceAddressInfo);
-
-    deleteScratchBuffer(scratchBuffer);
-}
 
 // The top level acceleration structure contains the scene's object instances
 /*
@@ -393,9 +275,10 @@ void createTopLevelAccelerationStructure()
 #endif
 void vulkan_model_build_acceleration_structure(VulkanContext& ctx, VulkanModel& model)
 {
-    auto scratch = createScratchBuffer(ctx, 1000);
-    deleteScratchBuffer(ctx, scratch);
-    // createBottomLevelAccelerationStructure();
+    if (!model.as.buffer.buffer)
+    {
+        createBottomLevelAccelerationStructure(ctx, model);
+    }
     // createTopLevelAccelerationStructure();
     //  createStorageImage();
 }

@@ -22,6 +22,7 @@ struct VulkanBuffer : public BufferAllocation
     vk::Buffer buffer;
     vk::BufferUsageFlags usageFlags; // @brief Usage flags to be filled by external source at buffer creation (to query at some later point)
     vk::DescriptorBufferInfo descriptor;
+    vk::DeviceOrHostAddressConstKHR deviceAddress;
 };
 
 void vulkan_buffer_destroy(VulkanContext& ctx, VulkanBuffer& buffer);

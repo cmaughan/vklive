@@ -81,6 +81,13 @@ void vulkan_model_destroy(VulkanContext& ctx, VulkanModel& model)
 {
     vulkan_buffer_destroy(ctx, model.vertices);
     vulkan_buffer_destroy(ctx, model.indices);
+
+    // AS
+    vulkan_buffer_destroy(ctx, model.as.buffer);
+    if (model.as.handle)
+    {
+        ctx.device.destroyAccelerationStructureKHR(model.as.handle);
+    }
 }
 
 std::shared_ptr<VulkanModel> vulkan_model_create(VulkanContext& ctx,

@@ -8,6 +8,13 @@
 namespace vulkan
 {
 
+struct AccelerationStructure
+{
+    vk::AccelerationStructureKHR handle;
+    VulkanBuffer buffer;
+    vk::DeviceAddress asDeviceAddress;
+};
+
 struct VulkanModel : Model
 {
     VulkanModel(const Geometry& geom)
@@ -17,7 +24,9 @@ struct VulkanModel : Model
 
     VulkanBuffer vertices;
     VulkanBuffer indices;
-    
+
+    AccelerationStructure as;
+
     const Geometry& geometry;
     std::string debugName;
 };

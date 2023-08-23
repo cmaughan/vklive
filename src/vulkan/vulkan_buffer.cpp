@@ -86,11 +86,27 @@ VulkanBuffer buffer_create(VulkanContext& ctx, const vk::BufferUsageFlags& usage
     result.descriptor.buffer = result.buffer = ctx.device.createBuffer(bufferCreateInfo);
 
     vk::MemoryRequirements memReqs = ctx.device.getBufferMemoryRequirements(result.buffer);
+
     vk::MemoryAllocateInfo memAlloc;
     result.allocSize = memAlloc.allocationSize = memReqs.size;
     memAlloc.memoryTypeIndex = utils_memory_type(ctx, memoryPropertyFlags, memReqs.memoryTypeBits);
+
+    bool devicePointer = (usageFlags & vk::BufferUsageFlagBits::eShaderDeviceAddress) ? true : false;
+    auto memAllocFlagsInfo = vk::MemoryAllocateFlagsInfo(vk::MemoryAllocateFlagBits::eDeviceAddress);
+    if (devicePointer)
+    {
+        memAlloc.pNext = &memAllocFlagsInfo;
+    }
+
     result.memory = ctx.device.allocateMemory(memAlloc);
     ctx.device.bindBufferMemory(result.buffer, result.memory, 0);
+
+    // get the gpu address of the memory
+    if (devicePointer)
+    {
+        result.deviceAddress = ctx.device.getBufferAddress(vk::BufferDeviceAddressInfo(result.buffer));
+    }
+
     return result;
 }
 
