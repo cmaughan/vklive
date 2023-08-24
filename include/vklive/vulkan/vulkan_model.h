@@ -26,6 +26,7 @@ struct VulkanModel : Model
     VulkanBuffer indices;
 
     std::vector<AccelerationStructure> accelerationStructures;
+    AccelerationStructure topLevelAS;
     bool initAccel = false;
 
     const Geometry& geometry;

@@ -38,7 +38,7 @@ T* buffer_map(VulkanContext& ctx, VulkanBuffer& buffer, size_t offset = 0, VkDev
 void buffer_unmap(VulkanContext& ctx, VulkanBuffer& buffer);
 
 VulkanBuffer buffer_create_on_device(VulkanContext& ctx, const vk::BufferUsageFlags& usageFlags, vk::DeviceSize size);
-VulkanBuffer buffer_create(VulkanContext& ctx, const vk::BufferUsageFlags& usageFlags, const vk::MemoryPropertyFlags& memoryPropertyFlags, vk::DeviceSize size);
+VulkanBuffer buffer_create(VulkanContext& ctx, const vk::BufferUsageFlags& usageFlags, const vk::MemoryPropertyFlags& memoryPropertyFlags, vk::DeviceSize size, void* pData = nullptr);
 
 VulkanBuffer buffer_create_staging(VulkanContext& ctx, vk::DeviceSize size, const void* data = nullptr);
 template <typename T>
@@ -66,5 +66,11 @@ VulkanBuffer buffer_stage_to_device(VulkanContext& ctx, const vk::BufferUsageFla
 }
 
 void buffer_create_or_resize(VulkanContext& ctx, vk::Buffer& buffer, vk::DeviceMemory& buffer_memory, vk::DeviceSize& p_buffer_size, size_t new_size, vk::BufferUsageFlagBits usage);
+
+template<class T>
+VulkanBuffer buffer_create(VulkanContext& ctx, const vk::BufferUsageFlags& usageFlags, const vk::MemoryPropertyFlags& memoryPropertyFlags, const std::vector<T>& data)
+{
+    return buffer_create(ctx, usageFlags, memoryPropertyFlags, data.size() * sizeof(T), (void*)data.data());
+}
 
 } // namespace vulkan

@@ -72,7 +72,7 @@ VulkanBuffer buffer_stage_to_device(VulkanContext& ctx, const vk::BufferUsageFla
     return result;
 }
 
-VulkanBuffer buffer_create(VulkanContext& ctx, const vk::BufferUsageFlags& usageFlags, const vk::MemoryPropertyFlags& memoryPropertyFlags, vk::DeviceSize size)
+VulkanBuffer buffer_create(VulkanContext& ctx, const vk::BufferUsageFlags& usageFlags, const vk::MemoryPropertyFlags& memoryPropertyFlags, vk::DeviceSize size, void* pData)
 {
     VulkanBuffer result;
     result.size = size;
@@ -107,6 +107,15 @@ VulkanBuffer buffer_create(VulkanContext& ctx, const vk::BufferUsageFlags& usage
         result.deviceAddress = ctx.device.getBufferAddress(vk::BufferDeviceAddressInfo(result.buffer));
     }
 
+    if (pData)
+    {
+        auto pTarget = buffer_map(ctx, result, size_t(0), size);
+        if (pTarget)
+        {
+            memcpy(pTarget, pData, size);
+            buffer_unmap(ctx, result);
+        }
+    }
     return result;
 }
 
