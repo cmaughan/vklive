@@ -50,6 +50,15 @@ extern "C" {
 #define T_VECTOR "vector"
 #define T_BOOL "bool"
 #define T_VS "vs"
+#define T_RAY_GROUP_GENERAL "ray_group_general"
+#define T_RAY_GROUP_TRIANGLES "ray_group_triangles"
+#define T_RAY_GROUP_PROCEDURAL "ray_group_procedural"
+#define T_RAY_GEN "ray_gen"
+#define T_RAY_ANY_HIT "any_hit"
+#define T_RAY_MISS "miss"
+#define T_RAY_CLOSEST_HIT "closest_hit"
+#define T_RAY_INTERSECTION "intersection"
+#define T_RAY_CALLABLE "callable"
 
 #include <concurrentqueue/concurrentqueue.h>
 
@@ -65,13 +74,28 @@ enum class ShaderType
 {
     Vertex,
     Geometry,
-    Fragment
+    Fragment,
+    RayGroupGeneral,
+    RayGroupTriangles,
+    RayGroupProcedural
 };
 
 const auto ShaderTypes = std::map<std::string, ShaderType>{
     { T_VS, ShaderType::Vertex },
     { T_GS, ShaderType::Geometry },
-    { T_FS, ShaderType::Fragment }
+    { T_FS, ShaderType::Fragment },
+    { T_RAY_GROUP_GENERAL, ShaderType::RayGroupGeneral },
+    { T_RAY_GROUP_TRIANGLES, ShaderType::RayGroupTriangles },
+    { T_RAY_GROUP_PROCEDURAL, ShaderType::RayGroupProcedural },
+};
+
+const auto RayShaderTypes = std::map<std::string, RayShaderType>{
+    { T_RAY_GEN, RayShaderType::Ray_Gen },
+    { T_RAY_CLOSEST_HIT, RayShaderType::Closest_Hit },
+    { T_RAY_INTERSECTION, RayShaderType::Intersection },
+    { T_RAY_CALLABLE, RayShaderType::Callable },
+    { T_RAY_ANY_HIT, RayShaderType::Any_Hit },
+    { T_RAY_MISS, RayShaderType::Miss }
 };
 
 const auto Formats = std::map<std::string, Format>{
@@ -133,16 +157,32 @@ void scene_init_parser()
     ADD_PARSER(disable, T_DISABLE);
     ADD_PARSER(flt, T_FLOAT);
     ADD_PARSER(format, T_FORMAT);
-    ADD_PARSER(fs, T_FS);
-    ADD_PARSER(geometry, T_GEOMETRY);
-    ADD_PARSER(gs, T_GS);
     ADD_PARSER(ident, T_IDENT);
     ADD_PARSER(ident_array, T_IDENT_ARRAY);
+
     ADD_PARSER(pass, T_PASS);
+    ADD_PARSER(samplers, T_SAMPLERS);
+    ADD_PARSER(targets, T_TARGETS);
+    ADD_PARSER(fs, T_FS);
+    ADD_PARSER(gs, T_GS);
+    ADD_PARSER(vs, T_VS);
+    ADD_PARSER(geometry, T_GEOMETRY);
+
+    // RT
+    ADD_PARSER(ray_group_general, T_RAY_GROUP_GENERAL);
+    ADD_PARSER(ray_group_triangles, T_RAY_GROUP_TRIANGLES);
+    ADD_PARSER(ray_group_procedural, T_RAY_GROUP_PROCEDURAL);
+    ADD_PARSER(ray_gen, T_RAY_GEN);
+    ADD_PARSER(miss, T_RAY_MISS);
+    ADD_PARSER(any_hit, T_RAY_ANY_HIT);
+    ADD_PARSER(closest_hit, T_RAY_CLOSEST_HIT);
+    ADD_PARSER(intersection, T_RAY_INTERSECTION);
+    ADD_PARSER(callable, T_RAY_CALLABLE);
+
+
     ADD_PARSER(path_id, T_PATH);
     ADD_PARSER(build_as, T_BUILD_AS);
     ADD_PARSER(path_name, T_PATH_NAME);
-    ADD_PARSER(samplers, T_SAMPLERS);
     ADD_PARSER(scale, T_SCALE);
     ADD_PARSER(size, T_SIZE);
     ADD_PARSER(surface, T_SURFACE);
@@ -154,10 +194,8 @@ void scene_init_parser()
     ADD_PARSER(near_far, T_NEAR_FAR);
     ADD_PARSER(field_of_view, T_FIELD_OF_VIEW);
 
-    ADD_PARSER(targets, T_TARGETS);
     ADD_PARSER(bool_id, T_BOOL);
     ADD_PARSER(vector, T_VECTOR);
-    ADD_PARSER(vs, T_VS);
 
     // Special case; we hold onto it.
     parser.pSceneGraph = mpc_new(T_SCENEGRAPH);
@@ -187,15 +225,24 @@ field_of_view    : "field_of_view" ':' <float> ;
 vs               : "vs" ':' <path_name> ;
 gs               : "gs" ':' <path_name> ;
 fs               : "fs" ':' <path_name> ;
+ray_gen          : "ray_gen" ':' <path_name> ;
+miss             : "miss" ':' <path_name> ;
+callable         : "callable" ':' <path_name> ;
+closest_hit      : "closest_hit" ':' <path_name> ;
+any_hit          : "any_hit" ':' <path_name> ;
+intersection     : "intersection" ':' <path_name> ;
 surface          : "surface" ':' <ident> '{' (<comment> | <path> | <clear> | <format> | <scale> | <size>)* '}';
 camera           : "camera" ':' <ident> '{' (<comment> | <position> | <look_at> | <field_of_view> | <near_far>)* '}';
-geometry         : "geometry" ':' <ident> '{' (<path> | <scale> | <build_as> | <vs> | <fs> | <gs> | <comment>)* '}';
+ray_group_general : "ray_group_general" ':' <ident> '{' (<ray_gen> | <miss> | <callable>) '}';
+ray_group_triangles : "ray_group_triangles" ':' <ident> '{' (<closest_hit> | <any_hit>)* '}';
+ray_group_procedural : "ray_group_procedural" ':' <ident> '{' <intersection> (<closest_hit> | <any_hit>)* '}';
+geometry         : "geometry" ':' <ident> '{' (<path> | <scale> | <build_as> | <ray_group_general> | <ray_group_triangles> | <ray_group_procedural> | <vs> | <fs> | <gs> | <comment>)* '}';
 disable          : '!' ;
 pass             : <disable>? "pass" ':' <ident> '{' (<geometry> | <targets> | <samplers> | <camera_id> | <comment> | <clear>)* '}'; 
 scenegraph       : /^/ (<comment> | <surface> | <camera>)* (<comment> | <pass> )* /$/ ;
     )",
         path_name, path_id, comment, ident, bool_id, flt, vector, ident_array, build_as, scale, size, clear, format,
-        samplers, targets, vs, gs, fs, surface, camera, camera_id, position, look_at, field_of_view, near_far, geometry, disable, pass, parser.pSceneGraph, nullptr);
+        samplers, targets, vs, gs, fs, surface, camera, camera_id, position, look_at, field_of_view, near_far, geometry, disable, pass, ray_group_general, ray_group_triangles, ray_group_procedural, ray_gen, miss, any_hit, closest_hit, intersection, callable, parser.pSceneGraph, nullptr);
 }
 
 void scene_destroy_parser()
@@ -624,22 +671,47 @@ std::shared_ptr<Scene> scene_build(const fs::path& root)
                         spGeom->buildAS = getBool(getChild(pGeometryNode, T_BUILD_AS));
                     }
 
+                    auto addShader = [&](auto pEntry) -> std::shared_ptr<Shader> {
+                        auto pPathNode = getChild(pEntry, T_PATH);
+                        auto shaderPath = root / pPathNode->contents;
+                        if (!fs::exists(shaderPath))
+                        {
+                            AddMessage(*spScene, std::string("Shader missing: " + shaderPath.filename().string()), MessageSeverity::Error, pPathNode->state.row, pPathNode->state.col);
+                            return nullptr;
+                        }
+                        auto spShaderFrag = std::make_shared<Shader>(shaderPath);
+                        spScene->shaders[spShaderFrag->path] = spShaderFrag;
+                        spPass->shaders.push_back(shaderPath);
+                        return spShaderFrag;
+                    };
+
                     // Shaders
-                    for (auto& [key, value] : ShaderTypes)
+                    for (auto& [ident, type] : ShaderTypes)
                     {
-                        auto shaderEntries = childrenOf(pGeometryNode, key);
+                        auto shaderEntries = childrenOf(pGeometryNode, ident);
                         for (auto& pShaderEntry : shaderEntries)
                         {
-                            auto pPathNode = getChild(pShaderEntry, T_PATH);
-                            auto shaderPath = root / pPathNode->contents;
-                            if (!fs::exists(shaderPath))
+                            if (type == ShaderType::Fragment || type == ShaderType::Geometry || type == ShaderType::Vertex)
                             {
-                                AddMessage(*spScene, std::string("Shader missing: " + shaderPath.filename().string()), MessageSeverity::Error, pPathNode->state.row, pPathNode->state.col);
-                                continue;
+                                addShader(pShaderEntry);
                             }
-                            auto spShaderFrag = std::make_shared<Shader>(shaderPath);
-                            spScene->shaders[spShaderFrag->path] = spShaderFrag;
-                            spPass->shaders.push_back(shaderPath);
+                            else
+                            {
+                                auto spShaderGroup = std::make_shared<ShaderGroup>();
+                                spScene->shaderGroups.push_back(spShaderGroup);
+                                for (auto& [ray_ident, ray_type] : RayShaderTypes)
+                                {
+                                    auto groupEntries = childrenOf(pShaderEntry, ray_ident);
+                                    for (auto& pGroupEntry : groupEntries)
+                                    {
+                                        auto spShader = addShader(pGroupEntry);
+                                        if (spShader)
+                                        {
+                                            spShaderGroup->shaders.push_back(std::make_pair(ray_type, spShader));
+                                        }
+                                    }
+                                }
+                            }
                         }
                     }
 
@@ -908,3 +980,53 @@ void scene_copy_state(Scene& destScene, Scene& sourceScene)
     }
 }
 
+bool scene_is_raytracer(const fs::path& f)
+{
+
+    if (f.extension() == ".rgen" || f.extension() == ".rmiss" || f.extension() == ".rchit")
+    {
+        return true;
+    }
+    return false;
+}
+
+bool scene_is_shader(const fs::path& f)
+{
+    if (scene_is_raytracer(f))
+    {
+        return true;
+    }
+    
+    if (f.extension() == ".vert" || f.extension() == ".frag" || f.extension() == ".geom")
+    {
+        return true;
+    }
+    return false;
+}
+
+bool scene_is_header(const fs::path& f)
+{
+    if (f.extension() == ".h" || f.extension() == ".inc")
+    {
+        return true;
+    }
+    return false;
+}
+
+bool scene_is_scenegraph(const fs::path& f)
+{
+    if (f.extension() == ".scenegraph")
+    {
+        return true;
+    }
+    return false;
+}
+
+bool scene_is_edit_file(const fs::path& f)
+{
+    if (scene_is_shader(f) || scene_is_header(f) || scene_is_scenegraph(f))
+    {
+        return true;
+    }
+    return false;
+}

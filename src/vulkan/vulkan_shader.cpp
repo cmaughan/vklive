@@ -129,26 +129,35 @@ bool shader_parse_output(const std::string& strOutput, const fs::path& shaderPat
     return errors;
 }
 
-void shader_reflect(const std::string& spirv, VulkanShader& vulkanShader)
+bool shader_reflect(const std::string& spirv, VulkanShader& vulkanShader)
 {
     SpvReflectShaderModule module = {};
     SpvReflectResult result = spvReflectCreateShaderModule(spirv.size(), spirv.c_str(), &module);
-    assert(result == SPV_REFLECT_RESULT_SUCCESS);
+    if (result != SPV_REFLECT_RESULT_SUCCESS)
+    {
+        return false;
+    }
 
-    #ifdef _DEBUG
+#ifdef _DEBUG
     std::ostringstream str;
     const spv_reflect::ShaderModule mod(spirv.size(), spirv.c_str());
     WriteReflection(mod, false, str);
     LOG_SCOPE(DBG, str.str());
-    #endif
+#endif
 
     uint32_t count = 0;
     result = spvReflectEnumerateDescriptorSets(&module, &count, NULL);
-    assert(result == SPV_REFLECT_RESULT_SUCCESS);
+    if (result != SPV_REFLECT_RESULT_SUCCESS)
+    {
+        return false;
+    }
 
     std::vector<SpvReflectDescriptorSet*> sets(count);
     result = spvReflectEnumerateDescriptorSets(&module, &count, sets.data());
-    assert(result == SPV_REFLECT_RESULT_SUCCESS);
+    if (result != SPV_REFLECT_RESULT_SUCCESS)
+    {
+        return false;
+    }
 
     for (auto& set : sets)
     {
@@ -180,14 +189,16 @@ void shader_reflect(const std::string& spirv, VulkanShader& vulkanShader)
     LOG_SCOPE(DBG, "Shader: " << vulkanShader.pShader->path.filename() << ", Bindings:");
     bindings_dump(vulkanShader.bindingSets);
     spvReflectDestroyShaderModule(&module);
+    return true;
 }
-
 
 std::shared_ptr<VulkanShader> vulkan_shader_create(VulkanContext& ctx, VulkanScene& vulkanScene, Shader& shader)
 {
     std::shared_ptr<VulkanShader> spShader = std::make_shared<VulkanShader>(&shader);
 
-    auto out_path = fs::temp_directory_path() / (shader.path.filename().string() + ".spirv");
+    auto out_path = fs::temp_directory_path() / "vklive";
+    fs::create_directories(out_path);
+    out_path = out_path / (shader.path.filename().string() + ".spirv");
 
     if (shader.path.extension().string() == ".vert")
     {
@@ -200,6 +211,18 @@ std::shared_ptr<VulkanShader> vulkan_shader_create(VulkanContext& ctx, VulkanSce
     else if (shader.path.extension().string() == ".geom")
     {
         spShader->shaderCreateInfo.stage = vk::ShaderStageFlagBits::eGeometry;
+    }
+    else if (shader.path.extension().string() == ".rchit")
+    {
+        spShader->shaderCreateInfo.stage = vk::ShaderStageFlagBits::eClosestHitKHR;
+    }
+    else if (shader.path.extension().string() == ".rgen")
+    {
+        spShader->shaderCreateInfo.stage = vk::ShaderStageFlagBits::eRaygenKHR;
+    }
+    else if (shader.path.extension().string() == ".rmiss")
+    {
+        spShader->shaderCreateInfo.stage = vk::ShaderStageFlagBits::eMissKHR;
     }
     else
     {
@@ -219,16 +242,26 @@ std::shared_ptr<VulkanShader> vulkan_shader_create(VulkanContext& ctx, VulkanSce
 #elif defined(__linux__)
     compiler_path = Zest::runtree_find_path("bin/linux/glslangValidator");
 #endif
+    std::vector<std::string> args{
+        compiler_path.string(),
+        "-V",
+        shader.path.string(),
+        "-o",
+        out_path.string(),
+        "-l",
+        "-g",
+        fmt::format("-I{}", fs::canonical(Zest::runtree_path() / "shaders/include").string()),
+    };
+
+    if (scene_is_raytracer(shader.path))
+    {
+        args.push_back("--target-env");
+        args.push_back("vulkan1.2");
+    }
+
     std::string output;
     auto ret = run_process(
-        { compiler_path.string(),
-            "-V",
-            "-l",
-            "-g",
-            fmt::format("-I{}", fs::canonical(Zest::runtree_path() / "shaders/include").string()),
-            "-o",
-            out_path.string(),
-            shader.path.string() },
+        args,
         &output);
     if (ret)
     {
@@ -242,8 +275,16 @@ std::shared_ptr<VulkanShader> vulkan_shader_create(VulkanContext& ctx, VulkanSce
     }
 
     auto spirv = Zest::file_read(out_path);
+    if (spirv.empty())
+    {
+        scene_report_error(*vulkanScene.pScene, MessageSeverity::Error, fmt::format("Could not get spirv for shader: {}", shader.path.filename().string()), shader.path);
+        return nullptr;
+    }
 
-    shader_reflect(spirv, *spShader);
+    if (!shader_reflect(spirv, *spShader))
+    {
+        scene_report_error(*vulkanScene.pScene, MessageSeverity::Error, fmt::format("Could not reflect spirv for shader: {}", shader.path.filename().string()), shader.path);
+    }
 
     // Create the shader modules
     spShader->shaderCreateInfo.module = ctx.device.createShaderModule(

@@ -24,6 +24,8 @@
 #endif
 #include <zep/filesystem.h>
 
+#include <vklive/scene.h>
+
 using namespace Zep;
 
 std::map<Zep::ZepBuffer*, std::set<std::string>> FileMessages;
@@ -424,7 +426,8 @@ void zep_update_files(const fs::path& root, bool reset)
     auto files = Zest::file_gather_files(root);
     for (auto& f : files)
     {
-        if (f.extension() == ".vert" || f.extension() == ".frag" || f.extension() == ".geom" || f.extension() == ".scenegraph" || f.extension() == ".h")
+        // TODO: Some helper functions to figure these extensions out.
+        if (scene_is_edit_file(f))
         {
             zep_load(f.string());
         }
@@ -545,9 +548,7 @@ void zep_replace_text(ZepBuffer& buffer, const std::string& text)
 
 bool format_file(const fs::path& path, std::string& out, uint32_t& cursorIndex)
 {
-    auto valid = std::vector{ ".vert", ".frag", ".geom" };
-    if (!path.has_extension() || 
-        std::find(valid.begin(), valid.end(), path.extension().string()) == valid.end())
+    if (!path.has_extension() || !scene_is_shader(path))
     {
         return false;
     }

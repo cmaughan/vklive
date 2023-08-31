@@ -131,7 +131,10 @@ std::set<std::string> VulkanDevice::ShaderFileExtensions()
         ".vs",
         ".frag",
         ".geom",
-        ".vert"
+        ".vert",
+        ".rchit",
+        ".rgen",
+        ".rmiss"
     };
 }
 

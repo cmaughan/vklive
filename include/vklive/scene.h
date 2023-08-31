@@ -88,6 +88,21 @@ struct Shader
     fs::path path;
 };
 
+enum class RayShaderType
+{
+    Ray_Gen,
+    Closest_Hit,
+    Any_Hit,
+    Miss,
+    Callable,
+    Intersection
+};
+
+struct ShaderGroup
+{
+    std::vector<std::pair<RayShaderType, std::shared_ptr<Shader>>> shaders;
+};
+
 struct Scene;
 struct PassSampler
 {
@@ -133,6 +148,7 @@ struct Scene
     std::map<std::string, std::shared_ptr<Camera>> cameras;
     std::map<fs::path, std::shared_ptr<Geometry>> models;
     std::map<fs::path, std::shared_ptr<Shader>> shaders;
+    std::vector<std::shared_ptr<ShaderGroup>> shaderGroups;
     std::map<std::string, std::shared_ptr<Pass>> passes;
     std::vector<Message> errors;
     std::vector<Message> warnings;
@@ -163,3 +179,10 @@ fs::path scene_find_asset(Scene& scene, const fs::path& path, AssetType assetTyp
 Surface* scene_get_surface(Scene& scene, const std::string& surfacename);
 Camera* scene_get_camera(Scene& scene, const std::string& cameraName);
 void scene_copy_state(Scene& dest, Scene& source);
+
+bool scene_is_raytracer(const fs::path& path);
+bool scene_is_shader(const fs::path& path);
+bool scene_is_edit_file(const fs::path& path);
+bool scene_is_header(const fs::path& path);
+bool scene_is_scenegraph(const fs::path& path);
+

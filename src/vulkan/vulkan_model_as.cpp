@@ -193,12 +193,24 @@ void createTopLevelAccelerationStructure(VulkanContext& ctx, VulkanModel& model)
     vulkan_buffer_destroy(ctx, scratchBuffer);
 }
 
+// The top level acceleration structure contains the scene's object instances
+void vulkan_model_build_acceleration_structure(VulkanContext& ctx, VulkanModel& model)
+{
+    if (!model.initAccel)
+    {
+        createBottomLevelAccelerationStructure(ctx, model);
+        if (!model.accelerationStructures.empty())
+        {
+            createTopLevelAccelerationStructure(ctx, model);
+        }
+        model.initAccel = true;
+    }
+}
+
+} // namespace vulkan
+
+
 #if 0
-
-/*
-    Gets the device address from a buffer that's required for some of the buffers used for ray tracing
-*/
-
 /*
     Set up a storage image that the ray generation shader will be writing to
 */
@@ -247,22 +259,3 @@ void createStorageImage()
 }
 #endif
 
-
-// The top level acceleration structure contains the scene's object instances
-void vulkan_model_build_acceleration_structure(VulkanContext& ctx, VulkanModel& model)
-{
-    if (!model.initAccel)
-    {
-        createBottomLevelAccelerationStructure(ctx, model);
-        if (!model.accelerationStructures.empty())
-        {
-            createTopLevelAccelerationStructure(ctx, model);
-        }
-        model.initAccel = true;
-    }
-
-    // createTopLevelAccelerationStructure();
-    //  createStorageImage();
-}
-
-} // namespace vulkan
