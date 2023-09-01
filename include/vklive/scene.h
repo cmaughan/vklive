@@ -131,6 +131,7 @@ struct Pass
 
     int scriptTargetsLine = 0;
     int scriptSamplersLine = 0;
+    int scriptPassLine = 0;
 };
 
 struct Scene

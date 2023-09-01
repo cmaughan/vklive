@@ -9,6 +9,7 @@
 
 #include <vklive/vulkan/vulkan_bindings.h>
 #include <vklive/vulkan/vulkan_reflect.h>
+#include <vklive/vulkan/vulkan_pass.h>
 
 namespace vulkan
 {
@@ -27,16 +28,40 @@ void bindings_dump(const BindingSets& bindingSets)
     }
 }
 
-BindingSets bindings_merge(const std::vector<BindingSets*>& mergeInputs)
+bool bindings_merge(VulkanPass& vulkanPass, const std::vector<BindingSets*>& mergeInputs, BindingSets& bindingSets)
 {
-    std::map<uint32_t, VulkanBindingSet> bindingSets;
+    auto& vulkanScene = vulkanPass.vulkanScene;
     for (auto& merge : mergeInputs)
     {
         for (const auto& [set, bindings] : *merge)
         {
             VulkanBindingSet copy = bindings;
-            bindingSets[set].bindings.merge(copy.bindings);
-            bindingSets[set].bindingMeta.merge(copy.bindingMeta);
+            for (auto& [index, value] : copy.bindings)
+            {
+                if (bindingSets[set].bindings.find(index) != bindingSets[set].bindings.end())
+                {
+                    if (bindingSets[set].bindings[index].descriptorType != value.descriptorType)
+                    {
+                        scene_report_error(*vulkanScene.pScene, MessageSeverity::Error, fmt::format("Pass {}: Bindings for set {}, index {} do not match", vulkanPass.pass.name, set, index), vulkanScene.pScene->sceneGraphPath, vulkanPass.pass.scriptPassLine);
+                        bindingSets.clear();
+                        return false;
+                    }
+                }
+                bindingSets[set].bindings[index] = value;
+            }
+
+            for (auto& [index, value] : copy.bindingMeta)
+            {
+                // Do we care if meta doesn't match? Should be taken care of above by binding type
+                bindingSets[set].bindingMeta[index] = value;
+            }
+
+            if (bindingSets[set].bindingMeta.size() != bindingSets[set].bindings.size())
+            {
+                scene_report_error(*vulkanScene.pScene, MessageSeverity::Error, fmt::format("Pass {}: Bindings meta mismatch?", vulkanPass.pass.name), vulkanScene.pScene->sceneGraphPath);
+                bindingSets.clear();
+                return false;
+            }
         }
     }
 
@@ -59,7 +84,7 @@ BindingSets bindings_merge(const std::vector<BindingSets*>& mergeInputs)
         }
     }
 
-    return bindingSets;
+    return true;
 }
 
 } // namespace vulkan

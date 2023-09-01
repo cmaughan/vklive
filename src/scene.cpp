@@ -643,6 +643,8 @@ std::shared_ptr<Scene> scene_build(const fs::path& root)
                 }
                 auto spPass = std::make_shared<Pass>(*spScene, pPassNameNode->contents);
 
+                spPass->scriptPassLine = int(pPassNode->state.row);
+
                 auto models = childrenOf(pPassNode, T_GEOMETRY);
                 for (auto& pGeometryNode : models)
                 {

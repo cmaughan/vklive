@@ -82,6 +82,11 @@ vk::Pipeline pipeline_create(VulkanContext& ctx, const VertexLayout& vertexLayou
         dynamic_state.dynamicStateCount = (uint32_t)(dynamic_states.size());
         dynamic_state.pDynamicStates = dynamic_states.data();
 
+        // Pipeline create.
+        // 1. Shaders for pStages
+        // 2. Vertex input state
+        // 3. Various shader state
+        // 4. Pass targets, etc.
         vk::GraphicsPipelineCreateInfo info(vk::PipelineCreateFlags(), shaders);
         info.pVertexInputState = &vertex_info;
         info.pInputAssemblyState = &ia_info;

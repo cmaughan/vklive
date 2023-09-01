@@ -2,8 +2,8 @@
 
 #include <zest/file/file.h>
 
-#include <vklive/vulkan/vulkan_context.h>
 #include <vklive/scene.h>
+#include <vklive/vulkan/vulkan_context.h>
 
 namespace vulkan
 {
@@ -21,12 +21,11 @@ struct VulkanBindingSet
     // [Index, Binding]
     std::map<uint32_t, vk::DescriptorSetLayoutBinding> bindings;
     std::map<uint32_t, VulkanBindingMeta> bindingMeta;
-    
 };
 
 using BindingSets = std::map<uint32_t, VulkanBindingSet>;
 
-BindingSets bindings_merge(const std::vector<BindingSets*>& sets);
+bool bindings_merge(VulkanPass& pass, const std::vector<BindingSets*>& sets, BindingSets& bindingSets);
 void bindings_dump(const BindingSets& bindingSets);
 
 } // namespace vulkan

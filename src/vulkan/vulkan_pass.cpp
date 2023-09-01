@@ -729,7 +729,7 @@ void vulkan_pass_prepare_uniforms(VulkanContext& ctx, VulkanPass& vulkanPass)
     utils_copy_to_memory(ctx, passFrameData.vsUniform.memory, ubo);
 }
 
-void vulkan_pass_build_descriptors(VulkanContext& ctx, VulkanPass& vulkanPass)
+bool vulkan_pass_build_descriptors(VulkanContext& ctx, VulkanPass& vulkanPass)
 {
     PROFILE_SCOPE(build_descriptors);
 
@@ -739,7 +739,7 @@ void vulkan_pass_build_descriptors(VulkanContext& ctx, VulkanPass& vulkanPass)
 
     if (passFrameData.builtDescriptors)
     {
-        return;
+        return true;
     }
 
     LOG_SCOPE(DBG, "Build Descriptors:");
@@ -752,7 +752,10 @@ void vulkan_pass_build_descriptors(VulkanContext& ctx, VulkanPass& vulkanPass)
     auto f = [&](auto& p) { return stages.find(p) != stages.end(); };
     auto t = [&](auto& p) { return &stages.find(p)->second->bindingSets; };
     auto bindings = vulkanPass.pass.shaders | views::filter(f) | views::transform(t) | to<std::vector>();
-    passFrameData.mergedBindingSets = bindings_merge(bindings);
+    if (!bindings_merge(vulkanPass, bindings, passFrameData.mergedBindingSets))
+    {
+        return false;
+    }
 
     LOG(DBG, "Pass: " << passFrameData.debugName << ", Merged Bindings:");
     bindings_dump(passFrameData.mergedBindingSets);
@@ -776,7 +779,7 @@ void vulkan_pass_build_descriptors(VulkanContext& ctx, VulkanPass& vulkanPass)
             if (itrMeta == bindingSet.bindingMeta.end())
             {
                 scene_report_error(*vulkanScene.pScene, MessageSeverity::Error, fmt::format("Could not find binding for index: {}", index), itrMeta->second.shaderPath, itrMeta->second.line, itrMeta->second.range);
-                return;
+                return false;
             }
 
             bindings.push_back(binding);
@@ -796,6 +799,7 @@ void vulkan_pass_build_descriptors(VulkanContext& ctx, VulkanPass& vulkanPass)
             layout = descriptorSetLayout;
         }
     }
+    return true;
 }
 
 void vulkan_pass_set_descriptors(VulkanContext& ctx, VulkanPass& vulkanPass)
@@ -916,14 +920,14 @@ void vulkan_pass_set_descriptors(VulkanContext& ctx, VulkanPass& vulkanPass)
 
 // 1. Get Shader stages for this pass
 // 2. Remember the pass stage info to catch validation errors
-void vulkan_pass_prepare_pipeline(VulkanContext& ctx, VulkanPassSwapFrameData& frameData)
+bool vulkan_pass_prepare_pipeline(VulkanContext& ctx, VulkanPassSwapFrameData& frameData)
 {
     PROFILE_SCOPE(prepare_pipeline);
 
     // No need to recreate the geometry pipeline
     if (frameData.geometryPipeline)
     {
-        return;
+        return true;
     }
 
     LOG_SCOPE(DBG, "Prepare Pipeline:");
@@ -937,6 +941,12 @@ void vulkan_pass_prepare_pipeline(VulkanContext& ctx, VulkanPassSwapFrameData& f
     std::vector<vk::PipelineShaderStageCreateInfo> shaderStages;
     for (auto& shaderPath : pass.shaders)
     {
+        if (scene_is_raytracer(shaderPath))
+        {
+            scene_report_error(*vulkanScene.pScene, MessageSeverity::Error, fmt::format("Pass {}: Ray tracer not allowed in this pipeline", pass.name), vulkanScene.pScene->sceneGraphPath, pass.scriptPassLine);
+            return false;
+        }
+
         auto itrStage = vulkanScene.shaderStages.find(shaderPath);
         if (itrStage != vulkanScene.shaderStages.end())
         {
@@ -955,6 +965,8 @@ void vulkan_pass_prepare_pipeline(VulkanContext& ctx, VulkanPassSwapFrameData& f
     debug_set_pipeline_name(ctx.device, frameData.geometryPipeline, fmt::format("GeomPipe: {}", frameData.debugName));
 
     LOG(DBG, "Create GeometryPipe: " << frameData.geometryPipeline);
+
+    return true;
 }
 
 // Transition samplers to read, if they are not already
@@ -1099,13 +1111,15 @@ bool vulkan_pass_draw(VulkanContext& ctx, VulkanPass& vulkanPass)
     vulkan_pass_prepare_uniforms(ctx, vulkanPass);
 
     // Prepare bindings for this pass; may not have to recreate
-    vulkan_pass_build_descriptors(ctx, vulkanPass);
-
-    // Graphics pipeline
-    vulkan_pass_prepare_pipeline(ctx, passFrameData);
-
-    // Build the actual descriptors, new each time
-    vulkan_pass_set_descriptors(ctx, vulkanPass);
+    if (vulkan_pass_build_descriptors(ctx, vulkanPass))
+    {
+        // Graphics pipeline
+        if (vulkan_pass_prepare_pipeline(ctx, passFrameData))
+        {
+            // Build the actual descriptors, new each time
+            vulkan_pass_set_descriptors(ctx, vulkanPass);
+        }
+    }
 
     // Validation layer may set an error, meaning this scene is not valid!
     // audio_destroy it, and reset the error trigger
