@@ -832,6 +832,17 @@ void vulkan_pass_set_descriptors(VulkanContext& ctx, VulkanPass& vulkanPass)
             imageInfos[passSampler.sampler] = desc_image;
         }
     }
+    
+    for (auto& pTarget : passTargets.orderedTargets)
+    {
+        if (pTarget->pVulkanSurface->image)
+        {
+            vk::DescriptorImageInfo desc_image;
+            desc_image.imageView = pTarget->pVulkanSurface->view;
+            desc_image.imageLayout = vk::ImageLayout::eShaderReadOnlyOptimal;
+            imageInfos[pTarget->pVulkanSurface->pSurface->name] = desc_image;
+        }
+    }
 
     passFrameData.descriptorSets.clear();
 
@@ -913,7 +924,7 @@ void vulkan_pass_set_descriptors(VulkanContext& ctx, VulkanPass& vulkanPass)
                     }
                 }
             }
-            else if (binding.descriptorType == vk::DescriptorType::eCombinedImageSampler)
+            else if (binding.descriptorType == vk::DescriptorType::eCombinedImageSampler || binding.descriptorType == vk::DescriptorType::eStorageImage)
             {
                 // Map specific sampler in set to the correct slot
                 // Based on name in shader.
