@@ -101,9 +101,14 @@ struct VulkanPassSwapFrameData
     };
     UBO vsUBO;
     
-    vk::Pipeline geometryPipeline;
+    vk::Pipeline pipeline;
     vk::PipelineLayout geometryPipelineLayout;
     std::map<uint32_t, VulkanBindingSet> mergedBindingSets;
+
+    std::vector<vk::RayTracingShaderGroupCreateInfoKHR> rayGroupCreateInfos;
+    VulkanBuffer rayGenBindingTable;
+    VulkanBuffer missBindingTable;
+    VulkanBuffer hitBindingTable;
 
     // Descriptors built once
     bool builtDescriptors = false;

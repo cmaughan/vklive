@@ -70,16 +70,6 @@ struct Parser
 };
 Parser parser;
 
-enum class ShaderType
-{
-    Vertex,
-    Geometry,
-    Fragment,
-    RayGroupGeneral,
-    RayGroupTriangles,
-    RayGroupProcedural
-};
-
 const auto ShaderTypes = std::map<std::string, ShaderType>{
     { T_VS, ShaderType::Vertex },
     { T_GS, ShaderType::Geometry },
@@ -645,6 +635,13 @@ std::shared_ptr<Scene> scene_build(const fs::path& root)
 
                 spPass->scriptPassLine = int(pPassNode->state.row);
 
+                auto setPassType = [&](PassType type, int row = 0) {
+                    if ((spPass->passType != PassType::Unknown) && (spPass->passType != type))
+                    {
+                        AddMessage(*spScene, fmt::format("Pass {} can only be RT or shading?", spPass->name), MessageSeverity::Error, row);
+                    }
+                    spPass->passType = type;
+                };
                 auto models = childrenOf(pPassNode, T_GEOMETRY);
                 for (auto& pGeometryNode : models)
                 {
@@ -695,12 +692,16 @@ std::shared_ptr<Scene> scene_build(const fs::path& root)
                         {
                             if (type == ShaderType::Fragment || type == ShaderType::Geometry || type == ShaderType::Vertex)
                             {
+                                setPassType(PassType::Standard, pGeometryNode->state.row);
+
                                 addShader(pShaderEntry);
                             }
                             else
                             {
-                                auto spShaderGroup = std::make_shared<ShaderGroup>();
-                                spScene->shaderGroups.push_back(spShaderGroup);
+                                setPassType(PassType::RayTracing, pGeometryNode->state.row);
+
+                                auto spShaderGroup = std::make_shared<ShaderGroup>(type);
+                                spPass->shaderGroups.push_back(spShaderGroup);
                                 for (auto& [ray_ident, ray_type] : RayShaderTypes)
                                 {
                                     auto groupEntries = childrenOf(pShaderEntry, ray_ident);

@@ -18,11 +18,14 @@
 #include "vklive/vulkan/vulkan_uniform.h"
 #include "vklive/vulkan/vulkan_utils.h"
 
-
 using namespace ranges;
 
 namespace vulkan
 {
+uint32_t alignedSize(uint32_t value, uint32_t alignment)
+{
+    return (value + alignment - 1) & ~(alignment - 1);
+}
 
 VulkanPassSwapFrameData& vulkan_pass_frame_data(VulkanContext& ctx, VulkanPass& vulkanPass)
 {
@@ -67,10 +70,10 @@ void vulkan_pass_destroy(VulkanContext& ctx, VulkanPass& vulkanPass)
         vulkan_buffer_destroy(ctx, passData.vsUniform);
 
         // Pipeline/graphics
-        LOG(DBG, "Destroy GeometryPipe: " << passData.geometryPipeline);
-        ctx.device.destroyPipeline(passData.geometryPipeline);
+        LOG(DBG, "Destroy GeometryPipe: " << passData.pipeline);
+        ctx.device.destroyPipeline(passData.pipeline);
         ctx.device.destroyPipelineLayout(passData.geometryPipelineLayout);
-        passData.geometryPipeline = nullptr;
+        passData.pipeline = nullptr;
         passData.geometryPipelineLayout = nullptr;
     }
 }
@@ -336,12 +339,12 @@ bool vulkan_pass_check_targets(VulkanContext& ctx, VulkanPassTargets& passTarget
         }
 
         // Geom pipe uses the render pass
-        if (passTargets.pFrameData && passTargets.pFrameData->geometryPipeline)
+        if (passTargets.pFrameData && passTargets.pFrameData->pipeline)
         {
-            LOG(DBG, "Destroy Geometry Pipe: " << passTargets.pFrameData->geometryPipeline);
-            ctx.device.destroyPipeline(passTargets.pFrameData->geometryPipeline);
+            LOG(DBG, "Destroy Geometry Pipe: " << passTargets.pFrameData->pipeline);
+            ctx.device.destroyPipeline(passTargets.pFrameData->pipeline);
             ctx.device.destroyPipelineLayout(passTargets.pFrameData->geometryPipelineLayout);
-            passTargets.pFrameData->geometryPipeline = nullptr;
+            passTargets.pFrameData->pipeline = nullptr;
             passTargets.pFrameData->geometryPipelineLayout = nullptr;
         }
     }
@@ -389,12 +392,12 @@ void vulkan_pass_check_samplers(VulkanContext& ctx, VulkanPassTargets& passTarge
             vulkan_pass_wait(ctx, *passTargets.pFrameData);
 
             // Geom pipe uses the render pass
-            if (frameData.geometryPipeline)
+            if (frameData.pipeline)
             {
-                LOG(DBG, "Destroy Geometry Pipe: " << frameData.geometryPipeline);
-                ctx.device.destroyPipeline(frameData.geometryPipeline);
+                LOG(DBG, "Destroy Geometry Pipe: " << frameData.pipeline);
+                ctx.device.destroyPipeline(frameData.pipeline);
                 ctx.device.destroyPipelineLayout(frameData.geometryPipelineLayout);
-                passTargets.pFrameData->geometryPipeline = nullptr;
+                passTargets.pFrameData->pipeline = nullptr;
                 passTargets.pFrameData->geometryPipelineLayout = nullptr;
             }
 
@@ -925,7 +928,7 @@ bool vulkan_pass_prepare_pipeline(VulkanContext& ctx, VulkanPassSwapFrameData& f
     PROFILE_SCOPE(prepare_pipeline);
 
     // No need to recreate the geometry pipeline
-    if (frameData.geometryPipeline)
+    if (frameData.pipeline)
     {
         return true;
     }
@@ -939,19 +942,63 @@ bool vulkan_pass_prepare_pipeline(VulkanContext& ctx, VulkanPassSwapFrameData& f
 
     // Get the shader stage info
     std::vector<vk::PipelineShaderStageCreateInfo> shaderStages;
+    std::map<fs::path, uint32_t> shaderPathToIndex;
     for (auto& shaderPath : pass.shaders)
     {
-        if (scene_is_raytracer(shaderPath))
-        {
-            scene_report_error(*vulkanScene.pScene, MessageSeverity::Error, fmt::format("Pass {}: Ray tracer not allowed in this pipeline", pass.name), vulkanScene.pScene->sceneGraphPath, pass.scriptPassLine);
-            return false;
-        }
-
         auto itrStage = vulkanScene.shaderStages.find(shaderPath);
         if (itrStage != vulkanScene.shaderStages.end())
         {
             shaderStages.push_back(itrStage->second->shaderCreateInfo);
+            shaderPathToIndex[shaderPath] = shaderStages.size() - 1;
         }
+    }
+
+    for (auto& group : pass.shaderGroups)
+    {
+        vk::RayTracingShaderGroupCreateInfoKHR shaderGroup;
+        switch (group->groupType)
+        {
+        case ShaderType::RayGroupGeneral:
+            shaderGroup = vk::RayTracingShaderGroupCreateInfoKHR(vk::RayTracingShaderGroupTypeKHR::eGeneral, VK_SHADER_UNUSED_KHR, VK_SHADER_UNUSED_KHR, VK_SHADER_UNUSED_KHR, VK_SHADER_UNUSED_KHR);
+            break;
+        case ShaderType::RayGroupTriangles:
+            shaderGroup = vk::RayTracingShaderGroupCreateInfoKHR(vk::RayTracingShaderGroupTypeKHR::eTrianglesHitGroup, VK_SHADER_UNUSED_KHR, VK_SHADER_UNUSED_KHR, VK_SHADER_UNUSED_KHR, VK_SHADER_UNUSED_KHR);
+            break;
+        case ShaderType::RayGroupProcedural:
+            shaderGroup = vk::RayTracingShaderGroupCreateInfoKHR(vk::RayTracingShaderGroupTypeKHR::eProceduralHitGroup, VK_SHADER_UNUSED_KHR, VK_SHADER_UNUSED_KHR, VK_SHADER_UNUSED_KHR, VK_SHADER_UNUSED_KHR);
+            break;
+        }
+
+        for (auto& shader : group->shaders)
+        {
+            auto itrStage = vulkanScene.shaderStages.find(shader.second->path);
+            if (itrStage != vulkanScene.shaderStages.end())
+            {
+                switch (shader.first)
+                {
+                case RayShaderType::Miss:
+                    shaderGroup.setGeneralShader(shaderPathToIndex[shader.second->path]);
+                    break;
+                case RayShaderType::Ray_Gen:
+                    shaderGroup.setGeneralShader(shaderPathToIndex[shader.second->path]);
+                    break;
+                case RayShaderType::Any_Hit:
+                    shaderGroup.setAnyHitShader(shaderPathToIndex[shader.second->path]);
+                    break;
+                case RayShaderType::Closest_Hit:
+                    shaderGroup.setClosestHitShader(shaderPathToIndex[shader.second->path]);
+                    break;
+                case RayShaderType::Intersection:
+                    shaderGroup.setIntersectionShader(shaderPathToIndex[shader.second->path]);
+                    break;
+                case RayShaderType::Callable:
+                    assert(!"Is this OK?");
+                    shaderGroup.setGeneralShader(shaderPathToIndex[shader.second->path]);
+                    break;
+                }
+            }
+        }
+        frameData.rayGroupCreateInfos.push_back(shaderGroup);
     }
 
     if (!shaderStages.empty())
@@ -961,10 +1008,37 @@ bool vulkan_pass_prepare_pipeline(VulkanContext& ctx, VulkanPassSwapFrameData& f
         debug_set_pipelinelayout_name(ctx.device, frameData.geometryPipelineLayout, fmt::format("GeomPipeLayout: {}", frameData.debugName));
     }
 
-    frameData.geometryPipeline = pipeline_create(ctx, g_vertexLayout, frameData.geometryPipelineLayout, vulkanPassTargets, shaderStages);
-    debug_set_pipeline_name(ctx.device, frameData.geometryPipeline, fmt::format("GeomPipe: {}", frameData.debugName));
+    if (frameData.pVulkanPass->pass.passType == PassType::Standard)
+    {
+        frameData.pipeline = pipeline_create(ctx, g_vertexLayout, frameData.geometryPipelineLayout, vulkanPassTargets, shaderStages);
+        debug_set_pipeline_name(ctx.device, frameData.pipeline, fmt::format("GeomPipe: {}", frameData.debugName));
+        LOG(DBG, "Create GeometryPipe: " << frameData.pipeline);
+    }
+    else
+    {
+        if (!frameData.rayGroupCreateInfos.empty())
+        {
+            vk::RayTracingPipelineCreateInfoKHR createInfo;
+            createInfo.setStages(shaderStages);
+            createInfo.setGroups(frameData.rayGroupCreateInfos);
+            createInfo.setMaxPipelineRayRecursionDepth(3);
+            createInfo.setLayout(frameData.geometryPipelineLayout);
+            frameData.pipeline = ctx.device.createRayTracingPipelineKHR(nullptr, nullptr, createInfo).value;
 
-    LOG(DBG, "Create GeometryPipe: " << frameData.geometryPipeline);
+            if (frameData.pipeline)
+            {
+                const uint32_t handleSize = ctx.rayTracingPipelineProperties.shaderGroupHandleSize;
+                const uint32_t handleSizeAligned = alignedSize(ctx.rayTracingPipelineProperties.shaderGroupHandleSize, ctx.rayTracingPipelineProperties.shaderGroupHandleAlignment);
+
+                auto groupCount = frameData.rayGroupCreateInfos.size();
+                auto handles = ctx.device.getRayTracingShaderGroupHandlesKHR<uint8_t>(frameData.pipeline, 0, groupCount, groupCount * handleSizeAligned);
+
+                frameData.rayGenBindingTable = buffer_create(ctx, vk::BufferUsageFlagBits::eShaderBindingTableKHR | vk::BufferUsageFlagBits::eShaderDeviceAddress, vk::MemoryPropertyFlagBits::eHostVisible | vk::MemoryPropertyFlagBits::eHostCoherent, vk::DeviceSize(handleSize), handles.data());
+                frameData.missBindingTable = buffer_create(ctx, vk::BufferUsageFlagBits::eShaderBindingTableKHR | vk::BufferUsageFlagBits::eShaderDeviceAddress, vk::MemoryPropertyFlagBits::eHostVisible | vk::MemoryPropertyFlagBits::eHostCoherent, vk::DeviceSize(handleSize), handles.data() + handleSizeAligned);
+                frameData.hitBindingTable = buffer_create(ctx, vk::BufferUsageFlagBits::eShaderBindingTableKHR | vk::BufferUsageFlagBits::eShaderDeviceAddress, vk::MemoryPropertyFlagBits::eHostVisible | vk::MemoryPropertyFlagBits::eHostCoherent, vk::DeviceSize(handleSize), handles.data() + handleSizeAligned * 2);
+            }
+        }
+    }
 
     return true;
 }
@@ -1030,28 +1104,76 @@ void vulkan_pass_submit(VulkanContext& ctx, VulkanPass& vulkanPass)
 
     auto& cmd = passFrameData.commandBuffer;
     debug_begin_region(cmd, passFrameData.debugName, glm::vec4(1.0f, 0.0f, 0.0f, 1.0f));
-    cmd.beginRenderPass(renderPassBeginInfo, vk::SubpassContents::eInline);
-    cmd.setViewport(0, viewport(glm::uvec2(rect.x, rect.y)));
-    cmd.setScissor(0, rect2d(glm::uvec2(rect.x, rect.y)));
-    if (!passFrameData.descriptorSets.empty())
-    {
-        cmd.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, passFrameData.geometryPipelineLayout, 0, passFrameData.descriptorSets, {});
-    }
-    cmd.bindPipeline(vk::PipelineBindPoint::eGraphics, passFrameData.geometryPipeline);
 
-    for (auto& geom : vulkanPass.pass.models)
+    if (passFrameData.pVulkanPass->pass.passType == PassType::Standard)
     {
-        auto itrGeom = vulkanPass.vulkanScene.models.find(geom);
-        if (itrGeom != vulkanPass.vulkanScene.models.end())
+        cmd.beginRenderPass(renderPassBeginInfo, vk::SubpassContents::eInline);
+        cmd.setViewport(0, viewport(glm::uvec2(rect.x, rect.y)));
+        cmd.setScissor(0, rect2d(glm::uvec2(rect.x, rect.y)));
+        if (!passFrameData.descriptorSets.empty())
         {
-            auto pVulkanGeom = itrGeom->second;
-            cmd.bindVertexBuffers(0, pVulkanGeom->vertices.buffer, { 0 });
-            cmd.bindIndexBuffer(pVulkanGeom->indices.buffer, 0, vk::IndexType::eUint32);
-            cmd.drawIndexed(pVulkanGeom->indexCount, 1, 0, 0, 0);
+            cmd.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, passFrameData.geometryPipelineLayout, 0, passFrameData.descriptorSets, {});
         }
+
+        if (passFrameData.pipeline)
+        {
+            // Graphics Pipe
+            cmd.bindPipeline(vk::PipelineBindPoint::eGraphics, passFrameData.pipeline);
+
+            for (auto& geom : vulkanPass.pass.models)
+            {
+                auto itrGeom = vulkanPass.vulkanScene.models.find(geom);
+                if (itrGeom != vulkanPass.vulkanScene.models.end())
+                {
+                    auto pVulkanGeom = itrGeom->second;
+                    cmd.bindVertexBuffers(0, pVulkanGeom->vertices.buffer, { 0 });
+                    cmd.bindIndexBuffer(pVulkanGeom->indices.buffer, 0, vk::IndexType::eUint32);
+                    cmd.drawIndexed(pVulkanGeom->indexCount, 1, 0, 0, 0);
+                }
+            }
+        }
+
+        cmd.endRenderPass();
+    }
+    else if (passFrameData.pVulkanPass->pass.passType == PassType::RayTracing)
+    {
+        if (!passFrameData.descriptorSets.empty())
+        {
+            cmd.bindDescriptorSets(vk::PipelineBindPoint::eRayTracingKHR, passFrameData.geometryPipelineLayout, 0, passFrameData.descriptorSets, {});
+        }
+        // RT pipe
+        cmd.bindPipeline(vk::PipelineBindPoint::eRayTracingKHR, passFrameData.pipeline);
+
+        const uint32_t handleSize = ctx.rayTracingPipelineProperties.shaderGroupHandleSize;
+        const uint32_t handleSizeAligned = alignedSize(ctx.rayTracingPipelineProperties.shaderGroupHandleSize, ctx.rayTracingPipelineProperties.shaderGroupHandleAlignment);
+
+        VkStridedDeviceAddressRegionKHR raygenShaderSbtEntry;
+        raygenShaderSbtEntry.deviceAddress = passFrameData.rayGenBindingTable.deviceAddress.deviceAddress;
+        raygenShaderSbtEntry.stride = handleSizeAligned;
+        raygenShaderSbtEntry.size = handleSizeAligned;
+
+        VkStridedDeviceAddressRegionKHR missShaderSbtEntry{};
+        missShaderSbtEntry.deviceAddress = passFrameData.missBindingTable.deviceAddress.deviceAddress;
+        missShaderSbtEntry.stride = handleSizeAligned;
+        missShaderSbtEntry.size = handleSizeAligned;
+
+        VkStridedDeviceAddressRegionKHR hitShaderSbtEntry{};
+        hitShaderSbtEntry.deviceAddress = passFrameData.hitBindingTable.deviceAddress.deviceAddress;
+        hitShaderSbtEntry.stride = handleSizeAligned;
+        hitShaderSbtEntry.size = handleSizeAligned;
+
+        VkStridedDeviceAddressRegionKHR callableShaderSbtEntry{};
+
+        cmd.traceRaysKHR(
+            raygenShaderSbtEntry,
+            missShaderSbtEntry,
+            hitShaderSbtEntry,
+            callableShaderSbtEntry,
+            passTargets.targetSize.x,
+            passTargets.targetSize.y,
+            1);
     }
 
-    cmd.endRenderPass();
     debug_end_region(cmd);
 
     for (auto& pTargetData : passTargets.orderedTargets)
@@ -1152,3 +1274,37 @@ bool vulkan_pass_draw(VulkanContext& ctx, VulkanPass& vulkanPass)
 }
 
 } // namespace vulkan
+
+/*
+    vk::StructureChain<vk::PhysicalDeviceProperties2, vk::PhysicalDeviceRayTracingPropertiesNV> propertiesChain =
+      physicalDevice.getProperties2<vk::PhysicalDeviceProperties2, vk::PhysicalDeviceRayTracingPropertiesNV>();
+    uint32_t shaderGroupBaseAlignment = propertiesChain.get<vk::PhysicalDeviceRayTracingPropertiesNV>().shaderGroupBaseAlignment;
+    uint32_t shaderGroupHandleSize    = propertiesChain.get<vk::PhysicalDeviceRayTracingPropertiesNV>().shaderGroupHandleSize;
+
+    uint32_t raygenShaderBindingOffset = 0;                      // starting with raygen
+    uint32_t raygenShaderTableSize     = shaderGroupHandleSize;  // one raygen shader
+    uint32_t missShaderBindingOffset   = raygenShaderBindingOffset + roundUp( raygenShaderTableSize, shaderGroupBaseAlignment );
+    uint32_t missShaderBindingStride   = shaderGroupHandleSize;
+    uint32_t missShaderTableSize       = 2 * missShaderBindingStride;  // two raygen shaders
+    uint32_t hitShaderBindingOffset    = missShaderBindingOffset + roundUp( missShaderTableSize, shaderGroupBaseAlignment );
+    uint32_t hitShaderBindingStride    = shaderGroupHandleSize;
+    uint32_t hitShaderTableSize        = 2 * hitShaderBindingStride;  // two hit shaders
+
+    uint32_t             shaderBindingTableSize = hitShaderBindingOffset + hitShaderTableSize;
+    std::vector<uint8_t> shaderHandleStorage( shaderBindingTableSize );
+    memcpy( &shaderHandleStorage[raygenShaderBindingOffset],
+            rayTracingPipeline.getRayTracingShaderGroupHandlesKHR<uint8_t>( 0, 1, raygenShaderTableSize ).data(),
+            raygenShaderTableSize );
+    memcpy( &shaderHandleStorage[missShaderBindingOffset],
+            rayTracingPipeline.getRayTracingShaderGroupHandlesKHR<uint8_t>( 1, 2, missShaderTableSize ).data(),
+            missShaderTableSize );
+    memcpy( &shaderHandleStorage[hitShaderBindingOffset],
+            rayTracingPipeline.getRayTracingShaderGroupHandlesKHR<uint8_t>( 3, 2, hitShaderTableSize ).data(),
+            hitShaderTableSize );
+    assert( shaderHandleStorage.size() == shaderBindingTableSize );
+
+    vk::raii::su::BufferData shaderBindingTableBufferData(
+      physicalDevice, device, shaderBindingTableSize, vk::BufferUsageFlagBits::eTransferDst, vk::MemoryPropertyFlagBits::eHostVisible );
+    shaderBindingTableBufferData.upload( shaderHandleStorage );
+https://github.com/KhronosGroup/Vulkan-Hpp/blob/f51dac9f18e1a96f28090361642d1f51cd20bc61/RAII_Samples/RayTracing/RayTracing.cpp#L1080
+    */

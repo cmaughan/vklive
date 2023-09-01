@@ -88,6 +88,16 @@ struct Shader
     fs::path path;
 };
 
+enum class ShaderType
+{
+    Vertex,
+    Geometry,
+    Fragment,
+    RayGroupGeneral,
+    RayGroupTriangles,
+    RayGroupProcedural
+};
+
 enum class RayShaderType
 {
     Ray_Gen,
@@ -100,6 +110,12 @@ enum class RayShaderType
 
 struct ShaderGroup
 {
+    ShaderGroup(ShaderType type)
+        : groupType(type)
+    {
+
+    }
+    ShaderType groupType;
     std::vector<std::pair<RayShaderType, std::shared_ptr<Shader>>> shaders;
 };
 
@@ -108,6 +124,13 @@ struct PassSampler
 {
     std::string sampler;
     bool sampleAlternate = false;
+};
+
+enum class PassType
+{
+    Unknown,
+    Standard,
+    RayTracing
 };
 
 struct Pass
@@ -120,6 +143,7 @@ struct Pass
 
     Scene& scene;
     bool hasClear = false;
+    PassType passType = PassType::Unknown;
     glm::vec4 clearColor = glm::vec4(0.0f, 0.0f, 0.0f, 1.0f);
     std::string name;
     std::vector<std::string> targets;
@@ -128,6 +152,7 @@ struct Pass
     std::vector<fs::path> models;
     std::vector<fs::path> shaders;
     std::vector<std::string> cameras;
+    std::vector<std::shared_ptr<ShaderGroup>> shaderGroups;
 
     int scriptTargetsLine = 0;
     int scriptSamplersLine = 0;
@@ -149,7 +174,6 @@ struct Scene
     std::map<std::string, std::shared_ptr<Camera>> cameras;
     std::map<fs::path, std::shared_ptr<Geometry>> models;
     std::map<fs::path, std::shared_ptr<Shader>> shaders;
-    std::vector<std::shared_ptr<ShaderGroup>> shaderGroups;
     std::map<std::string, std::shared_ptr<Pass>> passes;
     std::vector<Message> errors;
     std::vector<Message> warnings;
