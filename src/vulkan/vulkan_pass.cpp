@@ -836,6 +836,9 @@ void vulkan_pass_set_descriptors(VulkanContext& ctx, VulkanPass& vulkanPass)
     passFrameData.descriptorSets.clear();
 
     std::vector<vk::WriteDescriptorSet> writes;
+        
+    std::vector<vk::WriteDescriptorSetAccelerationStructureKHR> asDescriptors;
+    std::vector<vk::AccelerationStructureKHR> handles;
 
     for (auto& [set, bindings] : passFrameData.descriptorSetBindings)
     {
@@ -894,6 +897,21 @@ void vulkan_pass_set_descriptors(VulkanContext& ctx, VulkanPass& vulkanPass)
                 // For now bind the existing UBO
                 newWrite.pBufferInfo = &passFrameData.vsUniform.descriptor;
                 writes.push_back(newWrite);
+            }
+            else if (binding.descriptorType == vk::DescriptorType::eAccelerationStructureKHR)
+            {
+                for (auto& geom : vulkanPass.pass.models)
+                {
+                    auto itrGeom = vulkanPass.vulkanScene.models.find(geom);
+                    if (itrGeom != vulkanPass.vulkanScene.models.end())
+                    {
+                        handles.push_back(itrGeom->second->topLevelAS.handle);
+                        asDescriptors.push_back(vk::WriteDescriptorSetAccelerationStructureKHR(1, &handles[handles.size() - 1]));
+                        newWrite.pNext = &asDescriptors[asDescriptors.size() - 1];
+                        writes.push_back(newWrite);
+                        break;
+                    }
+                }
             }
             else if (binding.descriptorType == vk::DescriptorType::eCombinedImageSampler)
             {
