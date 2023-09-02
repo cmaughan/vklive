@@ -992,6 +992,7 @@ bool vulkan_pass_prepare_pipeline(VulkanContext& ctx, VulkanPassSwapFrameData& f
         }
     }
 
+    frameData.rayGroupCreateInfos.clear();
     for (auto& group : pass.shaderGroups)
     {
         vk::RayTracingShaderGroupCreateInfoKHR shaderGroup;

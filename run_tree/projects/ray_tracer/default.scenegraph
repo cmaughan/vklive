@@ -1,18 +1,44 @@
 // Background
 
+surface: RayTraceTarget {
+    scale: (1, 1, 1)      // Scale relative to window
+    format: rgba8        // 8 bit target 
+}
+
 camera: default_camera {
-    position: (-0.25, -2.5, 6.0)
+    position: (-0.25, -2.5, 8.0)
     look_at: (-0.25, -2.5, 0.0)
     field_of_view: 45.0
     near_far: (0.01, 20.0)
 }
 
-pass: Trace {
+pass: TracePass {
     clear: (0.1, 0.1, 0.1, 1.0) // Clear done every pass
+    targets: (RayTraceTarget)
     geometry : shape {
         path: cornell-box.obj
-        vs: default.vert
-        fs: default.frag
+        build_as : true
+        
+        ray_group_general : default {
+            ray_gen: rt_gen.rgen
+        }
+        ray_group_general : default {
+            miss: rt_miss.rmiss
+        }
+        ray_group_triangles : default {
+            closest_hit: rt_closest.rchit
+        }
     }
 }
+
+// Final pass, will copy the target we created to the main target
+pass: Copy {
+    samplers: (RayTraceTarget)              // List of samplers, just the color 
+    geometry: copy {
+        path: screen_rect        // screen_rect is Quad
+        vs: copy.vert            // Shader just copies to target
+        fs: copy.frag
+    }
+}
+
 
