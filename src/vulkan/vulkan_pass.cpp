@@ -603,6 +603,10 @@ void vulkan_pass_prepare_targets(VulkanContext& ctx, VulkanPassSwapFrameData& pa
         auto& targetData = vulkanPassTargets.mapNameToTargetData[surfaceName];
         targetData.pVulkanSurface = get_vulkan_surface(ctx, *passFrameData.pVulkanPass, surfaceName);
 
+        if (targetData.pVulkanSurface->pSurface->isRayTarget)
+        {
+            surface_set_layout(ctx, passFrameData.commandBuffer, targetData.pVulkanSurface->image, vk::ImageLayout::eUndefined, vk::ImageLayout::eGeneral);
+        }
         vulkanPassTargets.orderedTargets.push_back(&targetData);
     }
 
@@ -681,6 +685,8 @@ void vulkan_pass_prepare_uniforms(VulkanContext& ctx, VulkanPass& vulkanPass)
             ubo.view = camera_get_lookat(camera);
             ubo.projection = camera_get_projection(camera);
             ubo.modelViewProjection = ubo.projection * ubo.view * ubo.model;
+            ubo.viewInverse = glm::inverse(ubo.view);
+            ubo.projectionInverse = glm::inverse(ubo.projection);
             ubo.eye = glm::vec4(camera.position, 0.0f);
         }
     }
@@ -832,15 +838,19 @@ void vulkan_pass_set_descriptors(VulkanContext& ctx, VulkanPass& vulkanPass)
             imageInfos[passSampler.sampler] = desc_image;
         }
     }
-    
-    for (auto& pTarget : passTargets.orderedTargets)
+
+    // When using a target in a descriptor, for ray tracing, we set the general layout
+    if (vulkanPass.pass.passType == PassType::RayTracing)
     {
-        if (pTarget->pVulkanSurface->image)
+        for (auto& pTarget : passTargets.orderedTargets)
         {
-            vk::DescriptorImageInfo desc_image;
-            desc_image.imageView = pTarget->pVulkanSurface->view;
-            desc_image.imageLayout = vk::ImageLayout::eShaderReadOnlyOptimal;
-            imageInfos[pTarget->pVulkanSurface->pSurface->name] = desc_image;
+            if (pTarget->pVulkanSurface->image)
+            {
+                vk::DescriptorImageInfo desc_image;
+                desc_image.imageView = pTarget->pVulkanSurface->view;
+                desc_image.imageLayout = vk::ImageLayout::eGeneral;
+                imageInfos[pTarget->pVulkanSurface->pSurface->name] = desc_image;
+            }
         }
     }
 
@@ -1089,6 +1099,26 @@ void vulkan_pass_transition_samplers(VulkanContext& ctx, VulkanPassSwapFrameData
     }
 }
 
+// TODO: Cleanup; after rendering the pass data we are transitioning surfaces to readable for the 'Targets' view.
+// I need a cleaner/simpler management of target/sampler transitions.
+void vulkan_pass_make_targets_readable(VulkanContext& ctx, VulkanPassSwapFrameData& passFrameData)
+{
+    PROFILE_SCOPE(make_targets_readable);
+    auto& vulkanPass = *passFrameData.pVulkanPass;
+    auto& passTargets = vulkan_pass_targets(ctx, passFrameData);
+
+    for (auto& pTarget : passTargets.orderedTargets)
+    {
+        if (pTarget && pTarget->pVulkanSurface->image)
+        {
+            if (!vulkan_format_is_depth(pTarget->pVulkanSurface->format))
+            {
+                surface_set_layout(ctx, passFrameData.commandBuffer, pTarget->pVulkanSurface->image, vk::ImageLayout::eUndefined, vk::ImageLayout::eShaderReadOnlyOptimal);
+            }
+        }
+    }
+}
+
 void vulkan_pass_submit(VulkanContext& ctx, VulkanPass& vulkanPass)
 {
     PROFILE_SCOPE(pass_submit);
@@ -1163,6 +1193,8 @@ void vulkan_pass_submit(VulkanContext& ctx, VulkanPass& vulkanPass)
         }
 
         cmd.endRenderPass();
+        
+        vulkan_pass_make_targets_readable(ctx, passFrameData);
     }
     else if (passFrameData.pVulkanPass->pass.passType == PassType::RayTracing)
     {
@@ -1201,6 +1233,8 @@ void vulkan_pass_submit(VulkanContext& ctx, VulkanPass& vulkanPass)
             passTargets.targetSize.x,
             passTargets.targetSize.y,
             1);
+        
+        vulkan_pass_make_targets_readable(ctx, passFrameData);
     }
 
     debug_end_region(cmd);

@@ -788,6 +788,10 @@ std::shared_ptr<Scene> scene_build(const fs::path& root)
                         {
                             // Remember that we consider this a target
                             itrFound->second->isTarget = true;
+                            if (spPass->passType == PassType::RayTracing)
+                            {
+                                itrFound->second->isRayTarget = true;
+                            }
                         }
                     }
                     spPass->scriptTargetsLine = int(pTargetNode->state.row);

@@ -49,6 +49,9 @@ struct Surface
 
     // Is this declared a target?
     bool isTarget = false;
+    
+    // Is this a ray trace target?
+    bool isRayTarget = false;
 };
 
 enum class GeometryType

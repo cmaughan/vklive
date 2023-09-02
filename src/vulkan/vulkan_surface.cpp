@@ -97,6 +97,10 @@ void vulkan_surface_create(VulkanContext& ctx, VulkanSurface& vulkanSurface, con
     image.samples = vk::SampleCountFlagBits::e1;
     image.tiling = vk::ImageTiling::eOptimal;
     image.usage = vk::ImageUsageFlagBits::eColorAttachment | colorUsage;
+    if (vulkanSurface.pSurface->isRayTarget)
+    {
+        image.usage |= vk::ImageUsageFlagBits::eStorage;
+    }
     image.format = colorFormat;
     vulkan_surface_create(ctx, vulkanSurface, image, vk::MemoryPropertyFlagBits::eDeviceLocal);
 

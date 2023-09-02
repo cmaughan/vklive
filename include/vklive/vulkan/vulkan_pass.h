@@ -95,6 +95,9 @@ struct VulkanPassSwapFrameData
         alignas(16) glm::mat4 view;
         alignas(16) glm::mat4 projection;
         alignas(16) glm::mat4 modelViewProjection;
+       
+        alignas(16) glm::mat4 viewInverse;
+        alignas(16) glm::mat4 projectionInverse;
 
         Channel iChannel[4];                // Packed version
         
