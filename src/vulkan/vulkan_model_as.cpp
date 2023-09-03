@@ -190,6 +190,8 @@ void createTopLevelAccelerationStructure(VulkanContext& ctx, VulkanModel& model)
 
     model.topLevelAS = topLevelAS;
 
+    model.topLevelASDescriptor = vk::WriteDescriptorSetAccelerationStructureKHR(1, &model.topLevelAS.handle);
+
     vulkan_buffer_destroy(ctx, scratchBuffer);
 }
 

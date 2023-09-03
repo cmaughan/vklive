@@ -13,6 +13,7 @@ layout(set = 0, binding = 0) uniform UBO
     float iFrame;           // Number of frames drawn since begin
     float iFrameRate;       // 1 / Elapsed
     float iSampleRate;      // Sound sample rate
+    uint vertexSize;        // Size of vertex for ray tracing
     vec4 iResolution;  // Resolution of current target
     vec4 iMouse;       // Mouse coords in pixels
     vec4 iDate;        // Year, Month, Day, Seconds since epoch

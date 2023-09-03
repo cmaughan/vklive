@@ -29,6 +29,10 @@ struct VulkanModel : Model
     AccelerationStructure topLevelAS;
     bool initAccel = false;
 
+    vk::WriteDescriptorSetAccelerationStructureKHR topLevelASDescriptor;
+    vk::DescriptorBufferInfo verticesDescriptor;
+    vk::DescriptorBufferInfo indicesDescriptor;
+
     const Geometry& geometry;
     std::string debugName;
 };

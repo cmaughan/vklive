@@ -79,6 +79,7 @@ struct VulkanPassSwapFrameData
         alignas(4) float iFrame;           // Number of frames drawn since begin
         alignas(4) float iFrameRate;       // 1 / Elapsed
         alignas(4) float iSampleRate;      // Sound sample rate
+        alignas(4) uint32_t vertexSize;    // Size of each vertex element for ray tracing
         alignas(16) glm::vec4 iResolution;  // Resolution of current target
         alignas(16) glm::vec4 iMouse;       // Mouse coords in pixels
         alignas(16) glm::vec4 iDate;        // Year, Month, Day, Seconds since epoch

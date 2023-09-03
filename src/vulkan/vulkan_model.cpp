@@ -45,14 +45,17 @@ void vulkan_model_stage(VulkanContext& ctx,
     {
         // Vertex buffer
         // Index buffer
-        model.vertices = buffer_stage_to_device(ctx, vk::BufferUsageFlagBits::eVertexBuffer, model.vertexData);
-        model.indices = buffer_stage_to_device(ctx, vk::BufferUsageFlagBits::eIndexBuffer, model.indexData);
+        model.vertices = buffer_stage_to_device(ctx, vk::BufferUsageFlagBits::eVertexBuffer | vk::BufferUsageFlagBits::eStorageBuffer, model.vertexData);
+        model.indices = buffer_stage_to_device(ctx, vk::BufferUsageFlagBits::eIndexBuffer | vk::BufferUsageFlagBits::eStorageBuffer, model.indexData);
 
         debug_set_buffer_name(ctx.device, (VkBuffer)model.vertices.buffer, fmt::format("{}:Vertices", model.debugName));
         debug_set_buffer_name(ctx.device, (VkBuffer)model.indices.buffer, fmt::format("{}:Indices", model.debugName));
 
         debug_set_devicememory_name(ctx.device, model.vertices.memory, fmt::format("{}:VerticesMemory", model.debugName));
         debug_set_devicememory_name(ctx.device, model.indices.memory, fmt::format("{}:IndicesMemory", model.debugName));
+
+        model.verticesDescriptor = vk::DescriptorBufferInfo(model.vertices.buffer, 0, VK_WHOLE_SIZE);
+        model.indicesDescriptor = vk::DescriptorBufferInfo(model.indices.buffer, 0, VK_WHOLE_SIZE);
     }
 }
 

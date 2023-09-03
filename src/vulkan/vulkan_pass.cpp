@@ -9,6 +9,7 @@
 
 #include <zest/logger/logger.h>
 #include <zest/time/timer.h>
+#include <zest/string/string_utils.h>
 
 #include "vklive/validation.h"
 
@@ -701,6 +702,8 @@ void vulkan_pass_prepare_uniforms(VulkanContext& ctx, VulkanPass& vulkanPass)
     ubo.iResolution = glm::vec4(size.x, size.y, 1.0, 0.0);
     ubo.iMouse = glm::vec4(0.0f); // TODO: Mouse
 
+    ubo.vertexSize = layout_size(g_vertexLayout);
+
     // Audio
     auto& audioCtx = Zing::GetAudioContext();
     ubo.iSampleRate = audioCtx.audioDeviceSettings.sampleRate;
@@ -857,9 +860,6 @@ void vulkan_pass_set_descriptors(VulkanContext& ctx, VulkanPass& vulkanPass)
     passFrameData.descriptorSets.clear();
 
     std::vector<vk::WriteDescriptorSet> writes;
-        
-    std::vector<vk::WriteDescriptorSetAccelerationStructureKHR> asDescriptors;
-    std::vector<vk::AccelerationStructureKHR> handles;
 
     for (auto& [set, bindings] : passFrameData.descriptorSetBindings)
     {
@@ -926,9 +926,7 @@ void vulkan_pass_set_descriptors(VulkanContext& ctx, VulkanPass& vulkanPass)
                     auto itrGeom = vulkanPass.vulkanScene.models.find(geom);
                     if (itrGeom != vulkanPass.vulkanScene.models.end())
                     {
-                        handles.push_back(itrGeom->second->topLevelAS.handle);
-                        asDescriptors.push_back(vk::WriteDescriptorSetAccelerationStructureKHR(1, &handles[handles.size() - 1]));
-                        newWrite.pNext = &asDescriptors[asDescriptors.size() - 1];
+                        newWrite.pNext = &itrGeom->second->topLevelASDescriptor;
                         writes.push_back(newWrite);
                         break;
                     }
@@ -950,6 +948,36 @@ void vulkan_pass_set_descriptors(VulkanContext& ctx, VulkanPass& vulkanPass)
                     scene_report_error(*vulkanScene.pScene, MessageSeverity::Error, fmt::format("Could not find surface to bind to: {}", itrMeta->second.name), itrMeta->second.shaderPath, itrMeta->second.line, itrMeta->second.range);
                     return;
                 }
+            }
+            else if (binding.descriptorType == vk::DescriptorType::eStorageBuffer)
+            {
+                for (auto& geom : vulkanPass.pass.models)
+                {
+                    auto itrGeom = vulkanPass.vulkanScene.models.find(geom);
+                    if (itrGeom != vulkanPass.vulkanScene.models.end())
+                    {
+                        if (Zest::string_tolower(itrMeta->second.name) == "vertices")
+                        {
+                            newWrite.pBufferInfo = &itrGeom->second->verticesDescriptor;
+                            writes.push_back(newWrite);
+                        }
+                        else if (Zest::string_tolower(itrMeta->second.name) == "indices")
+                        {
+                            newWrite.pBufferInfo = &itrGeom->second->indicesDescriptor;
+                            writes.push_back(newWrite);
+                        }
+                        else
+                        {
+                            scene_report_error(*vulkanScene.pScene, MessageSeverity::Error, fmt::format("Could not find storage buffer to bind to: {}", itrMeta->second.name), itrMeta->second.shaderPath, itrMeta->second.line, itrMeta->second.range);
+                            return;
+                        }
+                    }
+                }
+            }
+            else
+            {
+                scene_report_error(*vulkanScene.pScene, MessageSeverity::Error, fmt::format("Unbound descriptor : {}", itrMeta->second.name));
+                return;
             }
         }
 

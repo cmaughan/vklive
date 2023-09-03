@@ -218,6 +218,7 @@ void model_append_vertex(Model& model, std::vector<uint8_t>& outputBuffer, const
             vertexBuffer.push_back(pColor.r);
             vertexBuffer.push_back(pColor.g);
             vertexBuffer.push_back(pColor.b);
+            vertexBuffer.push_back(1.0f);
             break;
         case VERTEX_COMPONENT_TANGENT:
             vertexBuffer.push_back(pTangent->x);
@@ -268,6 +269,8 @@ uint32_t component_size(Component component)
     {
     case VERTEX_COMPONENT_UV:
         return 2 * sizeof(float);
+    case VERTEX_COMPONENT_COLOR:
+        return 4 * sizeof(float);
     case VERTEX_COMPONENT_DUMMY_FLOAT:
         return sizeof(float);
     case VERTEX_COMPONENT_DUMMY_INT:
