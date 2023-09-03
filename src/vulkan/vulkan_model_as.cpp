@@ -109,6 +109,8 @@ void createBottomLevelAccelerationStructure(VulkanContext& ctx, VulkanModel& mod
 
         bottomLevelAS.asDeviceAddress = ctx.device.getAccelerationStructureAddressKHR(bottomLevelAS.handle);
 
+        bottomLevelAS.vertexOffset = part.vertexBase;
+
         model.accelerationStructures.push_back(bottomLevelAS);
 
         vulkan_buffer_destroy(ctx, scratchBuffer);
@@ -126,11 +128,10 @@ void createTopLevelAccelerationStructure(VulkanContext& ctx, VulkanModel& model)
         0.0f, 0.0f, 1.0f, 0.0f
     };
 
-    uint32_t index = 0;
     std::vector<vk::AccelerationStructureInstanceKHR> instances;
     for (auto& as : model.accelerationStructures)
     {
-        instances.push_back(vk::AccelerationStructureInstanceKHR(transformMatrix, index++, 0xFF, 0, vk::GeometryInstanceFlagBitsKHR::eTriangleFacingCullDisable, as.asDeviceAddress));
+        instances.push_back(vk::AccelerationStructureInstanceKHR(transformMatrix, as.vertexOffset, 0xFF, 0, vk::GeometryInstanceFlagBitsKHR::eTriangleFacingCullDisable, as.asDeviceAddress));
     }
 
     // Buffer for instance data
@@ -211,53 +212,4 @@ void vulkan_model_build_acceleration_structure(VulkanContext& ctx, VulkanModel& 
 
 } // namespace vulkan
 
-
-#if 0
-/*
-    Set up a storage image that the ray generation shader will be writing to
-*/
-void createStorageImage()
-{
-    VkImageCreateInfo image = vks::initializers::imageCreateInfo();
-    image.imageType = VK_IMAGE_TYPE_2D;
-    image.format = swapChain.colorFormat;
-    image.extent.width = width;
-    image.extent.height = height;
-    image.extent.depth = 1;
-    image.mipLevels = 1;
-    image.arrayLayers = 1;
-    image.samples = VK_SAMPLE_COUNT_1_BIT;
-    image.tiling = VK_IMAGE_TILING_OPTIMAL;
-    image.usage = VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_STORAGE_BIT;
-    image.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-    VK_CHECK_RESULT(vkCreateImage(device, &image, nullptr, &storageImage.image));
-
-    VkMemoryRequirements memReqs;
-    vkGetImageMemoryRequirements(device, storageImage.image, &memReqs);
-    VkMemoryAllocateInfo memoryAllocateInfo = vks::initializers::memoryAllocateInfo();
-    memoryAllocateInfo.allocationSize = memReqs.size;
-    memoryAllocateInfo.memoryTypeIndex = vulkanDevice->getMemoryType(memReqs.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
-    VK_CHECK_RESULT(vkAllocateMemory(device, &memoryAllocateInfo, nullptr, &storageImage.memory));
-    VK_CHECK_RESULT(vkBindImageMemory(device, storageImage.image, storageImage.memory, 0));
-
-    VkImageViewCreateInfo colorImageView = vks::initializers::imageViewCreateInfo();
-    colorImageView.viewType = VK_IMAGE_VIEW_TYPE_2D;
-    colorImageView.format = swapChain.colorFormat;
-    colorImageView.subresourceRange = {};
-    colorImageView.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-    colorImageView.subresourceRange.baseMipLevel = 0;
-    colorImageView.subresourceRange.levelCount = 1;
-    colorImageView.subresourceRange.baseArrayLayer = 0;
-    colorImageView.subresourceRange.layerCount = 1;
-    colorImageView.image = storageImage.image;
-    VK_CHECK_RESULT(vkCreateImageView(device, &colorImageView, nullptr, &storageImage.view));
-
-    VkCommandBuffer cmdBuffer = vulkanDevice->createCommandBuffer(VK_COMMAND_BUFFER_LEVEL_PRIMARY, true);
-    vks::tools::setImageLayout(cmdBuffer, storageImage.image,
-        VK_IMAGE_LAYOUT_UNDEFINED,
-        VK_IMAGE_LAYOUT_GENERAL,
-        { VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1 });
-    vulkanDevice->flushCommandBuffer(cmdBuffer, queue);
-}
-#endif
 

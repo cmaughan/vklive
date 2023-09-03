@@ -13,6 +13,7 @@ struct AccelerationStructure
     vk::AccelerationStructureKHR handle;
     VulkanBuffer buffer;
     vk::DeviceAddress asDeviceAddress;
+    uint32_t vertexOffset;
 };
 
 struct VulkanModel : Model
