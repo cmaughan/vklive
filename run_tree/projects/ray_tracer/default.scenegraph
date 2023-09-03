@@ -6,7 +6,7 @@ surface: RayTraceTarget {
 }
 
 camera: default_camera {
-    position: (-0.25, -2.5, 8.0)
+    position: (-0.25, -2.5, 9.0)
     look_at: (-0.25, -2.5, 0.0)
     field_of_view: 45.0
     near_far: (0.01, 20.0)

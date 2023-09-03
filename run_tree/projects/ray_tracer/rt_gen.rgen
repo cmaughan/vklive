@@ -17,7 +17,7 @@ struct RayPayload
 
 layout(location = 0) rayPayloadEXT RayPayload rayPayload;
 
-const int MAX_RECURSION = 8;
+const int MAX_RECURSION = 4;
 
 void main() 
 {
@@ -45,21 +45,17 @@ void main()
         // miss 
         if (rayPayload.distance < 0.0f)
         {
-            color += hitColor;
+            color += hitColor* .11;
             break;
         } 
-        // hit a reflector
-        else if (rayPayload.reflector == 1.0f) 
-        {
-            const vec4 hitPos = origin + direction * rayPayload.distance;
-            origin.xyz = hitPos.xyz + rayPayload.normal * 0.001f;
-            direction.xyz = reflect(direction.xyz, rayPayload.normal);
-        }
         // hit a triangle
         else 
         {
-            color += hitColor;
-            break;
+            color += (hitColor * 1.0);
+            const vec4 hitPos = origin + direction * rayPayload.distance;
+            origin.xyz = hitPos.xyz + rayPayload.normal * 0.001f;
+            direction.xyz = rayPayload.normal;
+            
         }
     }
 
