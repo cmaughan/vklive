@@ -41,7 +41,7 @@ VulkanPassTargets& vulkan_pass_targets(VulkanContext& ctx, VulkanPassSwapFrameDa
 std::shared_ptr<VulkanPass> vulkan_pass_create(VulkanScene& vulkanScene, Pass& pass)
 {
     auto spVulkanPass = std::make_shared<VulkanPass>(vulkanScene, pass);
-    vulkanScene.passes[pass.name] = spVulkanPass;
+    vulkanScene.passes.push_back(spVulkanPass);
 
     return spVulkanPass;
 }
@@ -71,7 +71,7 @@ void vulkan_pass_destroy(VulkanContext& ctx, VulkanPass& vulkanPass)
         vulkan_buffer_destroy(ctx, passData.vsUniform);
 
         // Pipeline/graphics
-        LOG(DBG, "Destroy GeometryPipe: " << passData.pipeline);
+        //LOG(DBG, "Destroy GeometryPipe: " << passData.pipeline);
         ctx.device.destroyPipeline(passData.pipeline);
         ctx.device.destroyPipelineLayout(passData.geometryPipelineLayout);
         passData.pipeline = nullptr;
@@ -93,17 +93,17 @@ void vulkan_pass_wait(VulkanContext& ctx, VulkanPassSwapFrameData& passData)
         passData.inFlight = false;
         ctx.device.resetFences(passData.fence);
 
-        LOG(DBG, "Reset fence: " << &passData.fence);
+        //LOG(DBG, "Reset fence: " << &passData.fence);
     }
     else
     {
-        LOG(DBG, "Not in flight: " << &passData.fence);
+        //LOG(DBG, "Not in flight: " << &passData.fence);
     }
 }
 
 void vulkan_pass_wait_all(VulkanContext& ctx, VulkanScene& scene)
 {
-    for (auto& [name, vulkanPass] : scene.passes)
+    for (auto& vulkanPass : scene.passes)
     {
         for (auto& [flop, passData] : vulkanPass->passFrameData)
         {
@@ -191,7 +191,7 @@ VulkanSurface* get_vulkan_surface(VulkanContext& ctx, VulkanPass& vulkanPass, co
     // OK, so it has changed size
     if (size != pVulkanSurface->currentSize)
     {
-        LOG(DBG, "Resized: " << pVulkanSurface->debugName);
+        LOG(DBG, "Resizing: " << *pVulkanSurface);
 
         // Wait for this pass to complete, since we are destroying potentially active surfaces
         // NOTE: We wait idle because, the sampler is begin used in the IMGui pass, so we can't just
@@ -200,6 +200,9 @@ VulkanSurface* get_vulkan_surface(VulkanContext& ctx, VulkanPass& vulkanPass, co
         ctx.device.waitIdle();
 
         vulkan_surface_destroy(ctx, *pVulkanSurface);
+
+        // Remove the target data when resizing?
+        vulkanScene.targetData.erase(pVulkanSurface->key);
 
         // Update to latest, even if we fail, so we don't keep trying
         pVulkanSurface->currentSize = size;
@@ -316,7 +319,7 @@ bool vulkan_pass_check_targets(VulkanContext& ctx, VulkanPassTargets& passTarget
     // TODO: This only handles resizes, not recreation?...
     if (diff)
     {
-        LOG(DBG, "Targets different, cleaning up FB, RenderPass, Geom");
+        //LOG(DBG, "Targets different, cleaning up FB, RenderPass, Geom");
 
         // I think we can just wait for the pass here, since these are all pass-specific objects
         // Note that a previous pass may have changed targets, even if this one didn't.  So we need
@@ -326,7 +329,7 @@ bool vulkan_pass_check_targets(VulkanContext& ctx, VulkanPassTargets& passTarget
         // destroy the framebuffer since it depends on renderpass and targets
         if (passTargets.frameBuffer)
         {
-            LOG(DBG, "Destroy Framebuffer: " << passTargets.frameBuffer);
+            //LOG(DBG, "Destroy Framebuffer: " << passTargets.frameBuffer);
             framebuffer_destroy(ctx, passTargets.frameBuffer);
             passTargets.frameBuffer = nullptr;
         }
@@ -334,7 +337,7 @@ bool vulkan_pass_check_targets(VulkanContext& ctx, VulkanPassTargets& passTarget
         // Renderpass has the framebuffer, which we had to recreate, so recreate render pass
         if (passTargets.renderPass)
         {
-            LOG(DBG, "Destroy RenderPass: " << passTargets.renderPass);
+            //LOG(DBG, "Destroy RenderPass: " << passTargets.renderPass);
             ctx.device.destroyRenderPass(passTargets.renderPass);
             passTargets.renderPass = nullptr;
         }
@@ -342,7 +345,7 @@ bool vulkan_pass_check_targets(VulkanContext& ctx, VulkanPassTargets& passTarget
         // Geom pipe uses the render pass
         if (passTargets.pFrameData && passTargets.pFrameData->pipeline)
         {
-            LOG(DBG, "Destroy Geometry Pipe: " << passTargets.pFrameData->pipeline);
+            //LOG(DBG, "Destroy Geometry Pipe: " << passTargets.pFrameData->pipeline);
             ctx.device.destroyPipeline(passTargets.pFrameData->pipeline);
             ctx.device.destroyPipelineLayout(passTargets.pFrameData->geometryPipelineLayout);
             passTargets.pFrameData->pipeline = nullptr;
@@ -385,7 +388,7 @@ void vulkan_pass_check_samplers(VulkanContext& ctx, VulkanPassTargets& passTarge
         auto pVulkanSurface = get_vulkan_surface(ctx, *frameData.pVulkanPass, passSampler);
         if (checkForChanges(pVulkanSurface))
         {
-            LOG(DBG, "Sampler has changed, removing geometry pipe");
+            //LOG(DBG, "Sampler has changed, removing geometry pipe");
 
             // I think we can just wait for the pass here, since these are all pass-specific objects
             // Note that a previous pass may have changed targets, even if this one didn't.  So we need
@@ -395,7 +398,7 @@ void vulkan_pass_check_samplers(VulkanContext& ctx, VulkanPassTargets& passTarge
             // Geom pipe uses the render pass
             if (frameData.pipeline)
             {
-                LOG(DBG, "Destroy Geometry Pipe: " << frameData.pipeline);
+                //LOG(DBG, "Destroy Geometry Pipe: " << frameData.pipeline);
                 ctx.device.destroyPipeline(frameData.pipeline);
                 ctx.device.destroyPipelineLayout(frameData.geometryPipelineLayout);
                 passTargets.pFrameData->pipeline = nullptr;
@@ -534,8 +537,8 @@ void vulkan_pass_prepare_renderpass(VulkanContext& ctx, VulkanPassTargets& passT
         debug_set_framebuffer_name(ctx.device, passTargets.frameBuffer, "FrameBuffer:" + passTargets.debugName);
     }
 
-    LOG(DBG, "  FrameBuffer: " << passTargets.frameBuffer);
-    LOG(DBG, "  RenderPass: " << passTargets.renderPass);
+    //LOG(DBG, "  FrameBuffer: " << passTargets.frameBuffer);
+    //LOG(DBG, "  RenderPass: " << passTargets.renderPass);
 }
 
 void vulkan_pass_dump_targets(VulkanPassTargets& passTargets)
@@ -543,7 +546,7 @@ void vulkan_pass_dump_targets(VulkanPassTargets& passTargets)
     LOG_SCOPE(DBG, "Targets:");
     for (auto& pTargetData : passTargets.orderedTargets)
     {
-        LOG(DBG, "Name: " << pTargetData->pVulkanSurface->debugName << " Target: " << pTargetData->pVulkanSurface->image);
+        LOG(DBG, "Target: " << *pTargetData->pVulkanSurface);
     }
 
     /*
@@ -552,8 +555,6 @@ void vulkan_pass_dump_targets(VulkanPassTargets& passTargets)
         LOG(DBG, "  Name: " << passTargets.depth->debugName << " Target: " << passTargets.depth->debugName);
     }
     */
-
-    LOG(DBG, "TargetSize: " << passTargets.targetSize.x << ", " << passTargets.targetSize.y);
 }
 
 void vulkan_pass_dump_samplers(VulkanContext& ctx, VulkanPass& vulkanPass)

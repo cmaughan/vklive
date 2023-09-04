@@ -56,6 +56,9 @@ void vulkan_surface_destroy(VulkanContext& ctx, VulkanSurface& img)
 
     if (img.memory)
     {
+        // Log here, because the memory is really the indicator that we have the surface
+        LOG(DBG, "Destroy Surface: " << img);
+
         ctx.device.freeMemory(img.memory);
         img.memory = nullptr;
     }

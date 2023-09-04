@@ -709,7 +709,7 @@ void imgui_destroy_font_upload_objects(VulkanContext& ctx)
     imgui->uploadBufferMemory = nullptr;
 }
 
-void imgui_render_3d(VulkanContext& ctx, Scene& scene, bool background, bool test_render)
+void imgui_render_3d(VulkanContext& ctx, Scene& scene, bool background)
 {
     auto imgui = imgui_context(ctx);
 
@@ -744,7 +744,7 @@ void imgui_render_3d(VulkanContext& ctx, Scene& scene, bool background, bool tes
     {
         vulkan::render(ctx, glm::vec4(canvas_pos.x, canvas_pos.y, canvas_size.x, canvas_size.y), scene);
 
-        if (ctx.deviceState == DeviceState::Normal && !test_render)
+        if (ctx.deviceState == DeviceState::Normal)
         {
             // If we have a final target, and we rendered to it
             auto pVulkanScene = vulkan_scene_get(ctx, scene);
@@ -761,6 +761,7 @@ void imgui_render_3d(VulkanContext& ctx, Scene& scene, bool background, bool tes
                         if (targetData.descriptorSetLayout && targetData.descriptorSet)
                         {
                             LOG(DBG, "Showing RT with Descriptor: " << targetData.descriptorSet);
+                            LOG(DBG, "Surface: " << pVulkanScene->defaultTarget);
                             pDrawList->AddImage((ImTextureID)targetData.descriptorSet,
                                 ImVec2(canvas_pos.x, canvas_pos.y),
                                 ImVec2(canvas_pos.x + canvas_size.x, canvas_pos.y + canvas_size.y));
@@ -768,13 +769,16 @@ void imgui_render_3d(VulkanContext& ctx, Scene& scene, bool background, bool tes
                         targetData.descriptorSet = nullptr;
                         drawn = true;
                     }
+                    else
+                    {
+                        LOG(DBG, "No surface??");
+                    }
+                }
+                else
+                {
+                    LOG(DBG, "Didn't find output target");
                 }
             }
-        }
-
-        if (test_render)
-        {
-            drawn = true;
         }
     }
 
@@ -791,6 +795,7 @@ void imgui_render_3d(VulkanContext& ctx, Scene& scene, bool background, bool tes
 
 void imgui_render_targets(VulkanContext& ctx, Scene& scene)
 {
+    return;
     auto imgui = imgui_context(ctx);
 
     ImGui::SetNextWindowSize(ImVec2(800, 600), ImGuiCond_FirstUseEver);
@@ -840,6 +845,11 @@ void imgui_render_targets(VulkanContext& ctx, Scene& scene)
                             ImVec2(canvas_pos.x, canvas_pos.y),
                             ImVec2(canvas_pos.x + canvas_size.x, canvas_pos.y + height_per_tile));
                         canvas_pos.y += height_per_tile;
+                    }
+                    else
+                    {
+                        // This is the target view, some descriptors are missing
+                        //LOG(DBG, "No descriptor?");
                     }
                     targetData.descriptorSet = nullptr;
                     drawn = true;

@@ -369,7 +369,7 @@ void AddMessage(Scene& scene, const std::string& message, MessageSeverity severi
 // Ensure that samplers have been set up correctly
 void validate_samplers(Scene& scene)
 {
-    for (auto& [name, pass] : scene.passes)
+    for (auto& pass : scene.passes)
     {
         for (auto& passSampler : pass->samplers)
         {
@@ -834,7 +834,8 @@ std::shared_ptr<Scene> scene_build(const fs::path& root)
                 }
                 else
                 {
-                    spScene->passes[spPass->name] = spPass;
+                    spScene->passes.push_back(spPass);
+                    spScene->passNameToIndex[spPass->name] = spScene->passes.size() - 1;
                 }
 
                 // If we didn't find targets, add them
@@ -961,12 +962,12 @@ fs::path scene_find_asset(Scene& scene, const fs::path& path, AssetType type)
 void scene_copy_state(Scene& destScene, Scene& sourceScene)
 {
     // Copy over the old info, if appropriate - this is temporary fix for cleaner solution later.
-    for (auto& [name, pPass] : destScene.passes)
+    for (auto& pPass : destScene.passes)
     {
-        auto itrSourcePass = sourceScene.passes.find(name);
-        if (itrSourcePass != sourceScene.passes.end())
+        auto itrSourcePass = sourceScene.passNameToIndex.find(pPass->name);
+        if (itrSourcePass != sourceScene.passNameToIndex.end())
         {
-            auto pSourcePass = itrSourcePass->second.get();
+            auto pSourcePass = sourceScene.passes[itrSourcePass->second];
             for (auto& sourceCamName : pSourcePass->cameras)
             {
                 for (auto& destCamName : pPass->cameras)

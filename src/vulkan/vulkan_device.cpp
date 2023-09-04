@@ -96,13 +96,15 @@ void VulkanDevice::ValidateSwapChain()
     vulkan::main_window_validate_swapchain(ctx);
 }
 
-void VulkanDevice::ImGui_Render_3D(Scene& scene, bool backgroundRender, bool testRender)
+void VulkanDevice::Render_3D(Scene& scene, const glm::vec2& size)
 {
-    vulkan::imgui_render_3d(ctx, scene, backgroundRender, testRender);
-    if (!testRender)
-    {
-        vulkan::imgui_render_targets(ctx, scene);
-    }
+    vulkan::render(ctx, glm::vec4(0.0f, 0.0f, size.x, size.y), scene);
+}
+
+void VulkanDevice::ImGui_Render_3D(Scene& scene, bool backgroundRender)
+{
+    vulkan::imgui_render_3d(ctx, scene, backgroundRender);
+    vulkan::imgui_render_targets(ctx, scene);
 }
 
 void VulkanDevice::WaitIdle()

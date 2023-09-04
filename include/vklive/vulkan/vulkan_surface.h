@@ -64,7 +64,15 @@ struct VulkanSurface : Allocation
     VulkanBuffer stagingBuffer;
 
     uint64_t generation = 0;
+
+    SurfaceKey key;
 };
+
+inline std::ostream& operator<<(std::ostream& os, const VulkanSurface& surf)
+{
+    os << surf.key << " Image: " << surf.image << " (" << surf.extent.width << ", " << surf.extent.height << ")";
+    return os;
+}
 
 using MipData = ::std::pair<vk::Extent3D, vk::DeviceSize>;
 

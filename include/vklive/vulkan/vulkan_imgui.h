@@ -73,7 +73,7 @@ void imgui_viewport_swap_buffers(ImGuiViewport* viewport, void*);
 
 void imgui_viewport_destroy_all(VulkanContext& ctx);
 
-void imgui_render_3d(VulkanContext& ctx, Scene& scene, bool background, bool test_render);
+void imgui_render_3d(VulkanContext& ctx, Scene& scene, bool background);
 void imgui_render_targets(VulkanContext& ctx, Scene& scene);
 
 } // namespace vulkan

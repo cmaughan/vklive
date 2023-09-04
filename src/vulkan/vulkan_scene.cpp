@@ -32,6 +32,14 @@ using namespace ranges;
 namespace vulkan
 {
 
+uint32_t VulkanScene::GlobalGeneration = 0;
+
+std::ostream& operator<<(std::ostream& os, const SurfaceKey& key)
+{
+    os << key.DebugName();
+    return os;
+}
+
 // Find the vulkan scene from the scene
 VulkanScene* vulkan_scene_get(VulkanContext& ctx, Scene& scene)
 {
@@ -75,6 +83,8 @@ std::shared_ptr<VulkanScene> vulkan_scene_create(VulkanContext& ctx, Scene& scen
     auto spVulkanScene = std::make_shared<VulkanScene>(&scene);
     ctx.mapVulkanScene[&scene] = spVulkanScene;
 
+    spVulkanScene->generation = VulkanScene::GlobalGeneration++;
+
     // Load Models
     for (auto& [_, pGeom] : scene.models)
     {
@@ -90,7 +100,7 @@ std::shared_ptr<VulkanScene> vulkan_scene_create(VulkanContext& ctx, Scene& scen
     }
 
     // Walk the passes
-    for (auto& [name, spPass] : scene.passes)
+    for (auto& spPass : scene.passes)
     {
         vulkan_pass_create(*spVulkanScene, *spPass);
     }
@@ -114,7 +124,7 @@ void vulkan_scene_destroy_output_descriptors(VulkanContext& ctx, VulkanScene& vu
 
 void vulkan_scene_destroy(VulkanContext& ctx, VulkanScene& vulkanScene)
 {
-    LOG_SCOPE(DBG, "Scene Destroy: " << vulkanScene.pScene);
+    LOG_SCOPE(DBG, "Scene Destroy: " << vulkanScene.pScene << " Generation: " << vulkanScene.generation);
 
     // Destroying a scene means we might be destroying something that is in flight.
     // Lets wait for everything to finish
@@ -123,7 +133,7 @@ void vulkan_scene_destroy(VulkanContext& ctx, VulkanScene& vulkanScene)
     vulkan_scene_destroy_output_descriptors(ctx, vulkanScene);
 
     // Pass
-    for (auto& [name, pVulkanPass] : vulkanScene.passes)
+    for (auto& pVulkanPass : vulkanScene.passes)
     {
         vulkan_pass_destroy(ctx, *pVulkanPass);
     }
@@ -176,8 +186,10 @@ VulkanSurface* vulkan_scene_get_or_create_surface(VulkanScene& vulkanScene, cons
 
     auto spSurface = std::make_shared<VulkanSurface>(pSurface);
     vulkanScene.surfaces[key] = spSurface;
-
+    spSurface->key = key;
     spSurface->debugName = key.DebugName();
+
+    LOG(DBG, "Create VulkanSurface: " << *spSurface);
     return spSurface.get();
 }
 
@@ -282,6 +294,7 @@ void vulkan_scene_prepare_output_descriptors(VulkanContext& ctx, VulkanScene& vu
 
             if (pTarget->pSurface->name == "default_color")
             {
+                LOG(DBG, "Default Target: " << *pTarget);
                 vulkanScene.defaultTarget = key;
             }
 
@@ -298,8 +311,7 @@ void vulkan_scene_render(VulkanContext& ctx, VulkanScene& vulkanScene)
 {
     assert(vulkanScene.pScene->valid);
 
-    LOG(DBG, "Vulkan Scene Render: " << vulkanScene.pScene);
-
+    LOG(DBG, "Vulkan Scene Render: " << vulkanScene.pScene << " Generation: " << vulkanScene.generation);
 
     Scene::GlobalElapsedSeconds = Zest::timer_get_elapsed_seconds(Zest::globalTimer);
     ctx.descriptorCacheIndex++;
@@ -324,7 +336,7 @@ void vulkan_scene_render(VulkanContext& ctx, VulkanScene& vulkanScene)
         vulkanScene.defaultTarget = SurfaceKey();
 
         // Draw the passes
-        for (auto& [name, pVulkanPass] : vulkanScene.passes)
+        for (auto& pVulkanPass : vulkanScene.passes)
         {
             if (!vulkan_pass_draw(ctx, *pVulkanPass))
             {

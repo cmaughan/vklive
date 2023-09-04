@@ -186,23 +186,24 @@ void zep_init(const fs::path& configRoot, const Zep::NVec2f& pixelScale, const Z
                 // Add 4 spaces after open bracket
                 long numSpaces = 0;
                 auto lastChar = ctx.buffer.GetLinePos(ctx.bufferCursor, LineLocation::LineLastGraphChar);
+                auto firstChar = ctx.buffer.GetLinePos(ctx.bufferCursor, LineLocation::LineBegin);
                 if (lastChar.Valid() )
                 {
                     if (*lastChar == '{')
                     {
                         numSpaces += 4;
                     }
+                    /*
                     else if (*lastChar == '}')
                     {
-                        /*
                         auto found = ctx.buffer.FindMatchingParen(lastChar);
                         if (found.Valid())
                         {
                             auto firstChar = ctx.buffer.GetLinePos(found, LineLocation::LineBegin);
-                            numSpaces += found.Index() - firstChar.Index();
+                            numSpaces += firstChar.Index() - found.Index();
                         }
-                        */
                     }
+                    */
                 }
 
                 // Add matching indent for new line

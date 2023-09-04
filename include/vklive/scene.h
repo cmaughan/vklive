@@ -177,10 +177,12 @@ struct Scene
     std::map<std::string, std::shared_ptr<Camera>> cameras;
     std::map<fs::path, std::shared_ptr<Geometry>> models;
     std::map<fs::path, std::shared_ptr<Shader>> shaders;
-    std::map<std::string, std::shared_ptr<Pass>> passes;
+    std::vector<std::shared_ptr<Pass>> passes;
     std::vector<Message> errors;
     std::vector<Message> warnings;
     std::vector<fs::path> headers;
+
+    std::map<std::string, uint32_t> passNameToIndex;
 
     // Evaluated values for rendering
     std::vector<Pass*> passOrder;

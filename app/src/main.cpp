@@ -130,7 +130,6 @@ void save_state()
     }
 }
 
-
 int main(int argc, char** argv)
 {
     Zest::Profiler::Init();
@@ -360,8 +359,8 @@ int main(int argc, char** argv)
             {
                 LOG_SCOPE(DBG, "PreRender Compiled Project, scene: " << spNewProject->spScene.get());
 
-                // The test flag stops things being added to IMGUI that we may not render later.
-                g_pDevice->ImGui_Render_3D(*spNewProject->spScene, appConfig.draw_on_background, true);
+                // Do a simple render, with no output, to a small area
+                g_pDevice->Render_3D(*spNewProject->spScene, glm::vec2(10.0f, 10.0f));
             }
 
             // If the new project is still valid and has a working scene, swap
@@ -469,7 +468,7 @@ int main(int argc, char** argv)
             LOG_SCOPE(DBG, "\nDraw Current Scene: " << g_Controller.spCurrentProject->spScene.get());
 
             // Scene may not be valid, but we want to draw the window
-            g_pDevice->ImGui_Render_3D(*g_Controller.spCurrentProject->spScene, appConfig.draw_on_background, false);
+            g_pDevice->ImGui_Render_3D(*g_Controller.spCurrentProject->spScene, appConfig.draw_on_background);
 
             if (g_pDevice->Context().deviceState == DeviceState::Lost)
             {

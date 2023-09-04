@@ -84,6 +84,8 @@ struct SurfaceKey
     }
 };
 
+std::ostream& operator<<(std::ostream& os, const SurfaceKey& key);
+
 struct VulkanSceneTargetData
 {
     vk::DescriptorSetLayout descriptorSetLayout = nullptr;
@@ -103,7 +105,7 @@ struct VulkanScene
     std::unordered_map<SurfaceKey, std::shared_ptr<VulkanSurface>, SurfaceKey::HashFunction> surfaces;
     std::unordered_map<fs::path, std::shared_ptr<VulkanModel>> models;
     std::unordered_map<fs::path, std::shared_ptr<VulkanShader>> shaderStages;
-    std::unordered_map<std::string, std::shared_ptr<VulkanPass>> passes;
+    std::vector<std::shared_ptr<VulkanPass>> passes;
 
     uint64_t audioSurfaceFrameGeneration = 0;
 
@@ -112,6 +114,9 @@ struct VulkanScene
 
     std::set<SurfaceKey> viewableTargets;
     SurfaceKey defaultTarget;
+
+    static uint32_t GlobalGeneration;
+    uint32_t generation;
 };
 
 std::shared_ptr<VulkanScene> vulkan_scene_create(VulkanContext& ctx, Scene& scene);

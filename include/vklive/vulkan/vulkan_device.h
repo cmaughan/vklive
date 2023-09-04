@@ -22,7 +22,8 @@ struct VulkanDevice : public IDevice
     virtual void WaitIdle() override;
 
     virtual void ImGui_Render(ImDrawData* pDrawData) override;
-    virtual void ImGui_Render_3D(Scene& scene, bool backgroundRender, bool testRender) override;
+    virtual void ImGui_Render_3D(Scene& scene, bool backgroundRender) override;
+    virtual void Render_3D(Scene& scene, const glm::vec2& size) override;
     
     virtual void ValidateSwapChain() override;
     virtual void Present() override;
