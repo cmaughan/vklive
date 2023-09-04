@@ -4,7 +4,7 @@
 #include <filesystem>
 
 // This specialization doesn't exist on linux/mac
-#ifndef WIN32
+#ifdef __APPLE__
 namespace std {
     template <>
     struct hash<fs::path> {
