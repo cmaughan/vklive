@@ -86,12 +86,6 @@ struct SurfaceKey
 
 std::ostream& operator<<(std::ostream& os, const SurfaceKey& key);
 
-struct VulkanSceneTargetData
-{
-    vk::DescriptorSetLayout descriptorSetLayout = nullptr;
-    vk::DescriptorSet descriptorSet = nullptr;
-};
-
 struct VulkanScene
 {
     VulkanScene(Scene* pS)
@@ -108,9 +102,6 @@ struct VulkanScene
     std::vector<std::shared_ptr<VulkanPass>> passes;
 
     uint64_t audioSurfaceFrameGeneration = 0;
-
-    // Descriptor set used by the GUI layer to draw it.
-    std::unordered_map<SurfaceKey, VulkanSceneTargetData, SurfaceKey::HashFunction> targetData;
 
     std::set<SurfaceKey> viewableTargets;
     SurfaceKey defaultTarget;

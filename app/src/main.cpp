@@ -496,6 +496,7 @@ int main(int argc, char** argv)
         {
             try
             {
+                validation_enable_messages(true);
                 LOG_SCOPE(DBG, "Draw IMGUI created data");
                 g_pDevice->ImGui_Render(main_draw_data);
             }

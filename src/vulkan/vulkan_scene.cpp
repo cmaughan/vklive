@@ -24,6 +24,7 @@
 #include <vklive/vulkan/vulkan_uniform.h>
 #include <vklive/vulkan/vulkan_utils.h>
 #include <vklive/vulkan/vulkan_model_as.h>
+#include <vklive/vulkan/vulkan_imgui.h>
 
 #include <zing/audio/audio.h>
 
@@ -115,13 +116,6 @@ std::shared_ptr<VulkanScene> vulkan_scene_create(VulkanContext& ctx, Scene& scen
     return spVulkanScene;
 }
 
-void vulkan_scene_destroy_output_descriptors(VulkanContext& ctx, VulkanScene& vulkanScene)
-{
-    // descriptor_cleanup will remove all the layouts/sets; so just reset our state here
-    vulkanScene.defaultTarget = SurfaceKey();
-    vulkanScene.targetData.clear();
-}
-
 void vulkan_scene_destroy(VulkanContext& ctx, VulkanScene& vulkanScene)
 {
     LOG_SCOPE(DBG, "Scene Destroy: " << vulkanScene.pScene << " Generation: " << vulkanScene.generation);
@@ -130,7 +124,7 @@ void vulkan_scene_destroy(VulkanContext& ctx, VulkanScene& vulkanScene)
     // Lets wait for everything to finish
     //ctx.device.waitIdle();
 
-    vulkan_scene_destroy_output_descriptors(ctx, vulkanScene);
+    vulkanScene.defaultTarget = SurfaceKey();
 
     // Pass
     for (auto& pVulkanPass : vulkanScene.passes)
@@ -193,43 +187,42 @@ VulkanSurface* vulkan_scene_get_or_create_surface(VulkanScene& vulkanScene, cons
     return spSurface.get();
 }
 
-void vulkan_scene_target_build_descriptor(VulkanContext& ctx, VulkanScene& vulkanScene, VulkanSurface& vulkanSurface, const SurfaceKey& key)
+void vulkan_scene_target_build_descriptor(VulkanContext& ctx, VulkanScene& vulkanScene, VulkanSurface& vulkanSurface)
 {
-    auto& targetData = vulkanScene.targetData[key];
-    if (targetData.descriptorSetLayout)
+    if (vulkanSurface.ImGuiDescriptorSetLayout)
     {
         return;
     }
 
-    auto binding = vk::DescriptorSetLayoutBinding(0, vk::DescriptorType::eCombinedImageSampler, 1, vk::ShaderStageFlagBits::eFragment);
+    auto imgui = imgui_context(ctx);
+    auto binding = vk::DescriptorSetLayoutBinding(0, vk::DescriptorType::eCombinedImageSampler, 1, vk::ShaderStageFlagBits::eFragment, &imgui->fontSampler);
 
     auto layoutCreateInfo = vk::DescriptorSetLayoutCreateInfo(vk::DescriptorSetLayoutCreateFlags(), binding);
 
-    targetData.descriptorSetLayout = descriptor_create_layout(ctx, descriptor_get_cache(ctx), layoutCreateInfo);
+    vulkanSurface.ImGuiDescriptorSetLayout = descriptor_create_layout(ctx, descriptor_get_cache(ctx), layoutCreateInfo);
 
-    debug_set_descriptorsetlayout_name(ctx.device, targetData.descriptorSetLayout, fmt::format("{}:{}", key.DebugName(), "DescriptorLayout(UI)"));
+    debug_set_descriptorsetlayout_name(ctx.device, vulkanSurface.ImGuiDescriptorSetLayout, fmt::format("{}:{}", to_string(vulkanSurface), "DescriptorLayout(UI)"));
 
-    LOG(DBG, fmt::format("Build DescriptorSetLayout for: {}, {}", key.DebugName(), (void*)(VkDescriptorSetLayout)targetData.descriptorSetLayout));
+    LOG(DBG, fmt::format("Build DescriptorSetLayout for: {}, {}", to_string(vulkanSurface), (void*)(VkDescriptorSetLayout)vulkanSurface.ImGuiDescriptorSetLayout));
 }
 
-void vulkan_scene_target_set_descriptor(VulkanContext& ctx, VulkanScene& vulkanScene, VulkanSurface& vulkanSurface, const SurfaceKey& key)
+void vulkan_scene_target_set_descriptor(VulkanContext& ctx, VulkanScene& vulkanScene, VulkanSurface& vulkanSurface)
 {
     LOG_SCOPE(DBG, "Scene GUI Target Descriptors:");
-    auto& targetData = vulkanScene.targetData[key];
-    if (!targetData.descriptorSetLayout || !vulkanSurface.sampler)
+    if (!vulkanSurface.ImGuiDescriptorSetLayout || !vulkanSurface.sampler)
     {
-        targetData.descriptorSet = nullptr;
+        vulkanSurface.ImGuiDescriptorSet = nullptr;
         return;
     }
 
-    bool success = descriptor_allocate(ctx, descriptor_get_cache(ctx), &targetData.descriptorSet, targetData.descriptorSetLayout);
+    bool success = descriptor_allocate(ctx, descriptor_get_cache(ctx), &vulkanSurface.ImGuiDescriptorSet, vulkanSurface.ImGuiDescriptorSetLayout);
     if (!success)
     {
         scene_report_error(*vulkanScene.pScene, MessageSeverity::Error, fmt::format("Could not allocate descriptor"));
         return;
     };
 
-    debug_set_descriptorset_name(ctx.device, targetData.descriptorSet, fmt::format("{}:{}:{}", key.DebugName(), ctx.mainWindowData.frameIndex, "DescriptorSet(UI)"));
+    debug_set_descriptorset_name(ctx.device, vulkanSurface.ImGuiDescriptorSet, fmt::format("{}:{}:{}", to_string(vulkanSurface), ctx.mainWindowData.frameIndex, "DescriptorSet(ImGui)"));
 
     assert(vulkanSurface.sampler != 0);
     vk::DescriptorImageInfo desc_image;
@@ -238,13 +231,13 @@ void vulkan_scene_target_set_descriptor(VulkanContext& ctx, VulkanScene& vulkanS
     desc_image.imageLayout = vk::ImageLayout::eShaderReadOnlyOptimal;
 
     vk::WriteDescriptorSet write_desc;
-    write_desc.dstSet = targetData.descriptorSet;
+    write_desc.dstSet = vulkanSurface.ImGuiDescriptorSet;
     write_desc.descriptorCount = 1;
     write_desc.descriptorType = vk::DescriptorType::eCombinedImageSampler;
     write_desc.setImageInfo(desc_image);
     ctx.device.updateDescriptorSets(write_desc, {});
     
-    LOG(DBG, fmt::format("Set DescriptorSet for: {}, Layout:{}, Set:{}, Sampler:{}", key.DebugName(), (void*)(VkDescriptorSetLayout)targetData.descriptorSetLayout, (void*)(VkDescriptorSet)targetData.descriptorSet, (void*)desc_image.sampler));
+    LOG(DBG, fmt::format("Set DescriptorSet for: {}, Layout:{}, Set:{}, Sampler:{}", to_string(vulkanSurface), (void*)(VkDescriptorSetLayout)vulkanSurface.ImGuiDescriptorSetLayout, (void*)(VkDescriptorSet)vulkanSurface.ImGuiDescriptorSet, (void*)desc_image.sampler));
 }
 
 void vulkan_scene_prepare_output_descriptors(VulkanContext& ctx, VulkanScene& vulkanScene)
@@ -299,10 +292,10 @@ void vulkan_scene_prepare_output_descriptors(VulkanContext& ctx, VulkanScene& vu
             }
 
             // Only build on demand, but always set
-            vulkan_scene_target_build_descriptor(ctx, vulkanScene, *pTarget, key);
+            vulkan_scene_target_build_descriptor(ctx, vulkanScene, *pTarget);
 
             // Descriptors renewed each frame
-            vulkan_scene_target_set_descriptor(ctx, vulkanScene, *pTarget, key);
+            vulkan_scene_target_set_descriptor(ctx, vulkanScene, *pTarget);
         }
     }
 }

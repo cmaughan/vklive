@@ -16,6 +16,12 @@
 
 namespace vulkan
 {
+
+std::string to_string(const VulkanSurface& surf)
+{
+    return fmt::format("Surface Key:{}, Image:{}, Extent:{},{}", surf.key.DebugName(), (void*)surf.image, surf.extent.width, surf.extent.height);
+}
+
 void surface_unmap(VulkanContext& ctx, VulkanSurface& img)
 {
     ctx.device.unmapMemory(img.memory);
@@ -62,6 +68,9 @@ void vulkan_surface_destroy(VulkanContext& ctx, VulkanSurface& img)
         ctx.device.freeMemory(img.memory);
         img.memory = nullptr;
     }
+
+    img.ImGuiDescriptorSetLayout = nullptr;  // Will be in the cache
+    img.ImGuiDescriptorSet = nullptr;
 };
 
 void vulkan_surface_create(VulkanContext& ctx, VulkanSurface& vulkanSurface, const vk::ImageCreateInfo& imageCreateInfo, const vk::MemoryPropertyFlags& memoryPropertyFlags)

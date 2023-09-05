@@ -65,7 +65,7 @@ bool context_init(VulkanContext& ctx)
 
 #ifdef __APPLE__
     flags |= vk::InstanceCreateFlagBits::eEnumeratePortabilityKHR;
-    ctx.extensionNames.push_back("VK_KHR_portability_enumeration");
+    ctx.requestedInstanceExtensions.push_back("VK_KHR_portability_enumeration");
 #endif
 
 #ifdef IMGUI_VULKAN_DEBUG_REPORT

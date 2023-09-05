@@ -591,12 +591,16 @@ void imgui_render_drawdata(VulkanContext& ctx, ImDrawData* draw_data, vk::Comman
 
                 // Bind DescriptorSet with font or user texture
                 vk::DescriptorSet desc_set[1] = { (VkDescriptorSet)pcmd->TextureId };
+
                 if (sizeof(ImTextureID) < sizeof(ImU64))
                 {
                     // We don't support texture switches if ImTextureID hasn't been redefined to be 64-bit. Do a flaky check that other textures haven't been used.
                     IM_ASSERT(pcmd->TextureId == (ImTextureID)imgui->fontDescriptorSet);
                     desc_set[0] = imgui->fontDescriptorSet;
+                    LOG(DBG, "Extra set...");
                 }
+                LOG(DBG, "ImGui:: TextureDescriptorSet: " << desc_set[0]);
+
                 command_buffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, imgui->pipelineLayout, 0, 1, desc_set, 0, NULL);
 
                 // Draw
@@ -753,20 +757,19 @@ void imgui_render_3d(VulkanContext& ctx, Scene& scene, bool background)
                 if (pVulkanScene->defaultTarget)
                 {
                     // Find the thing we just rendered to
-                    auto itrTargetData = pVulkanScene->targetData.find(pVulkanScene->defaultTarget);
-
-                    if (itrTargetData != pVulkanScene->targetData.end())
+                    auto itrTargetData = pVulkanScene->surfaces.find(pVulkanScene->defaultTarget);
+                    if (itrTargetData != pVulkanScene->surfaces.end())
                     {
-                        auto& targetData = itrTargetData->second;
-                        if (targetData.descriptorSetLayout && targetData.descriptorSet)
+                        auto pSurf = itrTargetData->second;
+                        if (pSurf->ImGuiDescriptorSetLayout && pSurf->ImGuiDescriptorSet)
                         {
-                            LOG(DBG, "Showing RT with Descriptor: " << targetData.descriptorSet);
+                            LOG(DBG, "Showing RT with DescriptorSet: " << pSurf->ImGuiDescriptorSet);
                             LOG(DBG, "Surface: " << pVulkanScene->defaultTarget);
-                            pDrawList->AddImage((ImTextureID)targetData.descriptorSet,
+                            pDrawList->AddImage((ImTextureID)pSurf->ImGuiDescriptorSet,
                                 ImVec2(canvas_pos.x, canvas_pos.y),
                                 ImVec2(canvas_pos.x + canvas_size.x, canvas_pos.y + canvas_size.y));
                         }
-                        targetData.descriptorSet = nullptr;
+                        pSurf->ImGuiDescriptorSet = nullptr;
                         drawn = true;
                     }
                     else
@@ -833,15 +836,14 @@ void imgui_render_targets(VulkanContext& ctx, Scene& scene)
                 }
                 */
                 // Find the thing we just rendered to
-                auto itrTargetData = pVulkanScene->targetData.find(target);
-
-                if (itrTargetData != pVulkanScene->targetData.end())
+                auto itrTargetData = pVulkanScene->surfaces.find(target);
+                if (itrTargetData != pVulkanScene->surfaces.end())
                 {
-                    auto& targetData = itrTargetData->second;
-                    if (targetData.descriptorSetLayout && targetData.descriptorSet)
+                    auto pSurf = itrTargetData->second;
+                    if (pSurf->ImGuiDescriptorSetLayout && pSurf->ImGuiDescriptorSet)
                     {
-                        LOG(DBG, "Showing RT:Target with Descriptor: " << targetData.descriptorSet);
-                        pDrawList->AddImage((ImTextureID)targetData.descriptorSet,
+                        LOG(DBG, "Showing RT:Target with Descriptor: " << pSurf->ImGuiDescriptorSet);
+                        pDrawList->AddImage((ImTextureID)pSurf->ImGuiDescriptorSet,
                             ImVec2(canvas_pos.x, canvas_pos.y),
                             ImVec2(canvas_pos.x + canvas_size.x, canvas_pos.y + height_per_tile));
                         canvas_pos.y += height_per_tile;
@@ -851,7 +853,7 @@ void imgui_render_targets(VulkanContext& ctx, Scene& scene)
                         // This is the target view, some descriptors are missing
                         //LOG(DBG, "No descriptor?");
                     }
-                    targetData.descriptorSet = nullptr;
+                    pSurf->ImGuiDescriptorSet = nullptr;
                     drawn = true;
                 }
             }

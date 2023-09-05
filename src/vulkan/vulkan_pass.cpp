@@ -191,7 +191,7 @@ VulkanSurface* get_vulkan_surface(VulkanContext& ctx, VulkanPass& vulkanPass, co
     // OK, so it has changed size
     if (size != pVulkanSurface->currentSize)
     {
-        LOG(DBG, "Resizing: " << *pVulkanSurface);
+        LOG(DBG, "Resize: " << *pVulkanSurface);
 
         // Wait for this pass to complete, since we are destroying potentially active surfaces
         // NOTE: We wait idle because, the sampler is begin used in the IMGui pass, so we can't just
@@ -200,9 +200,6 @@ VulkanSurface* get_vulkan_surface(VulkanContext& ctx, VulkanPass& vulkanPass, co
         ctx.device.waitIdle();
 
         vulkan_surface_destroy(ctx, *pVulkanSurface);
-
-        // Remove the target data when resizing?
-        vulkanScene.targetData.erase(pVulkanSurface->key);
 
         // Update to latest, even if we fail, so we don't keep trying
         pVulkanSurface->currentSize = size;

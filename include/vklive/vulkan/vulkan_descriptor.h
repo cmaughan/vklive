@@ -40,6 +40,10 @@ struct DescriptorLayoutInfo
                 {
                     return false;
                 }
+                if (other.bindings[i].pImmutableSamplers != bindings[i].pImmutableSamplers)
+                {
+                    return false;
+                }
             }
             return true;
         }

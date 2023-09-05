@@ -23,18 +23,18 @@ struct PoolSizes
 {
     std::vector<std::pair<vk::DescriptorType, float>> sizes = {
 
-        { vk::DescriptorType::eSampler, 4.0f },
-        { vk::DescriptorType::eSampledImage, 4.0f },
-        { vk::DescriptorType::eCombinedImageSampler, 4.0f },
-        { vk::DescriptorType::eStorageImage, 4.0f },
-        { vk::DescriptorType::eUniformTexelBuffer, 4.0f },
-        { vk::DescriptorType::eStorageTexelBuffer, 4.0f },
-        { vk::DescriptorType::eUniformBuffer, 4.0f },
-        { vk::DescriptorType::eStorageImage, 4.0f },
-        { vk::DescriptorType::eStorageBuffer, 4.0f },
-        { vk::DescriptorType::eUniformBufferDynamic, 4.0f },
-        { vk::DescriptorType::eStorageBufferDynamic, 4.0f },
-        { vk::DescriptorType::eInputAttachment, 4.0f }
+        { vk::DescriptorType::eSampler, 8.0f },
+        { vk::DescriptorType::eSampledImage, 8.0f },
+        { vk::DescriptorType::eCombinedImageSampler, 8.0f },
+        { vk::DescriptorType::eStorageImage, 8.0f },
+        { vk::DescriptorType::eUniformTexelBuffer, 8.0f },
+        { vk::DescriptorType::eStorageTexelBuffer, 8.0f },
+        { vk::DescriptorType::eUniformBuffer, 8.0f },
+        { vk::DescriptorType::eStorageImage, 8.0f },
+        { vk::DescriptorType::eStorageBuffer, 8.0f },
+        { vk::DescriptorType::eUniformBufferDynamic, 8.0f },
+        { vk::DescriptorType::eStorageBufferDynamic, 8.0f },
+        { vk::DescriptorType::eInputAttachment, 8.0f }
     };
 };
 

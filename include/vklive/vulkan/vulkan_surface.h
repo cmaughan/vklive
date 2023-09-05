@@ -66,6 +66,10 @@ struct VulkanSurface : Allocation
     uint64_t generation = 0;
 
     SurfaceKey key;
+
+    // For UI read of this surface
+    vk::DescriptorSetLayout ImGuiDescriptorSetLayout = nullptr;
+    vk::DescriptorSet ImGuiDescriptorSet = nullptr;
 };
 
 inline std::ostream& operator<<(std::ostream& os, const VulkanSurface& surf)
@@ -73,6 +77,8 @@ inline std::ostream& operator<<(std::ostream& os, const VulkanSurface& surf)
     os << surf.key << " Image: " << surf.image << " (" << surf.extent.width << ", " << surf.extent.height << ")";
     return os;
 }
+
+std::string to_string(const VulkanSurface& surf);
 
 using MipData = ::std::pair<vk::Extent3D, vk::DeviceSize>;
 

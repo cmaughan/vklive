@@ -20,7 +20,6 @@ struct VulkanPassSwapFrameData;
 struct VulkanTargetData
 {
     VulkanSurface* pVulkanSurface = nullptr;
-
 };
 
 struct VulkanPassTargets

@@ -47,6 +47,7 @@ find_package(unofficial-spirv-reflect CONFIG REQUIRED)
 find_package(gli CONFIG REQUIRED)
 find_path(STB_INCLUDE_DIRS "stb_c_lexer.h")
 find_package(range-v3 CONFIG REQUIRED)
+find_path(TSL_ORDERED_MAP_INCLUDE_DIRS "tsl/ordered_hash.h")
 
 # Set this if we are sitting on SDL
 add_definitions(-DZEP_USE_SDL)
@@ -228,6 +229,7 @@ target_include_directories(vklive
     PRIVATE
         ${CMAKE_BINARY_DIR}
         ${CMAKE_CURRENT_SOURCE_DIR}/external
+        ${TSL_ORDERED_MAP_INCLUDE_DIRS}
     )
 
 # App
