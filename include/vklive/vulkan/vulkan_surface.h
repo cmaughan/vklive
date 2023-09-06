@@ -68,7 +68,6 @@ struct VulkanSurface : Allocation
     SurfaceKey key;
 
     // For UI read of this surface
-    vk::DescriptorSetLayout ImGuiDescriptorSetLayout = nullptr;
     vk::DescriptorSet ImGuiDescriptorSet = nullptr;
 };
 

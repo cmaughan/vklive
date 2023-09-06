@@ -69,7 +69,6 @@ void vulkan_surface_destroy(VulkanContext& ctx, VulkanSurface& img)
         img.memory = nullptr;
     }
 
-    img.ImGuiDescriptorSetLayout = nullptr;  // Will be in the cache
     img.ImGuiDescriptorSet = nullptr;
 };
 

@@ -76,4 +76,6 @@ void imgui_viewport_destroy_all(VulkanContext& ctx);
 void imgui_render_3d(VulkanContext& ctx, Scene& scene, bool background);
 void imgui_render_targets(VulkanContext& ctx, Scene& scene);
 
+const vk::DescriptorSetLayout& imgui_get_texture_layout(VulkanContext& ctx);
+
 } // namespace vulkan

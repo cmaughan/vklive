@@ -187,35 +187,17 @@ VulkanSurface* vulkan_scene_get_or_create_surface(VulkanScene& vulkanScene, cons
     return spSurface.get();
 }
 
-void vulkan_scene_target_build_descriptor(VulkanContext& ctx, VulkanScene& vulkanScene, VulkanSurface& vulkanSurface)
-{
-    if (vulkanSurface.ImGuiDescriptorSetLayout)
-    {
-        return;
-    }
 
-    auto imgui = imgui_context(ctx);
-    auto binding = vk::DescriptorSetLayoutBinding(0, vk::DescriptorType::eCombinedImageSampler, 1, vk::ShaderStageFlagBits::eFragment, &imgui->fontSampler);
-
-    auto layoutCreateInfo = vk::DescriptorSetLayoutCreateInfo(vk::DescriptorSetLayoutCreateFlags(), binding);
-
-    vulkanSurface.ImGuiDescriptorSetLayout = descriptor_create_layout(ctx, descriptor_get_cache(ctx), layoutCreateInfo);
-
-    debug_set_descriptorsetlayout_name(ctx.device, vulkanSurface.ImGuiDescriptorSetLayout, fmt::format("{}:{}", to_string(vulkanSurface), "DescriptorLayout(UI)"));
-
-    LOG(DBG, fmt::format("Build DescriptorSetLayout for: {}, {}", to_string(vulkanSurface), (void*)(VkDescriptorSetLayout)vulkanSurface.ImGuiDescriptorSetLayout));
-}
-
-void vulkan_scene_target_set_descriptor(VulkanContext& ctx, VulkanScene& vulkanScene, VulkanSurface& vulkanSurface)
+void vulkan_scene_target_set_imgui_descriptor(VulkanContext& ctx, VulkanScene& vulkanScene, VulkanSurface& vulkanSurface)
 {
     LOG_SCOPE(DBG, "Scene GUI Target Descriptors:");
-    if (!vulkanSurface.ImGuiDescriptorSetLayout || !vulkanSurface.sampler)
+    if (!vulkanSurface.sampler)
     {
         vulkanSurface.ImGuiDescriptorSet = nullptr;
         return;
     }
 
-    bool success = descriptor_allocate(ctx, descriptor_get_cache(ctx), &vulkanSurface.ImGuiDescriptorSet, vulkanSurface.ImGuiDescriptorSetLayout);
+    bool success = descriptor_allocate(ctx, descriptor_get_cache(ctx), &vulkanSurface.ImGuiDescriptorSet, imgui_get_texture_layout(ctx));
     if (!success)
     {
         scene_report_error(*vulkanScene.pScene, MessageSeverity::Error, fmt::format("Could not allocate descriptor"));
@@ -237,7 +219,7 @@ void vulkan_scene_target_set_descriptor(VulkanContext& ctx, VulkanScene& vulkanS
     write_desc.setImageInfo(desc_image);
     ctx.device.updateDescriptorSets(write_desc, {});
     
-    LOG(DBG, fmt::format("Set DescriptorSet for: {}, Layout:{}, Set:{}, Sampler:{}", to_string(vulkanSurface), (void*)(VkDescriptorSetLayout)vulkanSurface.ImGuiDescriptorSetLayout, (void*)(VkDescriptorSet)vulkanSurface.ImGuiDescriptorSet, (void*)desc_image.sampler));
+    LOG(DBG, fmt::format("Set DescriptorSet for: {}, Layout:{}, Set:{}, Sampler:{}", to_string(vulkanSurface), (void*)&imgui_get_texture_layout(ctx), (void*)(VkDescriptorSet)vulkanSurface.ImGuiDescriptorSet, (void*)desc_image.sampler));
 }
 
 void vulkan_scene_prepare_output_descriptors(VulkanContext& ctx, VulkanScene& vulkanScene)
@@ -291,11 +273,8 @@ void vulkan_scene_prepare_output_descriptors(VulkanContext& ctx, VulkanScene& vu
                 vulkanScene.defaultTarget = key;
             }
 
-            // Only build on demand, but always set
-            vulkan_scene_target_build_descriptor(ctx, vulkanScene, *pTarget);
-
             // Descriptors renewed each frame
-            vulkan_scene_target_set_descriptor(ctx, vulkanScene, *pTarget);
+            vulkan_scene_target_set_imgui_descriptor(ctx, vulkanScene, *pTarget);
         }
     }
 }

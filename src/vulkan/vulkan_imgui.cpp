@@ -388,7 +388,6 @@ void imgui_upload_font(VulkanContext& ctx)
         debug_end_region(command_buffer);
         command_buffer.end();
 
-
         LOG(INFO, "Font Upload Submit: ");
         command_submit_wait(ctx, context_get_queue(ctx), command_buffer);
 
@@ -761,7 +760,7 @@ void imgui_render_3d(VulkanContext& ctx, Scene& scene, bool background)
                     if (itrTargetData != pVulkanScene->surfaces.end())
                     {
                         auto pSurf = itrTargetData->second;
-                        if (pSurf->ImGuiDescriptorSetLayout && pSurf->ImGuiDescriptorSet)
+                        if (pSurf->ImGuiDescriptorSet)
                         {
                             LOG(DBG, "Showing RT with DescriptorSet: " << pSurf->ImGuiDescriptorSet);
                             LOG(DBG, "Surface: " << pVulkanScene->defaultTarget);
@@ -840,7 +839,7 @@ void imgui_render_targets(VulkanContext& ctx, Scene& scene)
                 if (itrTargetData != pVulkanScene->surfaces.end())
                 {
                     auto pSurf = itrTargetData->second;
-                    if (pSurf->ImGuiDescriptorSetLayout && pSurf->ImGuiDescriptorSet)
+                    if (pSurf->ImGuiDescriptorSet)
                     {
                         LOG(DBG, "Showing RT:Target with Descriptor: " << pSurf->ImGuiDescriptorSet);
                         pDrawList->AddImage((ImTextureID)pSurf->ImGuiDescriptorSet,
@@ -851,7 +850,7 @@ void imgui_render_targets(VulkanContext& ctx, Scene& scene)
                     else
                     {
                         // This is the target view, some descriptors are missing
-                        //LOG(DBG, "No descriptor?");
+                        // LOG(DBG, "No descriptor?");
                     }
                     pSurf->ImGuiDescriptorSet = nullptr;
                     drawn = true;
@@ -866,6 +865,12 @@ void imgui_render_targets(VulkanContext& ctx, Scene& scene)
     }
 
     ImGui::End();
+}
+
+const vk::DescriptorSetLayout& imgui_get_texture_layout(VulkanContext& ctx)
+{
+    auto imgui = imgui_context(ctx);
+    return imgui->descriptorSetLayout;
 }
 
 // ImVec2 mouse_pos_in_canvas = ImVec2(ImGui::GetIO().MousePos.x - canvas_pos.x, ImGui::GetIO().MousePos.y - canvas_pos.y);
