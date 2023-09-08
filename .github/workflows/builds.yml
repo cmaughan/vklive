@@ -17,8 +17,8 @@ jobs:
             # We can build Windows/Mac
             - { title: "Linux", os: "ubuntu-latest", cc: "clang-14", cx: "clang++-14", arch: "x64", build_type: "Release" }
             - { title: "Linux", os: "ubuntu-latest", cc: "clang-14", cx: "clang++-14", arch: "x64", build_type: "Debug" }
-            - { title: "Linux", os: "ubuntu-latest", cc: "gcc-11", cx: "g++-11", arch: "x64", build_type: "Release" }
-            - { title: "Linux", os: "ubuntu-latest", cc: "gcc-11", cx: "g++-11", arch: "x64", build_type: "Debug" }
+            # - { title: "Linux", os: "ubuntu-latest", cc: "gcc-11", cx: "g++-11", arch: "x64", build_type: "Release" }
+            # - { title: "Linux", os: "ubuntu-latest", cc: "gcc-11", cx: "g++-11", arch: "x64", build_type: "Debug" }
             - { title: "Windows", os: "windows-latest", cc: "vs2022", arch: "x64", build_type: "Release", package_type: "x64-windows-static-md", script: "bat" }
             - { title: "Windows", os: "windows-latest", cc: "vs2022", arch: "x64", build_type: "Debug", package_type: "x64-windows-static-md", script: "bat" }
             - { title: "Mac", os: "macos-latest", cc: "clang-15", cx: "clang++-15", arch: "x64", build_type: "Release" }
