@@ -20,6 +20,7 @@ enum class Format
     default_depth_format,
     r8g8b8a8_unorm,
     r16g16b16a16_sfloat,
+    r32g32b32a32_sfloat,
     d32
 };
 
@@ -52,6 +53,9 @@ struct Surface
     
     // Is this a ray trace target?
     bool isRayTarget = false;
+
+    // Is this the default color target?
+    bool isDefaultColorTarget = false;
 };
 
 enum class GeometryType
@@ -162,6 +166,13 @@ struct Pass
     int scriptPassLine = 0;
 };
 
+namespace SceneFlags
+{
+    enum
+    {
+        DefaultTargetResize = 0x1
+    };
+}
 struct Scene
 {
     Scene(const fs::path& p)
@@ -192,6 +203,10 @@ struct Scene
 
     static uint64_t GlobalFrameCount;
     static double GlobalElapsedSeconds;
+
+    glm::vec2 lastOutputSize = glm::vec2(0.0f);
+
+    uint32_t sceneFlags = SceneFlags::DefaultTargetResize;
 };
 
 enum class AssetType

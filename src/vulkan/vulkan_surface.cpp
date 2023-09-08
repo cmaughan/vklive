@@ -175,6 +175,8 @@ void vulkan_surface_create_depth(VulkanContext& ctx, VulkanSurface& vulkanSurfac
 
 void surface_create_sampler(VulkanContext& ctx, VulkanSurface& surface)
 {
+    assert(!surface.sampler);
+
     // Create sampler
     vk::SamplerCreateInfo samplerCreateInfo;
     // TODO: Obey user options

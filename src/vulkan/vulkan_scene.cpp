@@ -170,7 +170,7 @@ VulkanSurface* vulkan_scene_get_or_create_surface(VulkanScene& vulkanScene, cons
         return nullptr;
     }
 
-    SurfaceKey key(surfaceName, (!format_is_depth(pSurface->format) && pSurface->isTarget) ? frameCount : 0, sampling);
+    SurfaceKey key(surfaceName, pSurface->isDefaultColorTarget ? frameCount : 0, sampling);
 
     auto itr = vulkanScene.surfaces.find(key);
     if (itr != vulkanScene.surfaces.end())
@@ -231,7 +231,8 @@ void vulkan_scene_prepare_output_descriptors(VulkanContext& ctx, VulkanScene& vu
     // ones for the current frame, that have been written.  Then we allocate our descriptors
     for (auto& [initKey, pVulkanSurface] : vulkanScene.surfaces)
     {
-        // Find the correct surface for this frame
+        // Find the correct surface for this frame; what we are doing here is trying to find the 'flipped' surface.
+        // I don't think this is correct....
         SurfaceKey key(pVulkanSurface->pSurface->name, Scene::GlobalFrameCount, false);
         auto itrTarget = vulkanScene.surfaces.find(key);
         if (itrTarget != vulkanScene.surfaces.end())
@@ -247,8 +248,8 @@ void vulkan_scene_prepare_output_descriptors(VulkanContext& ctx, VulkanScene& vu
             {
                 if (!pTarget->sampler)
                 {
-                    surface_set_sampling(ctx, *pVulkanSurface);
-                    LOG(DBG, "Adding sampler to rendered target for UI: " << pVulkanSurface->debugName);
+                    surface_set_sampling(ctx, *pTarget);
+                    LOG(DBG, "Adding sampler to rendered target for UI: " << pTarget->debugName);
                 }
             }
 

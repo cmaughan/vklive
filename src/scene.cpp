@@ -98,6 +98,7 @@ const auto Formats = std::map<std::string, Format>{
 
     { "r16g16b16a16_sfloat", Format::r16g16b16a16_sfloat },
     { "rgba16f", Format::r16g16b16a16_sfloat },
+    { "rgba32f", Format::r32g32b32a32_sfloat },
 
     { "d32", Format::d32 },
     { "default_depth_format", Format::default_depth_format },
@@ -413,6 +414,7 @@ std::shared_ptr<Scene> scene_build(const fs::path& root)
     auto spDefaultColor = std::make_shared<Surface>("default_color");
     spDefaultColor->format = Format::default_format;
     spDefaultColor->isTarget = true;
+    spDefaultColor->isDefaultColorTarget = true;
 
     auto spDefaultDepth = std::make_shared<Surface>("default_depth");
     spDefaultDepth->format = Format::default_depth_format;

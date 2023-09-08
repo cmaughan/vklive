@@ -740,12 +740,21 @@ void imgui_render_3d(VulkanContext& ctx, Scene& scene, bool background)
     auto minRect = pDrawList->GetClipRectMin();
     auto maxRect = pDrawList->GetClipRectMax();
     canvas_pos = minRect;
-    canvas_size = ImVec2(maxRect.x - minRect.x, maxRect.y - minRect.y);
+    auto outputSize = glm::vec2(maxRect.x - minRect.x, maxRect.y - minRect.y);
 
     bool drawn = false;
     if (scene.valid)
     {
-        vulkan::render(ctx, glm::vec4(canvas_pos.x, canvas_pos.y, canvas_size.x, canvas_size.y), scene);
+        if (outputSize != scene.lastOutputSize)
+        {
+            scene.lastOutputSize = outputSize;
+            scene.sceneFlags |= SceneFlags::DefaultTargetResize;
+            Scene::GlobalFrameCount = 0;
+        }
+
+        vulkan::render(ctx, glm::vec4(canvas_pos.x, canvas_pos.y, outputSize.x, outputSize.y), scene);
+
+        scene.sceneFlags &= ~SceneFlags::DefaultTargetResize;
 
         if (ctx.deviceState == DeviceState::Normal)
         {
@@ -766,7 +775,7 @@ void imgui_render_3d(VulkanContext& ctx, Scene& scene, bool background)
                             LOG(DBG, "Surface: " << pVulkanScene->defaultTarget);
                             pDrawList->AddImage((ImTextureID)pSurf->ImGuiDescriptorSet,
                                 ImVec2(canvas_pos.x, canvas_pos.y),
-                                ImVec2(canvas_pos.x + canvas_size.x, canvas_pos.y + canvas_size.y));
+                                ImVec2(canvas_pos.x + outputSize.x, canvas_pos.y + outputSize.y));
                         }
                         pSurf->ImGuiDescriptorSet = nullptr;
                         drawn = true;

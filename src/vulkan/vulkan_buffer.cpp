@@ -27,6 +27,8 @@ void vulkan_buffer_destroy(VulkanContext& ctx, VulkanBuffer& buffer)
 
     ctx.device.destroy(buffer.buffer);
     buffer.buffer = vk::Buffer{};
+
+    buffer.deviceAddress = vk::DeviceOrHostAddressConstKHR();
 }
 
 void buffer_unmap(VulkanContext& ctx, VulkanBuffer& buffer)

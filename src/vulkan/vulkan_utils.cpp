@@ -395,6 +395,8 @@ vk::Format utils_format_to_vulkan(const Format& format)
         return vk::Format::eR8G8B8A8Unorm;
     case Format::r16g16b16a16_sfloat:
         return vk::Format::eR16G16B16A16Sfloat;
+    case Format::r32g32b32a32_sfloat:
+        return vk::Format::eR32G32B32A32Sfloat;
     }
     assert(!"Unknown format?");
     return vk::Format::eR8G8B8A8Unorm;

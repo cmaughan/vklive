@@ -4,6 +4,8 @@ struct Channel
     float time;
  };
 
+#define FLAG_DEFAULT_TARGET_RESIZE 0x1
+
 // For now this has to match the source
 layout(set = 0, binding = 0) uniform UBO
 {
@@ -13,6 +15,7 @@ layout(set = 0, binding = 0) uniform UBO
     float iFrame;           // Number of frames drawn since begin
     float iFrameRate;       // 1 / Elapsed
     float iSampleRate;      // Sound sample rate
+    uint iSceneFlags;       // Scene flags
     uint vertexSize;        // Size of vertex for ray tracing
     vec4 iResolution;  // Resolution of current target
     vec4 iMouse;       // Mouse coords in pixels

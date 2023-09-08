@@ -8,8 +8,8 @@
 #include <zing/audio/audio.h>
 
 #include <zest/logger/logger.h>
-#include <zest/time/timer.h>
 #include <zest/string/string_utils.h>
+#include <zest/time/timer.h>
 
 #include "vklive/validation.h"
 
@@ -70,8 +70,12 @@ void vulkan_pass_destroy(VulkanContext& ctx, VulkanPass& vulkanPass)
         }
         vulkan_buffer_destroy(ctx, passData.vsUniform);
 
+        vulkan_buffer_destroy(ctx, passData.rayGenBindingTable);
+        vulkan_buffer_destroy(ctx, passData.missBindingTable);
+        vulkan_buffer_destroy(ctx, passData.hitBindingTable);
+
         // Pipeline/graphics
-        //LOG(DBG, "Destroy GeometryPipe: " << passData.pipeline);
+        // LOG(DBG, "Destroy GeometryPipe: " << passData.pipeline);
         ctx.device.destroyPipeline(passData.pipeline);
         ctx.device.destroyPipelineLayout(passData.geometryPipelineLayout);
         passData.pipeline = nullptr;
@@ -93,11 +97,11 @@ void vulkan_pass_wait(VulkanContext& ctx, VulkanPassSwapFrameData& passData)
         passData.inFlight = false;
         ctx.device.resetFences(passData.fence);
 
-        //LOG(DBG, "Reset fence: " << &passData.fence);
+        // LOG(DBG, "Reset fence: " << &passData.fence);
     }
     else
     {
-        //LOG(DBG, "Not in flight: " << &passData.fence);
+        // LOG(DBG, "Not in flight: " << &passData.fence);
     }
 }
 
@@ -316,7 +320,7 @@ bool vulkan_pass_check_targets(VulkanContext& ctx, VulkanPassTargets& passTarget
     // TODO: This only handles resizes, not recreation?...
     if (diff)
     {
-        //LOG(DBG, "Targets different, cleaning up FB, RenderPass, Geom");
+        // LOG(DBG, "Targets different, cleaning up FB, RenderPass, Geom");
 
         // I think we can just wait for the pass here, since these are all pass-specific objects
         // Note that a previous pass may have changed targets, even if this one didn't.  So we need
@@ -326,7 +330,7 @@ bool vulkan_pass_check_targets(VulkanContext& ctx, VulkanPassTargets& passTarget
         // destroy the framebuffer since it depends on renderpass and targets
         if (passTargets.frameBuffer)
         {
-            //LOG(DBG, "Destroy Framebuffer: " << passTargets.frameBuffer);
+            // LOG(DBG, "Destroy Framebuffer: " << passTargets.frameBuffer);
             framebuffer_destroy(ctx, passTargets.frameBuffer);
             passTargets.frameBuffer = nullptr;
         }
@@ -334,7 +338,7 @@ bool vulkan_pass_check_targets(VulkanContext& ctx, VulkanPassTargets& passTarget
         // Renderpass has the framebuffer, which we had to recreate, so recreate render pass
         if (passTargets.renderPass)
         {
-            //LOG(DBG, "Destroy RenderPass: " << passTargets.renderPass);
+            // LOG(DBG, "Destroy RenderPass: " << passTargets.renderPass);
             ctx.device.destroyRenderPass(passTargets.renderPass);
             passTargets.renderPass = nullptr;
         }
@@ -342,7 +346,7 @@ bool vulkan_pass_check_targets(VulkanContext& ctx, VulkanPassTargets& passTarget
         // Geom pipe uses the render pass
         if (passTargets.pFrameData && passTargets.pFrameData->pipeline)
         {
-            //LOG(DBG, "Destroy Geometry Pipe: " << passTargets.pFrameData->pipeline);
+            // LOG(DBG, "Destroy Geometry Pipe: " << passTargets.pFrameData->pipeline);
             ctx.device.destroyPipeline(passTargets.pFrameData->pipeline);
             ctx.device.destroyPipelineLayout(passTargets.pFrameData->geometryPipelineLayout);
             passTargets.pFrameData->pipeline = nullptr;
@@ -385,7 +389,7 @@ void vulkan_pass_check_samplers(VulkanContext& ctx, VulkanPassTargets& passTarge
         auto pVulkanSurface = get_vulkan_surface(ctx, *frameData.pVulkanPass, passSampler);
         if (checkForChanges(pVulkanSurface))
         {
-            //LOG(DBG, "Sampler has changed, removing geometry pipe");
+            // LOG(DBG, "Sampler has changed, removing geometry pipe");
 
             // I think we can just wait for the pass here, since these are all pass-specific objects
             // Note that a previous pass may have changed targets, even if this one didn't.  So we need
@@ -395,7 +399,7 @@ void vulkan_pass_check_samplers(VulkanContext& ctx, VulkanPassTargets& passTarge
             // Geom pipe uses the render pass
             if (frameData.pipeline)
             {
-                //LOG(DBG, "Destroy Geometry Pipe: " << frameData.pipeline);
+                // LOG(DBG, "Destroy Geometry Pipe: " << frameData.pipeline);
                 ctx.device.destroyPipeline(frameData.pipeline);
                 ctx.device.destroyPipelineLayout(frameData.geometryPipelineLayout);
                 passTargets.pFrameData->pipeline = nullptr;
@@ -534,8 +538,8 @@ void vulkan_pass_prepare_renderpass(VulkanContext& ctx, VulkanPassTargets& passT
         debug_set_framebuffer_name(ctx.device, passTargets.frameBuffer, "FrameBuffer:" + passTargets.debugName);
     }
 
-    //LOG(DBG, "  FrameBuffer: " << passTargets.frameBuffer);
-    //LOG(DBG, "  RenderPass: " << passTargets.renderPass);
+    // LOG(DBG, "  FrameBuffer: " << passTargets.frameBuffer);
+    // LOG(DBG, "  RenderPass: " << passTargets.renderPass);
 }
 
 void vulkan_pass_dump_targets(VulkanPassTargets& passTargets)
@@ -699,6 +703,7 @@ void vulkan_pass_prepare_uniforms(VulkanContext& ctx, VulkanPass& vulkanPass)
     ubo.iGlobalTime = elapsed;
     ubo.iResolution = glm::vec4(size.x, size.y, 1.0, 0.0);
     ubo.iMouse = glm::vec4(0.0f); // TODO: Mouse
+    ubo.iSceneFlags = scene.sceneFlags;
 
     ubo.vertexSize = layout_size(g_vertexLayout);
 
@@ -1087,7 +1092,7 @@ bool vulkan_pass_prepare_pipeline(VulkanContext& ctx, VulkanPassSwapFrameData& f
             vk::RayTracingPipelineCreateInfoKHR createInfo;
             createInfo.setStages(shaderStages);
             createInfo.setGroups(frameData.rayGroupCreateInfos);
-            createInfo.setMaxPipelineRayRecursionDepth(3);
+            createInfo.setMaxPipelineRayRecursionDepth(8);
             createInfo.setLayout(frameData.geometryPipelineLayout);
             frameData.pipeline = ctx.device.createRayTracingPipelineKHR(nullptr, nullptr, createInfo).value;
 
@@ -1102,6 +1107,13 @@ bool vulkan_pass_prepare_pipeline(VulkanContext& ctx, VulkanPassSwapFrameData& f
                 frameData.rayGenBindingTable = buffer_create(ctx, vk::BufferUsageFlagBits::eShaderBindingTableKHR | vk::BufferUsageFlagBits::eShaderDeviceAddress, vk::MemoryPropertyFlagBits::eHostVisible | vk::MemoryPropertyFlagBits::eHostCoherent, vk::DeviceSize(handleSize), handles.data());
                 frameData.missBindingTable = buffer_create(ctx, vk::BufferUsageFlagBits::eShaderBindingTableKHR | vk::BufferUsageFlagBits::eShaderDeviceAddress, vk::MemoryPropertyFlagBits::eHostVisible | vk::MemoryPropertyFlagBits::eHostCoherent, vk::DeviceSize(handleSize), handles.data() + handleSizeAligned);
                 frameData.hitBindingTable = buffer_create(ctx, vk::BufferUsageFlagBits::eShaderBindingTableKHR | vk::BufferUsageFlagBits::eShaderDeviceAddress, vk::MemoryPropertyFlagBits::eHostVisible | vk::MemoryPropertyFlagBits::eHostCoherent, vk::DeviceSize(handleSize), handles.data() + handleSizeAligned * 2);
+
+                debug_set_buffer_name(ctx.device, frameData.rayGenBindingTable.buffer, fmt::format("{}:{}", frameData.debugName, "RayGenBindingTable"));
+                debug_set_buffer_name(ctx.device, frameData.missBindingTable.buffer, fmt::format("{}:{}", frameData.debugName, "MissBindingTable"));
+                debug_set_buffer_name(ctx.device, frameData.hitBindingTable.buffer, fmt::format("{}:{}", frameData.debugName, "HitBindingTable"));
+        
+                debug_set_pipeline_name(ctx.device, frameData.pipeline, fmt::format("RayTracePipe: {}", frameData.debugName));
+                LOG(DBG, "Create RayTracePipe: " << frameData.pipeline);
             }
         }
     }
@@ -1220,7 +1232,7 @@ void vulkan_pass_submit(VulkanContext& ctx, VulkanPass& vulkanPass)
         }
 
         cmd.endRenderPass();
-        
+
         vulkan_pass_make_targets_readable(ctx, passFrameData);
     }
     else if (passFrameData.pVulkanPass->pass.passType == PassType::RayTracing)
@@ -1260,7 +1272,7 @@ void vulkan_pass_submit(VulkanContext& ctx, VulkanPass& vulkanPass)
             passTargets.targetSize.x,
             passTargets.targetSize.y,
             1);
-        
+
         vulkan_pass_make_targets_readable(ctx, passFrameData);
     }
 
@@ -1365,36 +1377,3 @@ bool vulkan_pass_draw(VulkanContext& ctx, VulkanPass& vulkanPass)
 
 } // namespace vulkan
 
-/*
-    vk::StructureChain<vk::PhysicalDeviceProperties2, vk::PhysicalDeviceRayTracingPropertiesNV> propertiesChain =
-      physicalDevice.getProperties2<vk::PhysicalDeviceProperties2, vk::PhysicalDeviceRayTracingPropertiesNV>();
-    uint32_t shaderGroupBaseAlignment = propertiesChain.get<vk::PhysicalDeviceRayTracingPropertiesNV>().shaderGroupBaseAlignment;
-    uint32_t shaderGroupHandleSize    = propertiesChain.get<vk::PhysicalDeviceRayTracingPropertiesNV>().shaderGroupHandleSize;
-
-    uint32_t raygenShaderBindingOffset = 0;                      // starting with raygen
-    uint32_t raygenShaderTableSize     = shaderGroupHandleSize;  // one raygen shader
-    uint32_t missShaderBindingOffset   = raygenShaderBindingOffset + roundUp( raygenShaderTableSize, shaderGroupBaseAlignment );
-    uint32_t missShaderBindingStride   = shaderGroupHandleSize;
-    uint32_t missShaderTableSize       = 2 * missShaderBindingStride;  // two raygen shaders
-    uint32_t hitShaderBindingOffset    = missShaderBindingOffset + roundUp( missShaderTableSize, shaderGroupBaseAlignment );
-    uint32_t hitShaderBindingStride    = shaderGroupHandleSize;
-    uint32_t hitShaderTableSize        = 2 * hitShaderBindingStride;  // two hit shaders
-
-    uint32_t             shaderBindingTableSize = hitShaderBindingOffset + hitShaderTableSize;
-    std::vector<uint8_t> shaderHandleStorage( shaderBindingTableSize );
-    memcpy( &shaderHandleStorage[raygenShaderBindingOffset],
-            rayTracingPipeline.getRayTracingShaderGroupHandlesKHR<uint8_t>( 0, 1, raygenShaderTableSize ).data(),
-            raygenShaderTableSize );
-    memcpy( &shaderHandleStorage[missShaderBindingOffset],
-            rayTracingPipeline.getRayTracingShaderGroupHandlesKHR<uint8_t>( 1, 2, missShaderTableSize ).data(),
-            missShaderTableSize );
-    memcpy( &shaderHandleStorage[hitShaderBindingOffset],
-            rayTracingPipeline.getRayTracingShaderGroupHandlesKHR<uint8_t>( 3, 2, hitShaderTableSize ).data(),
-            hitShaderTableSize );
-    assert( shaderHandleStorage.size() == shaderBindingTableSize );
-
-    vk::raii::su::BufferData shaderBindingTableBufferData(
-      physicalDevice, device, shaderBindingTableSize, vk::BufferUsageFlagBits::eTransferDst, vk::MemoryPropertyFlagBits::eHostVisible );
-    shaderBindingTableBufferData.upload( shaderHandleStorage );
-https://github.com/KhronosGroup/Vulkan-Hpp/blob/f51dac9f18e1a96f28090361642d1f51cd20bc61/RAII_Samples/RayTracing/RayTracing.cpp#L1080
-    */
