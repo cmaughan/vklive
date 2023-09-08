@@ -95,7 +95,6 @@ struct VulkanScene
 
     // Mappings from names to real vulkan objects
     Scene* pScene = nullptr;
-    std::unordered_map<std::string, std::shared_ptr<VulkanSurface>> textureCacheMaybe;
     std::unordered_map<SurfaceKey, std::shared_ptr<VulkanSurface>, SurfaceKey::HashFunction> surfaces;
     std::unordered_map<fs::path, std::shared_ptr<VulkanModel>> models;
     std::unordered_map<fs::path, std::shared_ptr<VulkanShader>> shaderStages;

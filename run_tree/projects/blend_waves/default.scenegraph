@@ -1,0 +1,13 @@
+surface: AudioAnalysis {
+}
+
+pass: Pass1 {                   // A pass draws geometry 
+    samplers: (AudioAnalysis, !default_color)   // List of samplers; noise texture
+    clear: (0.0, 0.0, 0.0, 1.0) // Clear done every pass
+    geometry: background {      // The geometry to submit
+        path: screen_rect       // screen_rect is Quad
+        vs: screen.vert
+        fs: screen.frag
+    }
+}
+
