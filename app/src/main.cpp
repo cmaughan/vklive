@@ -15,6 +15,7 @@
 #include <zest/file/runtree.h>
 #include <zest/logger/logger.h>
 #include <zest/time/timer.h>
+#include <zest/ui/layout_manager.h>
 
 #include <vklive/process/process.h>
 
@@ -61,6 +62,9 @@ namespace vulkan
 {
 extern std::shared_ptr<IDevice> create_vulkan_device(SDL_Window* pWindow, const std::string& settingsPath, bool viewports = false);
 }
+
+namespace
+{
 
 bool read_command_line(int argc, char** argv, int& exitCode)
 {
@@ -130,6 +134,20 @@ void save_state()
     }
 }
 
+void register_windows()
+{
+    Zest::layout_manager_register_window("Profiler", "Profiler", &g_WindowEnables.profiler);
+
+    Zest::layout_manager_load_layouts_file("vklive", [](const std::string& name, const Zest::LayoutInfo& info) {
+        if (!info.windowLayout.empty())
+        {
+            ImGui::LoadIniSettingsFromMemory(info.windowLayout.c_str());
+        }
+    });
+}
+
+} // namespace
+
 int main(int argc, char** argv)
 {
     Zest::Profiler::Init();
@@ -184,6 +202,8 @@ int main(int argc, char** argv)
     g_pDevice = vulkan::create_vulkan_device(init_sdl_window(), imSettingsPath, appConfig.viewports);
 
     Zing::audio_init(nullptr);
+
+    register_windows();
 
     // This update thread generates a new scene, then returns it in a queue ready for 'swapping' with the existing one
     // if it is valid
@@ -279,13 +299,17 @@ int main(int argc, char** argv)
         }
         g_pDevice->ValidateSwapChain();
 
+        Zest::layout_manager_update();
+
         // Start the Dear ImGui frame
         ImGui_ImplSDL2_NewFrame(g_pDevice->Context().window);
         ImGui::NewFrame();
 
-        menu_show();
-
-        // ImGui::ShowDemoWindow();
+        if (menu_show())
+        {
+            zepFocusFlags &= ~(ZepFocusFlags::CheckFocus | ZepFocusFlags::Focus);
+        }
+        //ImGui::ShowDemoWindow();
 
         static bool update = false;
         static bool z_init = false;
@@ -480,7 +504,14 @@ int main(int argc, char** argv)
             validation_enable_messages(false);
         }
 
-        Zest::Profiler::ShowProfile();
+        if (g_WindowEnables.profiler)
+        {
+            if (ImGui::Begin("Profiler", &g_WindowEnables.profiler))
+            {
+                Zest::Profiler::ShowProfile();
+            }
+            ImGui::End();
+        }
 
         // Show the editor
         zep_show(zepFocusFlags);

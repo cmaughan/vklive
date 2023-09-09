@@ -8,6 +8,7 @@
 #include <zest/file/runtree.h>
 #include <zest/string/string_utils.h>
 #include <zest/time/timer.h>
+#include <zest/ui/layout_manager.h>
 
 #include <zing/audio/audio.h>
 
@@ -32,6 +33,8 @@ enum class PopupType
 };
 PopupType popupType = PopupType::None;
 } // namespace
+
+WindowEnables g_WindowEnables;
 
 void show_audio_popup()
 {
@@ -64,7 +67,7 @@ void show_audio_popup()
     }
 }
 
-void menu_show()
+bool menu_show()
 {
     enum class PopupSelection
     {
@@ -320,11 +323,9 @@ void menu_show()
             {
                 pTabWindow->AddWindow(&pTabWindow->GetActiveWindow()->GetBuffer(), pTabWindow->GetActiveWindow(), Zep::RegionLayoutType::HBox);
             }
-            /*
-            else if (ImGui::MenuItem("Reset Layout"))
-            {
-            }
-            */
+            ImGui::Separator();
+            Zest::layout_manager_do_menu();
+
             ImGui::EndMenu();
         }
 
@@ -367,4 +368,10 @@ void menu_show()
     };
 
     show_audio_popup();
+        
+    if (Zest::layout_manager_do_menu_popups())
+    {
+        return true;
+    }
+    return false;
 }

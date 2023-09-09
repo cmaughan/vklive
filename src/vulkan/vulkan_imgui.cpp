@@ -806,7 +806,6 @@ void imgui_render_3d(VulkanContext& ctx, Scene& scene, bool background)
 
 void imgui_render_targets(VulkanContext& ctx, Scene& scene)
 {
-    return;
     auto imgui = imgui_context(ctx);
 
     ImGui::SetNextWindowSize(ImVec2(800, 600), ImGuiCond_FirstUseEver);
