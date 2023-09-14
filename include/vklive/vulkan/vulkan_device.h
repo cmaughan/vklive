@@ -30,6 +30,8 @@ struct VulkanDevice : public IDevice
 
     virtual std::set<std::string> ShaderFileExtensions() override;
 
+    virtual std::string GetDeviceString() const override;
+
     DeviceContext& Context() override;
 
     VulkanContext ctx;

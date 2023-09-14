@@ -18,8 +18,7 @@ struct AccelerationStructure
 
 struct VulkanModel : Model
 {
-    VulkanModel(const Geometry& geom)
-        : geometry(geom)
+    VulkanModel()
     {
     }
 
@@ -34,31 +33,19 @@ struct VulkanModel : Model
     vk::DescriptorBufferInfo verticesDescriptor;
     vk::DescriptorBufferInfo indicesDescriptor;
 
-    const Geometry& geometry;
     std::string debugName;
+
+    static inline std::unordered_map<ModelCreateInfo, std::shared_ptr<VulkanModel>, ModelCreateInfoHash> ModelCache;
 };
+
 
 vk::Format component_format(Component component);
 
-void vulkan_model_load(VulkanContext& ctx,
-    VulkanModel& model,
-    const std::string& filename,
-    const VertexLayout& layout,
-    const glm::vec3& scale = glm::vec3(1.0f),
-    const int flags = DefaultModelFlags);
-
-void vulkan_model_load(VulkanContext& ctx,
-    VulkanModel& model,
-    const std::string& filename,
-    const VertexLayout& layout,
-    const ModelCreateInfo& createInfo,
-    const int flags);
+std::shared_ptr<VulkanModel> vulkan_model_load(VulkanContext& ctx, const ModelCreateInfo& createInfo);
 
 void vulkan_model_destroy(VulkanContext& ctx, VulkanModel& model);
 void vulkan_model_stage(VulkanContext& ctx, VulkanModel& model);
 
 std::shared_ptr<VulkanModel> vulkan_model_create(VulkanContext& ctx, VulkanScene& vulkanScene, const Geometry& geom);
-
-extern VertexLayout g_vertexLayout;
 
 } // namespace vulkan

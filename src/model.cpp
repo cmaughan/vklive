@@ -13,6 +13,14 @@
 
 const int DefaultModelFlags = aiProcess_FlipWindingOrder | aiProcess_Triangulate | aiProcess_PreTransformVertices | aiProcess_CalcTangentSpace | aiProcess_GenSmoothNormals;
 
+// Vertex layout for this example
+VertexLayout g_vertexLayout{ {
+    Component::VERTEX_COMPONENT_POSITION,
+    Component::VERTEX_COMPONENT_UV,
+    Component::VERTEX_COMPONENT_COLOR,
+    Component::VERTEX_COMPONENT_NORMAL,
+} };
+
 std::set<std::string> model_file_extensions()
 {
     Assimp::Importer importer;
@@ -23,12 +31,19 @@ std::set<std::string> model_file_extensions()
     return std::set<std::string>(v.begin(), v.end());
 }
 
-void model_load(Model& model, const std::string& filename, const VertexLayout& layout, const ModelCreateInfo& createInfo, const int flags)
+void model_load(Model& model, const ModelCreateInfo& createInfo, int flags)
 {
-    model.layout = layout;
-    model.scale = createInfo.scale;
-    model.uvscale = createInfo.uvscale;
-    model.center = createInfo.center;
+    if (!fs::exists(createInfo.filename))
+    {
+        return;
+    }
+
+    if (model.loaded && (fs::last_write_time(createInfo.filename) == model.lastWrite))
+    {
+        return;
+    }
+
+    model.createInfo = createInfo;
 
     Assimp::Importer importer;
     const aiScene* pScene;
@@ -36,8 +51,7 @@ void model_load(Model& model, const std::string& filename, const VertexLayout& l
     // Load file
     // auto data = file_read(filename);
     // pScene = importer.ReadFileFromMemory(data.data(), data.size(), flags, filename.c_str());
-    pScene = importer.ReadFile(filename.c_str(), flags);
-
+    pScene = importer.ReadFile(createInfo.filename.c_str(), flags);
     if (!pScene)
     {
         model.errors = importer.GetErrorString();
@@ -170,11 +184,9 @@ void model_load(Model& model, const std::string& filename, const VertexLayout& l
         }
         model.indexCount += part.indexCount;
     }
-}
-
-void model_load(Model& model, const std::string& filename, const VertexLayout& layout, float scale, const int flags)
-{
-    model_load(model, filename, layout, ModelCreateInfo{ glm::vec3(0.0f), glm::vec3(scale), glm::vec2(1.0f) }, flags);
+    
+    model.loaded = true;
+    model.lastWrite = fs::last_write_time(createInfo.filename);
 }
 
 void model_append_vertex(Model& model, std::vector<uint8_t>& outputBuffer, const aiScene* pScene, uint32_t meshIndex, uint32_t vertexIndex)
@@ -191,12 +203,12 @@ void model_append_vertex(Model& model, std::vector<uint8_t>& outputBuffer, const
     const aiVector3D* pBiTangent = (paiMesh->HasTangentsAndBitangents()) ? &(paiMesh->mBitangents[j]) : &Zero3D;
     std::vector<float> vertexBuffer;
     glm::vec3 scaledPos{ pPos->x, -pPos->y, pPos->z };
-    scaledPos *= model.scale;
-    scaledPos += model.center;
+    scaledPos *= model.createInfo.scale;
+    scaledPos += model.createInfo.center;
 
     // preallocate float buffer with approximate size
-    vertexBuffer.reserve(model.layout.components.size() * 4);
-    for (auto& component : model.layout.components)
+    vertexBuffer.reserve(model.createInfo.vertexLayout.components.size() * 4);
+    for (auto& component : model.createInfo.vertexLayout.components)
     {
         switch (component)
         {
@@ -211,8 +223,8 @@ void model_append_vertex(Model& model, std::vector<uint8_t>& outputBuffer, const
             vertexBuffer.push_back(pNormal->z);
             break;
         case VERTEX_COMPONENT_UV:
-            vertexBuffer.push_back(pTexCoord->x * model.uvscale.s);
-            vertexBuffer.push_back(pTexCoord->y * model.uvscale.t);
+            vertexBuffer.push_back(pTexCoord->x * model.createInfo.uvscale.s);
+            vertexBuffer.push_back(pTexCoord->y * model.createInfo.uvscale.t);
             break;
         case VERTEX_COMPONENT_COLOR:
             vertexBuffer.push_back(pColor.r);

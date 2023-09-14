@@ -139,5 +139,33 @@ std::set<std::string> VulkanDevice::ShaderFileExtensions()
         ".rmiss"
     };
 }
+    
+std::string VulkanDevice::GetDeviceString() const
+{
+    std::ostringstream str;
+
+    str << "API Version: " << ctx.physicalDevice.getProperties().apiVersion << std::endl;
+    str << "Device Name: " << ctx.physicalDevice.getProperties().deviceName << std::endl;
+
+    str << "Device Extensions:" << std::endl;
+    for (auto& ext : ctx.supportedDeviceExtensions)
+    {
+        str << ext.extensionName << std::endl;
+    }
+    
+    str << std::endl << "Layer Properties:" << std::endl;
+    for (auto& ext : ctx.supportedInstancelayerProperties)
+    {
+        str << ext.layerName << std::endl;
+    }
+    
+    str << std::endl << "Instance Extensions:" << std::endl;
+    for (auto& ext : ctx.supportedInstanceExtensions)
+    {
+        str << ext.extensionName << std::endl;
+    }
+
+    return str.str();
+}
 
 } // namespace vulkan

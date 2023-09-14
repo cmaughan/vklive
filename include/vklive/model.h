@@ -30,14 +30,54 @@ enum Component
 struct VertexLayout
 {
     std::vector<Component> components;
+    bool operator==(const VertexLayout& rhs) const
+    {
+        return rhs.components == components;
+    }
 };
+
+extern VertexLayout g_vertexLayout;
 
 // Create info
 struct ModelCreateInfo
 {
+    std::string filename;
+    VertexLayout vertexLayout = g_vertexLayout;
     glm::vec3 center{ 0 };
     glm::vec3 scale{ 1 };
     glm::vec2 uvscale{ 1 };
+    bool buildAS = false;
+    
+    size_t hash() const
+    {
+        using namespace std;
+        
+        size_t result = std::hash<std::string>()(filename);
+        result ^= std::hash<glm::vec3>()(center);
+        result ^= std::hash<glm::vec3>()(scale);
+        result ^= std::hash<glm::vec2>()(uvscale);
+        result ^= buildAS ? 1 : 0;
+        return result;
+    }
+    
+    bool operator==(const ModelCreateInfo& createInfo) const
+    {
+        return 
+            (createInfo.filename == filename) &&
+            (createInfo.vertexLayout == vertexLayout) &&
+            (createInfo.center == center) && 
+            (createInfo.scale == scale) &&
+            (createInfo.uvscale == uvscale) &&
+            (createInfo.buildAS == buildAS);
+    }
+};
+
+struct ModelCreateInfoHash
+{
+    std::size_t operator()(const ModelCreateInfo& g) const
+    {
+        return g.hash();
+    }
 };
 
 // We support PBR style of models
@@ -79,12 +119,6 @@ struct ModelMaterial
 // Model
 struct Model
 {
-    VertexLayout layout;
-
-    glm::vec3 scale{ 1.0f };
-    glm::vec3 center{ 0.0f };
-    glm::vec2 uvscale{ 1.0f };
-
     struct ModelPart
     {
         std::string name;
@@ -114,6 +148,11 @@ struct Model
     std::vector<uint32_t> indexData;
 
     std::string errors;
+
+    ModelCreateInfo createInfo;
+    bool loaded = false;
+    fs::file_time_type lastWrite;
+    int32_t refCount = 0;
 };
 
 extern const int DefaultModelFlags;
@@ -122,8 +161,7 @@ uint32_t component_index(const VertexLayout& layout, Component component);
 uint32_t component_size(Component component);
 uint32_t layout_size(const VertexLayout& layout);
 uint32_t layout_offset(const VertexLayout& layout, uint32_t index);
-void model_load(Model& model, const std::string& filename, const VertexLayout& layout, const ModelCreateInfo& createInfo, const int flags = DefaultModelFlags);
-void model_load(Model& model, const std::string& filename, const VertexLayout& layout, float scale = 1.0f, const int flags = DefaultModelFlags);
+void model_load(Model& model, const ModelCreateInfo& createInfo, int flags = DefaultModelFlags);
 void model_append_vertex(Model& model, std::vector<uint8_t>& outputBuffer, const aiScene* pScene, uint32_t meshIndex, uint32_t vertexIndex);
 
 std::set<std::string> model_file_extensions();

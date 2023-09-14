@@ -31,7 +31,7 @@ void createBottomLevelAccelerationStructure(VulkanContext& ctx, VulkanModel& mod
             indices.push_back(model.indexData[part.indexBase + i] - part.vertexBase);
         }
 
-        uint32_t vertexStride = layout_size(model.layout);
+        uint32_t vertexStride = layout_size(model.createInfo.vertexLayout);
 
         for (uint32_t i = 0; i < part.vertexCount; i++)
         {

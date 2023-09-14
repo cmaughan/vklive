@@ -417,4 +417,9 @@ bool vulkan_format_is_depth(const vk::Format& format)
     }
 }
 
+uint32_t aligned_size(uint32_t value, uint32_t alignment)
+{
+    return (value + alignment - 1) & ~(alignment - 1);
+}
+
 } // namespace vulkan

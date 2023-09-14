@@ -23,10 +23,6 @@ using namespace ranges;
 
 namespace vulkan
 {
-uint32_t alignedSize(uint32_t value, uint32_t alignment)
-{
-    return (value + alignment - 1) & ~(alignment - 1);
-}
 
 VulkanPassSwapFrameData& vulkan_pass_frame_data(VulkanContext& ctx, VulkanPass& vulkanPass)
 {
@@ -1074,6 +1070,7 @@ bool vulkan_pass_prepare_pipeline(VulkanContext& ctx, VulkanPassSwapFrameData& f
 
     if (!shaderStages.empty())
     {
+        PROFILE_SCOPE(create_pipeline_layout);
         auto layouts = frameData.descriptorSetLayouts | views::transform([](auto& p) { return p.second; }) | to<std::vector>();
         frameData.geometryPipelineLayout = ctx.device.createPipelineLayout({ {}, layouts });
         debug_set_pipelinelayout_name(ctx.device, frameData.geometryPipelineLayout, fmt::format("GeomPipeLayout: {}", frameData.debugName));
@@ -1081,7 +1078,8 @@ bool vulkan_pass_prepare_pipeline(VulkanContext& ctx, VulkanPassSwapFrameData& f
 
     if (frameData.pVulkanPass->pass.passType == PassType::Standard)
     {
-        frameData.pipeline = pipeline_create(ctx, g_vertexLayout, frameData.geometryPipelineLayout, vulkanPassTargets, shaderStages);
+        PROFILE_SCOPE(pipeline_create);
+        frameData.pipeline = vulkan_pipeline_create(ctx, g_vertexLayout, frameData.geometryPipelineLayout, vulkanPassTargets, shaderStages);
         debug_set_pipeline_name(ctx.device, frameData.pipeline, fmt::format("GeomPipe: {}", frameData.debugName));
         LOG(DBG, "Create GeometryPipe: " << frameData.pipeline);
     }
@@ -1089,17 +1087,21 @@ bool vulkan_pass_prepare_pipeline(VulkanContext& ctx, VulkanPassSwapFrameData& f
     {
         if (!frameData.rayGroupCreateInfos.empty())
         {
-            vk::RayTracingPipelineCreateInfoKHR createInfo;
-            createInfo.setStages(shaderStages);
-            createInfo.setGroups(frameData.rayGroupCreateInfos);
-            createInfo.setMaxPipelineRayRecursionDepth(8);
-            createInfo.setLayout(frameData.geometryPipelineLayout);
-            frameData.pipeline = ctx.device.createRayTracingPipelineKHR(nullptr, nullptr, createInfo).value;
+            {
+                PROFILE_SCOPE(create_raytrace_pipeline);
+                vk::RayTracingPipelineCreateInfoKHR createInfo;
+                createInfo.setStages(shaderStages);
+                createInfo.setGroups(frameData.rayGroupCreateInfos);
+                createInfo.setMaxPipelineRayRecursionDepth(8);
+                createInfo.setLayout(frameData.geometryPipelineLayout);
+                frameData.pipeline = ctx.device.createRayTracingPipelineKHR(nullptr, nullptr, createInfo).value;
+            }
 
             if (frameData.pipeline)
             {
+                PROFILE_SCOPE(binding_table_create);
                 const uint32_t handleSize = ctx.rayTracingPipelineProperties.shaderGroupHandleSize;
-                const uint32_t handleSizeAligned = alignedSize(ctx.rayTracingPipelineProperties.shaderGroupHandleSize, ctx.rayTracingPipelineProperties.shaderGroupHandleAlignment);
+                const uint32_t handleSizeAligned = aligned_size(ctx.rayTracingPipelineProperties.shaderGroupHandleSize, ctx.rayTracingPipelineProperties.shaderGroupHandleAlignment);
 
                 auto groupCount = frameData.rayGroupCreateInfos.size();
                 auto handles = ctx.device.getRayTracingShaderGroupHandlesKHR<uint8_t>(frameData.pipeline, 0, groupCount, groupCount * handleSizeAligned);
@@ -1245,7 +1247,7 @@ void vulkan_pass_submit(VulkanContext& ctx, VulkanPass& vulkanPass)
         cmd.bindPipeline(vk::PipelineBindPoint::eRayTracingKHR, passFrameData.pipeline);
 
         const uint32_t handleSize = ctx.rayTracingPipelineProperties.shaderGroupHandleSize;
-        const uint32_t handleSizeAligned = alignedSize(ctx.rayTracingPipelineProperties.shaderGroupHandleSize, ctx.rayTracingPipelineProperties.shaderGroupHandleAlignment);
+        const uint32_t handleSizeAligned = aligned_size(ctx.rayTracingPipelineProperties.shaderGroupHandleSize, ctx.rayTracingPipelineProperties.shaderGroupHandleAlignment);
 
         VkStridedDeviceAddressRegionKHR raygenShaderSbtEntry;
         raygenShaderSbtEntry.deviceAddress = passFrameData.rayGenBindingTable.deviceAddress.deviceAddress;
@@ -1283,7 +1285,7 @@ void vulkan_pass_submit(VulkanContext& ctx, VulkanPass& vulkanPass)
         pTargetData->pVulkanSurface->pSurface->rendered = true;
     }
 
-    /*
+    /* TODO: Why not?
     if (passTargets.depth)
     {
         passTargets.depth->pSurface->rendered = true;

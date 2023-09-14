@@ -5,6 +5,9 @@
 #include <string>
 #include <vector>
 
+#define GLM_ENABLE_EXPERIMENTAL
+#include <glm/gtx/hash.hpp>
+
 #include <zest/file/file.h>
 
 #include <vklive/camera.h>
@@ -76,6 +79,16 @@ struct Geometry
         : path(p),
         type(t)
     {
+    }
+
+    bool operator==(const Geometry& other) const
+    {
+        return (other.path == path) &&
+            (other.buildAS == buildAS) &&
+            (other.transform == transform) &&
+            (other.type == type) && 
+            (other.loadScale == loadScale);
+
     }
 
     fs::path path;

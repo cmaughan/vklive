@@ -9,37 +9,23 @@
 namespace vulkan
 {
 
-// Vertex layout for this example
-VertexLayout g_vertexLayout{ {
-    Component::VERTEX_COMPONENT_POSITION,
-    Component::VERTEX_COMPONENT_UV,
-    Component::VERTEX_COMPONENT_COLOR,
-    Component::VERTEX_COMPONENT_NORMAL,
-} };
-
-void vulkan_model_load(VulkanContext& ctx,
-    VulkanModel& model,
-    const std::string& filename,
-    const VertexLayout& layout,
-    const ModelCreateInfo& createInfo,
-    const int flags)
+std::shared_ptr<VulkanModel> vulkan_model_load(VulkanContext& ctx, const ModelCreateInfo& createInfo)
 {
     // Call the model class
-    model_load(model, filename, layout, createInfo, flags);
+    auto itr = VulkanModel::ModelCache.find(createInfo);
+    if (itr != VulkanModel::ModelCache.end())
+    {
+        model_load(*itr->second, createInfo);
+        return itr->second;
+    }
+
+    auto pModel = std::make_shared<VulkanModel>();
+    model_load(*pModel, createInfo);
+    VulkanModel::ModelCache[createInfo] = pModel;
+    return pModel;
 }
 
-void vulkan_model_load(VulkanContext& ctx,
-    VulkanModel& model,
-    const std::string& filename,
-    const VertexLayout& layout,
-    const glm::vec3& scale,
-    const int flags)
-{
-    vulkan_model_load(ctx, model, filename, layout, ModelCreateInfo{ glm::vec3(0.0f), scale, glm::vec2(1.0f) }, flags);
-}
-
-void vulkan_model_stage(VulkanContext& ctx,
-    VulkanModel& model)
+void vulkan_model_stage(VulkanContext& ctx, VulkanModel& model)
 {
     if (!model.vertexData.empty() && !model.indices.buffer)
     {
@@ -82,17 +68,23 @@ vk::Format component_format(Component component)
 
 void vulkan_model_destroy(VulkanContext& ctx, VulkanModel& model)
 {
-    vulkan_buffer_destroy(ctx, model.vertices);
-    vulkan_buffer_destroy(ctx, model.indices);
-
-    // AS
-    for (auto& as : model.accelerationStructures)
+    model.refCount--;
+    if (model.refCount <= 0)
     {
-        vulkan_buffer_destroy(ctx, as.buffer);
-        if (as.handle)
+        vulkan_buffer_destroy(ctx, model.vertices);
+        vulkan_buffer_destroy(ctx, model.indices);
+
+        // AS
+        for (auto& as : model.accelerationStructures)
         {
-            ctx.device.destroyAccelerationStructureKHR(as.handle);
+            vulkan_buffer_destroy(ctx, as.buffer);
+            if (as.handle)
+            {
+                ctx.device.destroyAccelerationStructureKHR(as.handle);
+            }
         }
+
+        VulkanModel::ModelCache.erase(model.createInfo);
     }
 }
 
@@ -100,7 +92,7 @@ std::shared_ptr<VulkanModel> vulkan_model_create(VulkanContext& ctx,
     VulkanScene& vulkanScene,
     const Geometry& geom)
 {
-    auto spVulkanModel = std::make_shared<VulkanModel>(geom);
+    auto spVulkanModel = std::make_shared<VulkanModel>();
 
     // The geometry may be user geom or a model loaded from run tree; so just check it is available
     fs::path loadPath;
@@ -119,7 +111,13 @@ std::shared_ptr<VulkanModel> vulkan_model_create(VulkanContext& ctx,
         }
     }
 
-    vulkan_model_load(ctx, *spVulkanModel, loadPath.string(), g_vertexLayout, geom.loadScale);
+    ModelCreateInfo createInfo
+    {
+        .filename = loadPath.string(),
+        .scale = geom.loadScale,
+        .buildAS = geom.buildAS
+    };
+    spVulkanModel = vulkan_model_load(ctx, createInfo);
 
     // Success?
     if (spVulkanModel->vertexData.empty())
@@ -134,6 +132,7 @@ std::shared_ptr<VulkanModel> vulkan_model_create(VulkanContext& ctx,
     else
     {
         // Store at original path, even though we may have subtituted geometry for preset paths
+        spVulkanModel->refCount++;
         vulkanScene.models[geom.path] = spVulkanModel;
     }
 

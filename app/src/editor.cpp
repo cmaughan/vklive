@@ -549,7 +549,7 @@ void zep_replace_text(ZepBuffer& buffer, const std::string& text)
 
 bool format_file(const fs::path& path, std::string& out, uint32_t& cursorIndex)
 {
-    if (!path.has_extension() || !scene_is_shader(path))
+    if (!path.has_extension() || !(scene_is_shader(path) || scene_is_header(path)))
     {
         return false;
     }

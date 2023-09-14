@@ -15,6 +15,8 @@
 #include <vklive/IDevice.h>
 #include <vklive/scene.h>
 
+#include <vklive/vulkan/vulkan_context.h>
+
 #include <config_app.h>
 
 #include <app/config.h>
@@ -29,7 +31,8 @@ namespace
 enum class PopupType
 {
     None,
-    Audio
+    Audio,
+    About
 };
 PopupType popupType = PopupType::None;
 } // namespace
@@ -46,7 +49,8 @@ void show_audio_popup()
 
     // TODO: Center
     ImGui::SetNextWindowSize(ImVec2(dpi * 500, dpi * 500), ImGuiCond_Appearing);
-    if (ImGui::BeginPopup("Audio"))
+
+    if (ImGui::BeginPopupModal("Audio"))
     {
         bool show = true;
         Zing::audio_show_settings_gui();
@@ -63,6 +67,26 @@ void show_audio_popup()
         }
 
         // ImGui::End();
+        ImGui::EndPopup();
+    }
+
+    if (ImGui::BeginPopupModal("About"))
+    {
+        ImGui::BeginChild("Entries", ImVec2(dpi * 500, dpi * 500), true, ImGuiWindowFlags_NoResize);
+        ImGui::TextUnformatted(GetDevice()->GetDeviceString().c_str());
+        ImGui::EndChild();
+        bool show = true;
+        if (ImGui::Button("OK"))
+        {
+            show = false;
+        }
+
+        if (!show)
+        {
+            popupType = PopupType::None;
+            ImGui::CloseCurrentPopup();
+        }
+
         ImGui::EndPopup();
     }
 }
@@ -303,14 +327,6 @@ bool menu_show()
             ImGui::EndMenu();
         }
 
-        if (ImGui::BeginMenu("Help"))
-        {
-            if (ImGui::MenuItem("Getting Started"))
-            {
-                zep_load(Zest::runtree_find_path("docs/intro.md"), true, Zep::FileFlags::ReadOnly | Zep::FileFlags::Locked);
-            }
-            ImGui::EndMenu();
-        }
         if (ImGui::BeginMenu("Window"))
         {
             // DoLayoutMenu();
@@ -327,6 +343,23 @@ bool menu_show()
             Zest::layout_manager_do_menu();
 
             ImGui::EndMenu();
+        }
+        
+        if (ImGui::BeginMenu("Help"))
+        {
+            if (ImGui::MenuItem("Getting Started"))
+            {
+                zep_load(Zest::runtree_find_path("docs/intro.md"), true, Zep::FileFlags::ReadOnly | Zep::FileFlags::Locked);
+            }
+
+            ImGui::Separator();
+
+            if (ImGui::MenuItem("About..."))
+            {
+                popupType = PopupType::About;
+            }
+            ImGui::EndMenu();
+            
         }
 
         float time = Scene::GlobalElapsedSeconds;
@@ -364,6 +397,9 @@ bool menu_show()
         break;
     case PopupType::Audio:
         ImGui::OpenPopup("Audio");
+        break;
+    case PopupType::About:
+        ImGui::OpenPopup("About");
         break;
     };
 

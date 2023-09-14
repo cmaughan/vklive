@@ -56,6 +56,7 @@ struct IDevice
     virtual void ValidateSwapChain() = 0;
     virtual void Present() = 0;
 
+    virtual std::string GetDeviceString() const = 0;
     virtual std::set<std::string> ShaderFileExtensions() = 0;
 
     virtual DeviceContext& Context() = 0;

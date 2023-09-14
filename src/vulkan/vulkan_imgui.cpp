@@ -777,7 +777,7 @@ void imgui_render_3d(VulkanContext& ctx, Scene& scene, bool background)
                                 ImVec2(canvas_pos.x, canvas_pos.y),
                                 ImVec2(canvas_pos.x + outputSize.x, canvas_pos.y + outputSize.y));
                         }
-                        pSurf->ImGuiDescriptorSet = nullptr;
+                        //pSurf->ImGuiDescriptorSet = nullptr;
                         drawn = true;
                     }
                     else
@@ -835,13 +835,9 @@ void imgui_render_targets(VulkanContext& ctx, Scene& scene)
             auto count = pVulkanScene->viewableTargets.size();
             auto height_per_tile = canvas_size.y / count;
 
+            auto fontSize = ImGui::GetFontSize();
             for (auto& target : pVulkanScene->viewableTargets)
             {
-                /*if (pVulkanScene->defaultTarget == target)
-                {
-                    continue;
-                }
-                */
                 // Find the thing we just rendered to
                 auto itrTargetData = pVulkanScene->surfaces.find(target);
                 if (itrTargetData != pVulkanScene->surfaces.end())
@@ -849,18 +845,19 @@ void imgui_render_targets(VulkanContext& ctx, Scene& scene)
                     auto pSurf = itrTargetData->second;
                     if (pSurf->ImGuiDescriptorSet)
                     {
+                        auto ySize = height_per_tile;
                         LOG(DBG, "Showing RT:Target with Descriptor: " << pSurf->ImGuiDescriptorSet);
                         pDrawList->AddImage((ImTextureID)pSurf->ImGuiDescriptorSet,
                             ImVec2(canvas_pos.x, canvas_pos.y),
-                            ImVec2(canvas_pos.x + canvas_size.x, canvas_pos.y + height_per_tile));
-                        canvas_pos.y += height_per_tile;
+                            ImVec2(canvas_pos.x + canvas_size.x, canvas_pos.y + ySize - fontSize));
+                        pDrawList->AddText(ImVec2(canvas_pos.x, canvas_pos.y + ySize - fontSize), 0xFFFFFFFF, pSurf->debugName.c_str());
+                        canvas_pos.y += ySize;
                     }
                     else
                     {
                         // This is the target view, some descriptors are missing
                         // LOG(DBG, "No descriptor?");
                     }
-                    pSurf->ImGuiDescriptorSet = nullptr;
                     drawn = true;
                 }
             }

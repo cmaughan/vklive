@@ -7,8 +7,8 @@
 #include <range/v3/view/filter.hpp>
 #include <range/v3/view/transform.hpp>
 
-#include <zest/logger/logger.h>
 #include <zest/file/runtree.h>
+#include <zest/logger/logger.h>
 #include <zest/time/timer.h>
 
 #include <vklive/validation.h>
@@ -16,6 +16,8 @@
 #include <vklive/vulkan/vulkan_command.h>
 #include <vklive/vulkan/vulkan_context.h>
 #include <vklive/vulkan/vulkan_descriptor.h>
+#include <vklive/vulkan/vulkan_imgui.h>
+#include <vklive/vulkan/vulkan_model_as.h>
 #include <vklive/vulkan/vulkan_pass.h>
 #include <vklive/vulkan/vulkan_pipeline.h>
 #include <vklive/vulkan/vulkan_reflect.h>
@@ -23,8 +25,6 @@
 #include <vklive/vulkan/vulkan_shader.h>
 #include <vklive/vulkan/vulkan_uniform.h>
 #include <vklive/vulkan/vulkan_utils.h>
-#include <vklive/vulkan/vulkan_model_as.h>
-#include <vklive/vulkan/vulkan_imgui.h>
 
 #include <zing/audio/audio.h>
 
@@ -122,7 +122,7 @@ void vulkan_scene_destroy(VulkanContext& ctx, VulkanScene& vulkanScene)
 
     // Destroying a scene means we might be destroying something that is in flight.
     // Lets wait for everything to finish
-    //ctx.device.waitIdle();
+    // ctx.device.waitIdle();
 
     vulkanScene.defaultTarget = SurfaceKey();
 
@@ -148,9 +148,9 @@ void vulkan_scene_destroy(VulkanContext& ctx, VulkanScene& vulkanScene)
     vulkanScene.shaderStages.clear();
 
     // Models
-    for (auto& [name, pGeom] : vulkanScene.models)
+    for (auto& [name, pVulkanModel] : vulkanScene.models)
     {
-        vulkan_model_destroy(ctx, *pGeom);
+        vulkan_model_destroy(ctx, *pVulkanModel);
     }
     vulkanScene.models.clear();
 
@@ -187,7 +187,6 @@ VulkanSurface* vulkan_scene_get_or_create_surface(VulkanScene& vulkanScene, cons
     return spSurface.get();
 }
 
-
 void vulkan_scene_target_set_imgui_descriptor(VulkanContext& ctx, VulkanScene& vulkanScene, VulkanSurface& vulkanSurface)
 {
     LOG_SCOPE(DBG, "Scene GUI Target Descriptors:");
@@ -218,7 +217,7 @@ void vulkan_scene_target_set_imgui_descriptor(VulkanContext& ctx, VulkanScene& v
     write_desc.descriptorType = vk::DescriptorType::eCombinedImageSampler;
     write_desc.setImageInfo(desc_image);
     ctx.device.updateDescriptorSets(write_desc, {});
-    
+
     LOG(DBG, fmt::format("Set DescriptorSet for: {}, Layout:{}, Set:{}, Sampler:{}", to_string(vulkanSurface), (void*)&imgui_get_texture_layout(ctx), (void*)(VkDescriptorSet)vulkanSurface.ImGuiDescriptorSet, (void*)desc_image.sampler));
 }
 
@@ -231,51 +230,39 @@ void vulkan_scene_prepare_output_descriptors(VulkanContext& ctx, VulkanScene& vu
     // ones for the current frame, that have been written.  Then we allocate our descriptors
     for (auto& [initKey, pVulkanSurface] : vulkanScene.surfaces)
     {
-        // Find the correct surface for this frame; what we are doing here is trying to find the 'flipped' surface.
-        // I don't think this is correct....
-        SurfaceKey key(pVulkanSurface->pSurface->name, Scene::GlobalFrameCount, false);
-        auto itrTarget = vulkanScene.surfaces.find(key);
-        if (itrTarget != vulkanScene.surfaces.end())
+        // If the surface has been rendered and has a sampler, it's a potential for display
+        if (!pVulkanSurface->pSurface->rendered)
         {
-            // If the surface has been rendered and has a sampler, it's a potential for display
-            auto pTarget = itrTarget->second.get();
-            if (!pTarget->pSurface->rendered)
-            {
-                continue;
-            }
-
-            if (!vulkan_format_is_depth(pTarget->format))
-            {
-                if (!pTarget->sampler)
-                {
-                    surface_set_sampling(ctx, *pTarget);
-                    LOG(DBG, "Adding sampler to rendered target for UI: " << pTarget->debugName);
-                }
-            }
-
-            if (pTarget->sampler)
-            {
-                vulkanScene.viewableTargets.insert(key);
-            }
+            continue;
         }
-    }
+        pVulkanSurface->pSurface->rendered = false;
 
-    for (auto& key : vulkanScene.viewableTargets)
-    {
-        auto itrTarget = vulkanScene.surfaces.find(key);
-
-        if (itrTarget != vulkanScene.surfaces.end())
+        if (vulkan_format_is_depth(pVulkanSurface->format))
         {
-            auto pTarget = itrTarget->second.get();
+            continue;
+        }
 
-            if (pTarget->pSurface->name == "default_color")
+        if (!pVulkanSurface->sampler)
+        {
+            surface_set_sampling(ctx, *pVulkanSurface);
+            LOG(DBG, "Adding sampler to rendered target for UI: " << pVulkanSurface->debugName);
+        }
+
+        if (pVulkanSurface->sampler)
+        {
+            
+            if (pVulkanSurface->pSurface->name == "default_color")
             {
-                LOG(DBG, "Default Target: " << *pTarget);
-                vulkanScene.defaultTarget = key;
+                LOG(DBG, "Default Target: " << *pVulkanSurface);
+                vulkanScene.defaultTarget = pVulkanSurface->key;
+            }
+            else
+            {
+                vulkanScene.viewableTargets.insert(pVulkanSurface->key);
             }
 
             // Descriptors renewed each frame
-            vulkan_scene_target_set_imgui_descriptor(ctx, vulkanScene, *pTarget);
+            vulkan_scene_target_set_imgui_descriptor(ctx, vulkanScene, *pVulkanSurface);
         }
     }
 }
@@ -290,6 +277,12 @@ void vulkan_scene_render(VulkanContext& ctx, VulkanScene& vulkanScene)
     ctx.descriptorCacheIndex++;
     Scene::GlobalFrameCount++;
 
+    // Too small
+    if (ctx.frameBufferSize.x <= 0.0f || ctx.frameBufferSize.y <= 0.0f)
+    {
+        return;
+    }
+
     try
     {
         // Descriptor
@@ -300,7 +293,7 @@ void vulkan_scene_render(VulkanContext& ctx, VulkanScene& vulkanScene)
         for (auto& [_, pVulkanGeom] : vulkanScene.models)
         {
             vulkan_model_stage(ctx, *pVulkanGeom);
-            if (pVulkanGeom->geometry.buildAS)
+            if (pVulkanGeom->createInfo.buildAS)
             {
                 vulkan_model_build_acceleration_structure(ctx, *pVulkanGeom);
             }

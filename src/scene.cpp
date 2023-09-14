@@ -1016,7 +1016,7 @@ bool scene_is_shader(const fs::path& f)
 
 bool scene_is_header(const fs::path& f)
 {
-    if (f.extension() == ".h" || f.extension() == ".inc")
+    if (f.extension() == ".h" || f.extension() == ".inc" || f.extension() == ".glsl")
     {
         return true;
     }
@@ -1034,7 +1034,7 @@ bool scene_is_scenegraph(const fs::path& f)
 
 bool scene_is_edit_file(const fs::path& f)
 {
-    if (scene_is_shader(f) || scene_is_header(f) || scene_is_scenegraph(f))
+    if (scene_is_shader(f) || scene_is_header(f) || scene_is_scenegraph(f) || scene_is_header(f))
     {
         return true;
     }

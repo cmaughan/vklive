@@ -54,7 +54,15 @@ bool shader_parse_output(const std::string& strOutput, const fs::path& shaderPat
             std::regex warningRegex(".*(warning:)", std::regex::icase);
             std::regex lineRegex(":([0-9]+):", std::regex::icase);
             std::regex messageRegex(".*:[0-9]+:(.*)", std::regex::icase);
+
+            std::regex pathRegex(".*(WARNING|ERROR): (.*):[0-9]+:");
+
             std::smatch match;
+            if (std::regex_search(error_line, match, pathRegex) && match.size() > 1)
+            {
+                msg.path = Zest::string_trim(match[2].str());
+            }
+
             if (std::regex_search(error_line, match, errorRegex) && match.size() > 1)
             {
                 msg.severity = MessageSeverity::Error;
@@ -250,6 +258,7 @@ std::shared_ptr<VulkanShader> vulkan_shader_create(VulkanContext& ctx, VulkanSce
         out_path.string(),
         "-l",
         "-g",
+        fmt::format("-I{}", fs::canonical(shader.path.parent_path()).string()),
         fmt::format("-I{}", fs::canonical(Zest::runtree_path() / "shaders/include").string()),
     };
 
