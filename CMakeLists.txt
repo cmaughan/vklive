@@ -180,6 +180,8 @@ set(APP_SOURCES
     app/src/controller.cpp
     app/src/editor.cpp
     app/src/main.cpp
+    app/src/window_render.cpp
+    app/src/window_targets.cpp
     app/src/menu.cpp
     app/src/project.cpp
 

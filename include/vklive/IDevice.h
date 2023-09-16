@@ -49,8 +49,9 @@ struct IDevice
     virtual void InitScene(Scene& scene) = 0;
     virtual void DestroyScene(Scene& scene) = 0;
     virtual void ImGui_Render(ImDrawData* pDrawData) = 0;
-    virtual void ImGui_Render_3D(Scene& scene, bool backgroundRender) = 0;
-    virtual void Render_3D(Scene& scene, const glm::vec2& size) = 0;
+
+    virtual void* Render_3D(Scene& scene, const glm::vec2& size) = 0;
+
     virtual void WaitIdle() = 0;
     
     virtual void ValidateSwapChain() = 0;
@@ -60,6 +61,5 @@ struct IDevice
     virtual std::set<std::string> ShaderFileExtensions() = 0;
 
     virtual DeviceContext& Context() = 0;
-    
 };
 

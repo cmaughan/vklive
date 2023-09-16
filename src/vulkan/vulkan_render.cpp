@@ -11,6 +11,7 @@
 #include "vklive/vulkan/vulkan_utils.h"
 #include "vklive/vulkan/vulkan_scene.h"
 
+#include "zest/imgui/imgui.h"
 
 namespace vulkan
 {
@@ -55,6 +56,32 @@ void render(VulkanContext& ctx, const glm::vec4& rect, Scene& scene)
         // Render the scene
         vulkan::vulkan_scene_render(ctx, *pVulkanScene);
     }
+}
+
+void* render_get_texture_id(VulkanContext& ctx, Scene& scene)
+{
+    if (ctx.deviceState == DeviceState::Normal)
+    {
+        // If we have a final target, and we rendered to it
+        auto pVulkanScene = vulkan_scene_get(ctx, scene);
+        if (pVulkanScene)
+        {
+            if (pVulkanScene->defaultTarget)
+            {
+                // Find the thing we just rendered to
+                auto itrTargetData = pVulkanScene->surfaces.find(pVulkanScene->defaultTarget);
+                if (itrTargetData != pVulkanScene->surfaces.end())
+                {
+                    auto pSurf = itrTargetData->second;
+                    if (pSurf->ImGuiDescriptorSet)
+                    {
+                        return (ImTextureID)pSurf->ImGuiDescriptorSet;
+                    }
+                }
+            }
+        }
+    }
+    return nullptr;
 }
 
 } // namespace vulkan

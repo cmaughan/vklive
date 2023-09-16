@@ -1,10 +1,9 @@
 #include <filesystem>
 
-#include <zest/logger/logger.h>
-#include <zest/time/timer.h>
-#include <zest/file/runtree.h>
 #include <zest/file/file.h>
 #include <zest/file/runtree.h>
+#include <zest/logger/logger.h>
+#include <zest/time/timer.h>
 
 #include "vklive/vulkan/vulkan_command.h"
 #include "vklive/vulkan/vulkan_context.h"
@@ -777,7 +776,7 @@ void imgui_render_3d(VulkanContext& ctx, Scene& scene, bool background)
                                 ImVec2(canvas_pos.x, canvas_pos.y),
                                 ImVec2(canvas_pos.x + outputSize.x, canvas_pos.y + outputSize.y));
                         }
-                        //pSurf->ImGuiDescriptorSet = nullptr;
+                        // pSurf->ImGuiDescriptorSet = nullptr;
                         drawn = true;
                     }
                     else
@@ -802,74 +801,6 @@ void imgui_render_3d(VulkanContext& ctx, Scene& scene, bool background)
     {
         ImGui::End();
     }
-}
-
-void imgui_render_targets(VulkanContext& ctx, Scene& scene)
-{
-    auto imgui = imgui_context(ctx);
-
-    ImGui::SetNextWindowSize(ImVec2(800, 600), ImGuiCond_FirstUseEver);
-    ImGui::SetNextWindowPos(ImVec2(820, 50), ImGuiCond_FirstUseEver);
-    ImGui::Begin("Targets");
-    auto pDrawList = ImGui::GetWindowDrawList();
-    ImVec2 canvas_pos = ImGui::GetCursorScreenPos(); // ImDrawList API uses screen coordinates!
-    ImVec2 canvas_size = ImGui::GetContentRegionAvail(); // Resize canvas to what's available
-    canvas_size.x = std::max(canvas_size.x, 1.0f);
-    canvas_size.y = std::max(canvas_size.y, 1.0f);
-    ImGui::InvisibleButton("##dummy", canvas_size);
-
-    auto minRect = pDrawList->GetClipRectMin();
-    auto maxRect = pDrawList->GetClipRectMax();
-    canvas_pos = minRect;
-    canvas_size = ImVec2(maxRect.x - minRect.x, maxRect.y - minRect.y);
-
-    // TODO: Render these in order in the scene graph file?
-    // Add labels
-    bool drawn = false;
-    if (scene.valid)
-    {
-        // If we have a final target, and we rendered to it
-        auto pVulkanScene = vulkan_scene_get(ctx, scene);
-        if (pVulkanScene && pVulkanScene->viewableTargets.size() >= 1)
-        {
-            auto count = pVulkanScene->viewableTargets.size();
-            auto height_per_tile = canvas_size.y / count;
-
-            auto fontSize = ImGui::GetFontSize();
-            for (auto& target : pVulkanScene->viewableTargets)
-            {
-                // Find the thing we just rendered to
-                auto itrTargetData = pVulkanScene->surfaces.find(target);
-                if (itrTargetData != pVulkanScene->surfaces.end())
-                {
-                    auto pSurf = itrTargetData->second;
-                    if (pSurf->ImGuiDescriptorSet)
-                    {
-                        auto ySize = height_per_tile;
-                        LOG(DBG, "Showing RT:Target with Descriptor: " << pSurf->ImGuiDescriptorSet);
-                        pDrawList->AddImage((ImTextureID)pSurf->ImGuiDescriptorSet,
-                            ImVec2(canvas_pos.x, canvas_pos.y),
-                            ImVec2(canvas_pos.x + canvas_size.x, canvas_pos.y + ySize - fontSize));
-                        pDrawList->AddText(ImVec2(canvas_pos.x, canvas_pos.y + ySize - fontSize), 0xFFFFFFFF, pSurf->debugName.c_str());
-                        canvas_pos.y += ySize;
-                    }
-                    else
-                    {
-                        // This is the target view, some descriptors are missing
-                        // LOG(DBG, "No descriptor?");
-                    }
-                    drawn = true;
-                }
-            }
-        }
-    }
-
-    if (!drawn)
-    {
-        pDrawList->AddText(ImVec2(canvas_pos.x, canvas_pos.y), 0xFFFFFFFF, "No targets...");
-    }
-
-    ImGui::End();
 }
 
 const vk::DescriptorSetLayout& imgui_get_texture_layout(VulkanContext& ctx)

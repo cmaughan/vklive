@@ -96,15 +96,10 @@ void VulkanDevice::ValidateSwapChain()
     vulkan::main_window_validate_swapchain(ctx);
 }
 
-void VulkanDevice::Render_3D(Scene& scene, const glm::vec2& size)
+void* VulkanDevice::Render_3D(Scene& scene, const glm::vec2& size)
 {
     vulkan::render(ctx, glm::vec4(0.0f, 0.0f, size.x, size.y), scene);
-}
-
-void VulkanDevice::ImGui_Render_3D(Scene& scene, bool backgroundRender)
-{
-    vulkan::imgui_render_3d(ctx, scene, backgroundRender);
-    vulkan::imgui_render_targets(ctx, scene);
+    return vulkan::render_get_texture_id(ctx, scene);
 }
 
 void VulkanDevice::WaitIdle()
@@ -139,7 +134,7 @@ std::set<std::string> VulkanDevice::ShaderFileExtensions()
         ".rmiss"
     };
 }
-    
+
 std::string VulkanDevice::GetDeviceString() const
 {
     std::ostringstream str;
@@ -152,14 +147,16 @@ std::string VulkanDevice::GetDeviceString() const
     {
         str << ext.extensionName << std::endl;
     }
-    
-    str << std::endl << "Layer Properties:" << std::endl;
+
+    str << std::endl
+        << "Layer Properties:" << std::endl;
     for (auto& ext : ctx.supportedInstancelayerProperties)
     {
         str << ext.layerName << std::endl;
     }
-    
-    str << std::endl << "Instance Extensions:" << std::endl;
+
+    str << std::endl
+        << "Instance Extensions:" << std::endl;
     for (auto& ext : ctx.supportedInstanceExtensions)
     {
         str << ext.extensionName << std::endl;

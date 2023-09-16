@@ -33,6 +33,8 @@
 #include <app/editor.h>
 #include <app/menu.h>
 #include <app/project.h>
+#include <app/window_render.h>
+#include <app/window_targets.h>
 
 #include <range/v3/algorithm/for_each.hpp>
 #include <range/v3/view.hpp>
@@ -137,6 +139,7 @@ void save_state()
 void register_windows()
 {
     Zest::layout_manager_register_window("Profiler", "Profiler", &g_WindowEnables.profiler);
+    Zest::layout_manager_register_window("Targets", "Targets", &g_WindowEnables.targets);
 
     Zest::layout_manager_load_layouts_file("vklive", [](const std::string& name, const Zest::LayoutInfo& info) {
         if (!info.windowLayout.empty())
@@ -490,9 +493,10 @@ int main(int argc, char** argv)
             validation_enable_messages(true);
 
             LOG_SCOPE(DBG, "\nDraw Current Scene: " << g_Controller.spCurrentProject->spScene.get());
-
-            // Scene may not be valid, but we want to draw the window
-            g_pDevice->ImGui_Render_3D(*g_Controller.spCurrentProject->spScene, appConfig.draw_on_background);
+            
+            window_render(*g_Controller.spCurrentProject->spScene, appConfig.draw_on_background, [=](const glm::vec2& size, Scene& scene) {
+                return g_pDevice->Render_3D(scene, size);
+            });
 
             if (g_pDevice->Context().deviceState == DeviceState::Lost)
             {
@@ -501,6 +505,8 @@ int main(int argc, char** argv)
                 // - once the device is lost, only an .exe restart seems to work.
                 continue;
             }
+
+            window_targets(*g_Controller.spCurrentProject->spScene);
             validation_enable_messages(false);
         }
 

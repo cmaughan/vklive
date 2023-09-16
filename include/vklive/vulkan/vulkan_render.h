@@ -16,5 +16,6 @@ struct VulkanModel;
 void render_init(VulkanContext& ctx);
 void render_destroy(VulkanContext& ctx);
 void render(VulkanContext& ctx, const glm::vec4& rect, Scene& scene);
+void* render_get_texture_id(VulkanContext& ctx, Scene& scene);
 
 } // namespace vulkan
