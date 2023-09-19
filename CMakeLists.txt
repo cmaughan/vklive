@@ -181,6 +181,7 @@ set(APP_SOURCES
     app/src/editor.cpp
     app/src/main.cpp
     app/src/window_render.cpp
+    app/src/python_scripting.cpp
     app/src/window_targets.cpp
     app/src/menu.cpp
     app/src/project.cpp
@@ -190,6 +191,7 @@ set(APP_SOURCES
     app/include/app/editor.h
     app/include/app/menu.h
     app/include/app/project.h
+    app/include/app/python_scripting.h
 )
 
 set_source_files_properties (external/mpc/mpc.c PROPERTIES SKIP_PRECOMPILE_HEADERS 1)

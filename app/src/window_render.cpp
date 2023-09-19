@@ -2,6 +2,7 @@
 #include "app/window_render.h"
 
 #include <zest/logger/logger.h>
+#include <app/python_scripting.h>
 
 void window_render(Scene& scene, bool background, const std::function<ImTextureID(const glm::vec2& size, Scene& scene)>& fnRender)
 {
@@ -58,6 +59,8 @@ void window_render(Scene& scene, bool background, const std::function<ImTextureI
     {
         pDrawList->AddText(ImVec2(canvas_pos.x, canvas_pos.y), 0xFFFFFFFF, "No passes draw to the this buffer...");
     }
+
+    python_tick(pDrawList, glm::vec4(canvas_pos.x, canvas_pos.y, outputSize.x, outputSize.y));
 
     if (!background)
     {

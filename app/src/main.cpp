@@ -35,6 +35,7 @@
 #include <app/project.h>
 #include <app/window_render.h>
 #include <app/window_targets.h>
+#include <app/python_scripting.h>
 
 #include <range/v3/algorithm/for_each.hpp>
 #include <range/v3/view.hpp>
@@ -207,6 +208,8 @@ int main(int argc, char** argv)
     Zing::audio_init(nullptr);
 
     register_windows();
+
+    python_init();
 
     // This update thread generates a new scene, then returns it in a queue ready for 'swapping' with the existing one
     // if it is valid
@@ -587,6 +590,8 @@ int main(int argc, char** argv)
     scene_destroy_parser();
 
     SDL_Quit();
+
+    python_destroy();
 
     Zest::Profiler::Finish();
 

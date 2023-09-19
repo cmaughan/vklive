@@ -7,3 +7,6 @@
 [submodule "external/zing"]
 	path = external/zing
 	url = https://github.com/Rezonality/zing
+[submodule "external/rccp"]
+	path = external/rccp
+	url = https://github.com/RuntimeCompiledCPlusPlus/RuntimeCompiledCPlusPlus
