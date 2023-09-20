@@ -155,6 +155,7 @@ set(VK_SOURCES
     src/process/process.cpp
     src/scene.cpp
     src/validation.cpp
+    src/python_scripting.cpp
 
     external/mpc/mpc.c
 
@@ -165,6 +166,7 @@ set(VK_SOURCES
     include/vklive/process/process.h
     include/vklive/scene.h
     include/vklive/validation.h
+    include/vklive/python_scripting.h
 
 )
 
@@ -181,7 +183,6 @@ set(APP_SOURCES
     app/src/editor.cpp
     app/src/main.cpp
     app/src/window_render.cpp
-    app/src/python_scripting.cpp
     app/src/window_targets.cpp
     app/src/menu.cpp
     app/src/project.cpp
@@ -191,10 +192,10 @@ set(APP_SOURCES
     app/include/app/editor.h
     app/include/app/menu.h
     app/include/app/project.h
-    app/include/app/python_scripting.h
 )
 
 set_source_files_properties (external/mpc/mpc.c PROPERTIES SKIP_PRECOMPILE_HEADERS 1)
+set_source_files_properties (src/python_scripting.cpp PROPERTIES SKIP_PRECOMPILE_HEADERS 1)
 
 add_library(vklive ${LIB_SOURCES})
 target_link_libraries(vklive

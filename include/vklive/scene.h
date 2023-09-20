@@ -13,9 +13,13 @@
 #include <vklive/camera.h>
 #include <vklive/message.h>
 
+#include <tsl/ordered_map.h>
+
 #include "pass.h"
 
 struct Project;
+
+struct PythonModule;
 
 enum class Format
 {
@@ -173,6 +177,7 @@ struct Pass
     std::vector<fs::path> shaders;
     std::vector<std::string> cameras;
     std::vector<std::shared_ptr<ShaderGroup>> shaderGroups;
+    tsl::ordered_map<fs::path, std::shared_ptr<PythonModule>> post_2d;
 
     int scriptTargetsLine = 0;
     int scriptSamplersLine = 0;

@@ -11,9 +11,10 @@
 #include <zest/string/string_utils.h>
 
 #include <vklive/scene.h>
+#include <vklive/python_scripting.h>
 
 #include "config_app.h"
-    
+
 uint64_t Scene::GlobalFrameCount = 0;
 double Scene::GlobalElapsedSeconds = 0.0;
 
@@ -28,6 +29,7 @@ extern "C" {
 #define T_FORMAT "format"
 #define T_FS "fs"
 #define T_GEOMETRY "geometry"
+#define T_POST_2D "post_2d"
 #define T_GS "gs"
 #define T_IDENT "ident"
 #define T_IDENT_ARRAY "ident_array"
@@ -158,6 +160,7 @@ void scene_init_parser()
     ADD_PARSER(gs, T_GS);
     ADD_PARSER(vs, T_VS);
     ADD_PARSER(geometry, T_GEOMETRY);
+    ADD_PARSER(post_2d, T_POST_2D);
 
     // RT
     ADD_PARSER(ray_group_general, T_RAY_GROUP_GENERAL);
@@ -169,7 +172,6 @@ void scene_init_parser()
     ADD_PARSER(closest_hit, T_RAY_CLOSEST_HIT);
     ADD_PARSER(intersection, T_RAY_INTERSECTION);
     ADD_PARSER(callable, T_RAY_CALLABLE);
-
 
     ADD_PARSER(path_id, T_PATH);
     ADD_PARSER(build_as, T_BUILD_AS);
@@ -222,6 +224,7 @@ callable         : "callable" ':' <path_name> ;
 closest_hit      : "closest_hit" ':' <path_name> ;
 any_hit          : "any_hit" ':' <path_name> ;
 intersection     : "intersection" ':' <path_name> ;
+post_2d          : "post_2d" ':' <path_name> ;
 surface          : "surface" ':' <ident> '{' (<comment> | <path> | <clear> | <format> | <scale> | <size>)* '}';
 camera           : "camera" ':' <ident> '{' (<comment> | <position> | <look_at> | <field_of_view> | <near_far>)* '}';
 ray_group_general : "ray_group_general" ':' <ident> '{' (<ray_gen> | <miss> | <callable>) '}';
@@ -229,11 +232,11 @@ ray_group_triangles : "ray_group_triangles" ':' <ident> '{' (<closest_hit> | <an
 ray_group_procedural : "ray_group_procedural" ':' <ident> '{' <intersection> (<closest_hit> | <any_hit>)* '}';
 geometry         : "geometry" ':' <ident> '{' (<path> | <scale> | <build_as> | <ray_group_general> | <ray_group_triangles> | <ray_group_procedural> | <vs> | <fs> | <gs> | <comment>)* '}';
 disable          : '!' ;
-pass             : <disable>? "pass" ':' <ident> '{' (<geometry> | <targets> | <samplers> | <camera_id> | <comment> | <clear>)* '}'; 
+pass             : <disable>? "pass" ':' <ident> '{' (<post_2d> | <geometry> | <targets> | <samplers> | <camera_id> | <comment> | <clear>)* '}'; 
 scenegraph       : /^/ (<comment> | <surface> | <camera>)* (<comment> | <pass> )* /$/ ;
     )",
         path_name, path_id, comment, ident, bool_id, flt, vector, ident_array, build_as, scale, size, clear, format,
-        samplers, targets, vs, gs, fs, surface, camera, camera_id, position, look_at, field_of_view, near_far, geometry, disable, pass, ray_group_general, ray_group_triangles, ray_group_procedural, ray_gen, miss, any_hit, closest_hit, intersection, callable, parser.pSceneGraph, nullptr);
+        samplers, targets, vs, gs, fs, surface, camera, camera_id, position, look_at, field_of_view, near_far, post_2d, geometry, disable, pass, ray_group_general, ray_group_triangles, ray_group_procedural, ray_gen, miss, any_hit, closest_hit, intersection, callable, parser.pSceneGraph, nullptr);
 }
 
 void scene_destroy_parser()
@@ -507,7 +510,7 @@ std::shared_ptr<Scene> scene_build(const fs::path& root)
                 }
                 return vals.size();
             };
-            
+
             auto getScalar = [&](auto entry, auto& ret) {
                 auto pChild = getChild(entry, T_FLOAT);
                 if (!pChild)
@@ -515,7 +518,7 @@ std::shared_ptr<Scene> scene_build(const fs::path& root)
                     AddMessage(*spScene, fmt::format("Missing value: {}", entry->tag), MessageSeverity::Error, entry->state.row);
                     return;
                 }
-                
+
                 ret = std::stof(pChild->contents);
             };
 
@@ -644,6 +647,22 @@ std::shared_ptr<Scene> scene_build(const fs::path& root)
                     }
                     spPass->passType = type;
                 };
+
+                auto post = childrenOf(pPassNode, T_POST_2D);
+                for (auto& pPost2D : post)
+                {
+                    auto pPostPath = getChild(pPost2D, T_PATH_NAME);
+                    auto pyPath = root / pPostPath->contents;
+
+                    if (!fs::exists(pyPath))
+                    {
+                        AddMessage(*spScene, std::string("Python missing: " + pyPath.filename().string()), MessageSeverity::Error, pPostPath->state.row, pPostPath->state.col);
+                        return nullptr;
+                    }
+
+                    spPass->post_2d[pyPath] = python_compile(pyPath);
+                }
+
                 auto models = childrenOf(pPassNode, T_GEOMETRY);
                 for (auto& pGeometryNode : models)
                 {
@@ -666,7 +685,7 @@ std::shared_ptr<Scene> scene_build(const fs::path& root)
                         }
                         spGeom = std::make_shared<Geometry>(foundPath);
                     }
-                    
+
                     if (hasChild(pGeometryNode, T_BUILD_AS))
                     {
                         spGeom->buildAS = getBool(getChild(pGeometryNode, T_BUILD_AS));
@@ -769,7 +788,7 @@ std::shared_ptr<Scene> scene_build(const fs::path& root)
                         }
                     }
                 }
-                
+
                 if (spPass->cameras.empty())
                 {
                     spPass->cameras.push_back("default_camera");
@@ -1006,8 +1025,17 @@ bool scene_is_shader(const fs::path& f)
     {
         return true;
     }
-    
+
     if (f.extension() == ".vert" || f.extension() == ".frag" || f.extension() == ".geom")
+    {
+        return true;
+    }
+    return false;
+}
+
+bool scene_is_source(const fs::path& p)
+{
+    if (p.extension() == ".py")
     {
         return true;
     }
@@ -1034,7 +1062,7 @@ bool scene_is_scenegraph(const fs::path& f)
 
 bool scene_is_edit_file(const fs::path& f)
 {
-    if (scene_is_shader(f) || scene_is_header(f) || scene_is_scenegraph(f) || scene_is_header(f))
+    if (scene_is_shader(f) || scene_is_header(f) || scene_is_scenegraph(f) || scene_is_header(f) || scene_is_source(f))
     {
         return true;
     }
