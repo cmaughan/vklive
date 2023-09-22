@@ -23,7 +23,8 @@ struct VulkanDevice : public IDevice
 
     virtual void ImGui_Render(ImDrawData* pDrawData) override;
 
-    virtual void* Render_3D(Scene& scene, const glm::vec2& size) override;
+    virtual RenderOutput Render_3D(Scene& scene, const glm::vec2& size) override;
+    virtual void WriteToFile(Scene& scene, const fs::path& path) override;
     
     virtual void ValidateSwapChain() override;
     virtual void Present() override;

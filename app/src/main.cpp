@@ -24,6 +24,8 @@
 
 #include <vklive/validation.h>
 
+#include <vklive/python_scripting.h>
+
 #include <zing/audio/audio.h>
 
 #include <config_app.h>
@@ -35,7 +37,6 @@
 #include <app/project.h>
 #include <app/window_render.h>
 #include <app/window_targets.h>
-//#include <app/python_scripting.h>
 
 #include <range/v3/algorithm/for_each.hpp>
 #include <range/v3/view.hpp>
@@ -150,6 +151,28 @@ void register_windows()
     });
 }
 
+void copy_scene_errors_to_zep(Scene& scene)
+{
+    // Report the errors, regardless
+    for (auto& err : scene.errors)
+    {
+        if (!err.path.empty())
+        {
+            zep_add_file_message(err);
+        }
+    }
+    scene.errors.clear();
+
+    for (auto& err : scene.warnings)
+    {
+        if (!err.path.empty())
+        {
+            zep_add_file_message(err);
+        }
+    }
+    scene.warnings.clear();
+}
+
 } // namespace
 
 int main(int argc, char** argv)
@@ -209,7 +232,7 @@ int main(int argc, char** argv)
 
     register_windows();
 
-    //python_init();
+    // python_init();
 
     // This update thread generates a new scene, then returns it in a queue ready for 'swapping' with the existing one
     // if it is valid
@@ -315,7 +338,7 @@ int main(int argc, char** argv)
         {
             zepFocusFlags &= ~(ZepFocusFlags::CheckFocus | ZepFocusFlags::Focus);
         }
-        //ImGui::ShowDemoWindow();
+        // ImGui::ShowDemoWindow();
 
         static bool update = false;
         static bool z_init = false;
@@ -436,21 +459,7 @@ int main(int argc, char** argv)
             g_Controller.spCurrentProject->projectMessages.clear();
 
             // Report the errors, regardless
-            for (auto& err : spNewProject->spScene->errors)
-            {
-                if (!err.path.empty())
-                {
-                    zep_add_file_message(err);
-                }
-            }
-
-            for (auto& err : spNewProject->spScene->warnings)
-            {
-                if (!err.path.empty())
-                {
-                    zep_add_file_message(err);
-                }
-            }
+            copy_scene_errors_to_zep(*spNewProject->spScene);
 
             zepFocusFlags |= ZepFocusFlags::Focus;
         }
@@ -495,11 +504,15 @@ int main(int argc, char** argv)
         {
             validation_enable_messages(true);
 
-            LOG_SCOPE(DBG, "\nDraw Current Scene: " << g_Controller.spCurrentProject->spScene.get());
-            
-            window_render(*g_Controller.spCurrentProject->spScene, appConfig.draw_on_background, [=](const glm::vec2& size, Scene& scene) {
+            auto spScene = g_Controller.spCurrentProject->spScene;
+            LOG_SCOPE(DBG, "\nDraw Current Scene: " << spScene.get());
+
+            window_render(*spScene, appConfig.draw_on_background, [=](const glm::vec2& size, Scene& scene) {
                 return g_pDevice->Render_3D(scene, size);
             });
+
+            // Report the errors, regardless
+            copy_scene_errors_to_zep(*spScene);
 
             if (g_pDevice->Context().deviceState == DeviceState::Lost)
             {
@@ -507,6 +520,13 @@ int main(int argc, char** argv)
                 // Note: this currently shouldn't happen, and I haven't figured a workaround for it anyway
                 // - once the device is lost, only an .exe restart seems to work.
                 continue;
+            }
+
+            static bool written = false;
+            if (!written)
+            {
+                written = true;
+                g_pDevice->WriteToFile(*spScene, fs::path("d:/dev/vklive_renders"));
             }
 
             window_targets(*g_Controller.spCurrentProject->spScene);
@@ -591,7 +611,7 @@ int main(int argc, char** argv)
 
     SDL_Quit();
 
-    //python_destroy();
+    // python_destroy();
 
     Zest::Profiler::Finish();
 

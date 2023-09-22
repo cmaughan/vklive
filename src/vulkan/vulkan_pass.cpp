@@ -183,13 +183,23 @@ VulkanSurface* get_vulkan_surface(VulkanContext& ctx, VulkanPass& vulkanPass, co
     auto size = pSurface->size;
     if (size == glm::uvec2(0, 0))
     {
+        // By default we scale to the framebuffer size
+        auto fbSize = ctx.frameBufferSize;
+
+        // ... but if the user fixed the size of the default color output, scale relative to that
+        auto defaultColorSize = vulkanPass.vulkanScene.pScene->surfaces["default_color"]->size;
+        if (defaultColorSize != glm::uvec2(0, 0))
+        {
+            // If the default color size has a fixed size, our scale is relative to that.
+            fbSize = defaultColorSize;
+        }
+
         // Size is the frame buffer size, by any multiplier the user has provided
-        size = glm::uvec2(pSurface->scale.x * ctx.frameBufferSize.x,
-            pSurface->scale.y * ctx.frameBufferSize.y);
+        size = glm::uvec2(pSurface->scale.x * fbSize.x, pSurface->scale.y * fbSize.y);
     }
 
     // OK, so it has changed size
-    if (size != pVulkanSurface->currentSize)
+    if (size != pVulkanSurface->pSurface->currentSize)
     {
         LOG(DBG, "Resize: " << *pVulkanSurface);
 
@@ -202,7 +212,7 @@ VulkanSurface* get_vulkan_surface(VulkanContext& ctx, VulkanPass& vulkanPass, co
         vulkan_surface_destroy(ctx, *pVulkanSurface);
 
         // Update to latest, even if we fail, so we don't keep trying
-        pVulkanSurface->currentSize = size;
+        pVulkanSurface->pSurface->currentSize = size;
 
         // If surface bigger than 0
         if (size != glm::uvec2(0, 0))

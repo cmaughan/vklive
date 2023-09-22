@@ -12,6 +12,7 @@
 #include <zest/time/timer.h>
 
 #include <vklive/validation.h>
+#include <vklive/python_scripting.h>
 
 #include <vklive/vulkan/vulkan_command.h>
 #include <vklive/vulkan/vulkan_context.h>
@@ -154,10 +155,19 @@ void vulkan_scene_destroy(VulkanContext& ctx, VulkanScene& vulkanScene)
     }
     vulkanScene.models.clear();
 
+    // TODO: For now, this is the best place to clear compiled scripts in a timely fashion
+    // , because we don't really have a 'scene' tear-down 
+    // This will happen when a new scene replaces an old one.
+    for (auto& [path, script] : vulkanScene.pScene->scripts)
+    {
+        script->spCode.reset();
+        script->spVM.reset();
+    }
     vulkanScene.pScene->valid = false;
 
     // Last thing, might erase the scene
     ctx.mapVulkanScene.erase(vulkanScene.pScene);
+
 }
 
 VulkanSurface* vulkan_scene_get_or_create_surface(VulkanScene& vulkanScene, const std::string& surfaceName, uint64_t frameCount, bool sampling)

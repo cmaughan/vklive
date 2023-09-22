@@ -232,8 +232,8 @@ ray_group_triangles : "ray_group_triangles" ':' <ident> '{' (<closest_hit> | <an
 ray_group_procedural : "ray_group_procedural" ':' <ident> '{' <intersection> (<closest_hit> | <any_hit>)* '}';
 geometry         : "geometry" ':' <ident> '{' (<path> | <scale> | <build_as> | <ray_group_general> | <ray_group_triangles> | <ray_group_procedural> | <vs> | <fs> | <gs> | <comment>)* '}';
 disable          : '!' ;
-pass             : <disable>? "pass" ':' <ident> '{' (<post_2d> | <geometry> | <targets> | <samplers> | <camera_id> | <comment> | <clear>)* '}'; 
-scenegraph       : /^/ (<comment> | <surface> | <camera>)* (<comment> | <pass> )* /$/ ;
+pass             : <disable>? "pass" ':' <ident> '{' (<geometry> | <targets> | <samplers> | <camera_id> | <comment> | <clear>)* '}'; 
+scenegraph       : /^/ (<comment> | <surface> | <camera>)* (<comment> | <pass> )* <post_2d>? /$/ ;
     )",
         path_name, path_id, comment, ident, bool_id, flt, vector, ident_array, build_as, scale, size, clear, format,
         samplers, targets, vs, gs, fs, surface, camera, camera_id, position, look_at, field_of_view, near_far, post_2d, geometry, disable, pass, ray_group_general, ray_group_triangles, ray_group_procedural, ray_gen, miss, any_hit, closest_hit, intersection, callable, parser.pSceneGraph, nullptr);
@@ -430,7 +430,6 @@ std::shared_ptr<Scene> scene_build(const fs::path& root)
     spScene->surfaces["default_color"] = spDefaultColor;
     spScene->surfaces["default_depth"] = spDefaultDepth;
     spScene->cameras["default_camera"] = spDefaultCamera;
-    spScene->finalColorTarget = spDefaultColor.get();
 
     try
     {
@@ -648,21 +647,6 @@ std::shared_ptr<Scene> scene_build(const fs::path& root)
                     spPass->passType = type;
                 };
 
-                auto post = childrenOf(pPassNode, T_POST_2D);
-                for (auto& pPost2D : post)
-                {
-                    auto pPostPath = getChild(pPost2D, T_PATH_NAME);
-                    auto pyPath = root / pPostPath->contents;
-
-                    if (!fs::exists(pyPath))
-                    {
-                        AddMessage(*spScene, std::string("Python missing: " + pyPath.filename().string()), MessageSeverity::Error, pPostPath->state.row, pPostPath->state.col);
-                        return nullptr;
-                    }
-
-                    spPass->post_2d[pyPath] = python_compile(pyPath);
-                }
-
                 auto models = childrenOf(pPassNode, T_GEOMETRY);
                 for (auto& pGeometryNode : models)
                 {
@@ -868,6 +852,27 @@ std::shared_ptr<Scene> scene_build(const fs::path& root)
 
                 spScene->passOrder.push_back(spPass.get());
             }
+                
+            auto post = childrenOf(ast_current, T_POST_2D);
+            for (auto& pPost2D : post)
+            {
+                auto pPostPath = getChild(pPost2D, T_PATH_NAME);
+                auto pyPath = root / pPostPath->contents;
+
+                if (!fs::exists(pyPath))
+                {
+                    AddMessage(*spScene, std::string("Python missing: " + pyPath.filename().string()), MessageSeverity::Error, pPostPath->state.row, pPostPath->state.col);
+                }
+                else
+                {
+                    if (spScene->scripts.find(pyPath) == spScene->scripts.end())
+                    {
+                        spScene->scripts[pyPath] = python_compile(*spScene, pyPath);
+                    }
+                    spScene->post_2d.push_back(pyPath);
+                }
+            }
+
 
             mpc_ast_delete((mpc_ast_t*)r.output);
 
@@ -906,6 +911,11 @@ std::shared_ptr<Scene> scene_build(const fs::path& root)
 
 void scene_report_error(Scene& scene, MessageSeverity severity, const std::string& txt, const fs::path& path, int32_t line, const std::pair<int32_t, int32_t>& range)
 {
+    if (scene.reportedErrorCount > 100)
+    {
+        assert(!"Check this is the right thing?  Should it happen?");
+        return;
+    }
     Message msg;
     msg.text = txt;
     if (!path.empty())
@@ -931,6 +941,8 @@ void scene_report_error(Scene& scene, MessageSeverity severity, const std::strin
     {
         scene.valid = false;
     }
+
+    scene.reportedErrorCount++;
 };
 
 // Finds assets declared in the scene file, first looking in absolute path, then local project path,

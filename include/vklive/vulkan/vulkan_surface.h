@@ -48,7 +48,6 @@ struct VulkanSurface : Allocation
 
     Surface* pSurface = nullptr;
     std::string debugName;
-    glm::uvec2 currentSize = { 0, 0 };
 
     vk::Image image;
     vk::Extent3D extent;

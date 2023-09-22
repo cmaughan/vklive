@@ -4,12 +4,15 @@
 #include <map>
 #include <vector>
 #include <mutex>
+#include <filesystem>
 
 #include <glm/glm.hpp>
 
 struct SDL_Window;
 
 struct ImDrawData;
+
+namespace fs = std::filesystem;
 
 struct IContextData
 {
@@ -23,6 +26,13 @@ enum class DeviceState
 };
 
 struct Scene;
+struct Surface;
+
+struct RenderOutput
+{
+    void* textureId = nullptr;
+    Surface* pSurface = nullptr;
+};
 
 struct DeviceContext
 {
@@ -50,7 +60,8 @@ struct IDevice
     virtual void DestroyScene(Scene& scene) = 0;
     virtual void ImGui_Render(ImDrawData* pDrawData) = 0;
 
-    virtual void* Render_3D(Scene& scene, const glm::vec2& size) = 0;
+    virtual RenderOutput Render_3D(Scene& scene, const glm::vec2& size) = 0;
+    virtual void WriteToFile(Scene& scene, const fs::path& path) = 0;
 
     virtual void WaitIdle() = 0;
     

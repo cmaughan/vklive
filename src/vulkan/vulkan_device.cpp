@@ -96,10 +96,15 @@ void VulkanDevice::ValidateSwapChain()
     vulkan::main_window_validate_swapchain(ctx);
 }
 
-void* VulkanDevice::Render_3D(Scene& scene, const glm::vec2& size)
+RenderOutput VulkanDevice::Render_3D(Scene& scene, const glm::vec2& size)
 {
     vulkan::render(ctx, glm::vec4(0.0f, 0.0f, size.x, size.y), scene);
-    return vulkan::render_get_texture_id(ctx, scene);
+    return vulkan::render_get_output(ctx, scene);
+}
+
+void VulkanDevice::WriteToFile(Scene& scene, const fs::path& path)
+{
+    vulkan::render_write_output(ctx, scene, path);
 }
 
 void VulkanDevice::WaitIdle()

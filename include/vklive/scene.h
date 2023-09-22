@@ -43,6 +43,9 @@ struct Surface
     // Meaning full size framebuffer
     glm::uvec2 size = glm::uvec2(0);
 
+    // Actual allocated size
+    glm::uvec2 currentSize = { 0, 0 };
+
     // 1x
     glm::vec2 scale = glm::vec2(1.0f);
 
@@ -177,7 +180,6 @@ struct Pass
     std::vector<fs::path> shaders;
     std::vector<std::string> cameras;
     std::vector<std::shared_ptr<ShaderGroup>> shaderGroups;
-    tsl::ordered_map<fs::path, std::shared_ptr<PythonModule>> post_2d;
 
     int scriptTargetsLine = 0;
     int scriptSamplersLine = 0;
@@ -213,10 +215,11 @@ struct Scene
 
     std::map<std::string, uint32_t> passNameToIndex;
 
+    std::map<fs::path, std::shared_ptr<PythonModule>> scripts;
+    std::vector<fs::path> post_2d;
+
     // Evaluated values for rendering
     std::vector<Pass*> passOrder;
-    Surface* finalColorTarget;
-
     bool valid = true;
 
     static uint64_t GlobalFrameCount;
@@ -225,6 +228,8 @@ struct Scene
     glm::vec2 lastOutputSize = glm::vec2(0.0f);
 
     uint32_t sceneFlags = SceneFlags::DefaultTargetResize;
+
+    uint32_t reportedErrorCount = 0;
 };
 
 enum class AssetType

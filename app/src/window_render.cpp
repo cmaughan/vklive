@@ -1,10 +1,13 @@
-#include "app/menu.h"
 #include "app/window_render.h"
+#include "app/menu.h"
+#include "app/editor.h"
+
+#include <vklive/python_scripting.h>
+#include <vklive/IDevice.h>
 
 #include <zest/logger/logger.h>
-//#include <vklive/python_scripting.h>
 
-void window_render(Scene& scene, bool background, const std::function<ImTextureID(const glm::vec2& size, Scene& scene)>& fnRender)
+void window_render(Scene& scene, bool background, const std::function<RenderOutput(const glm::vec2& size, Scene& scene)>& fnRender)
 {
     ImVec2 canvas_size;
     ImVec2 canvas_pos;
@@ -42,15 +45,49 @@ void window_render(Scene& scene, bool background, const std::function<ImTextureI
             Scene::GlobalFrameCount = 0;
         }
 
-        auto textureId = fnRender(glm::vec2(outputSize.x, outputSize.y), scene);
+        auto renderOutput = fnRender(glm::vec2(outputSize.x, outputSize.y), scene);
 
         scene.sceneFlags &= ~SceneFlags::DefaultTargetResize;
 
-        if (textureId)
+        auto border = glm::vec2(0.0f);
+        auto currentSurfaceSize = renderOutput.pSurface->currentSize;
+        if (currentSurfaceSize.x < outputSize.x)
         {
-            pDrawList->AddImage(textureId,
-                ImVec2(canvas_pos.x, canvas_pos.y),
-                ImVec2(canvas_pos.x + outputSize.x, canvas_pos.y + outputSize.y));
+            border.x = (outputSize.x - currentSurfaceSize.x) * 0.5f;
+        }
+        
+        if (currentSurfaceSize.y < outputSize.y)
+        {
+            border.y = (outputSize.y - currentSurfaceSize.y) * 0.5f;
+        }
+
+        const auto frameSize = 2.0f;
+        auto topLeft = ImVec2(canvas_pos.x + border.x - frameSize, canvas_pos.y + border.y - frameSize);
+        auto bottomRight = ImVec2(canvas_pos.x + currentSurfaceSize.x + border.x + frameSize, canvas_pos.y + currentSurfaceSize.y + border.y + frameSize);
+
+        if (border.x > 0 || border.y > 0)
+        {
+            pDrawList->AddRectFilled(topLeft, bottomRight, 0xFF888888);
+        }
+
+        topLeft.x += frameSize;
+        topLeft.y += frameSize;
+        bottomRight.x -= frameSize;
+        bottomRight.y -= frameSize;
+
+        if (renderOutput.textureId)
+        {
+            pDrawList->AddImage(renderOutput.textureId, topLeft, bottomRight);
+            drawn = true;
+        }
+
+        for (auto& p : scene.post_2d)
+        {
+            auto itr = scene.scripts.find(p);
+            if (itr != scene.scripts.end())
+            {
+                python_run_2d(*itr->second, scene, pDrawList, glm::vec4(canvas_pos.x + border.x, canvas_pos.y + border.y, currentSurfaceSize.x, currentSurfaceSize.y));
+            }
             drawn = true;
         }
     }
@@ -59,8 +96,6 @@ void window_render(Scene& scene, bool background, const std::function<ImTextureI
     {
         pDrawList->AddText(ImVec2(canvas_pos.x, canvas_pos.y), 0xFFFFFFFF, "No passes draw to the this buffer...");
     }
-
-    //python_tick(pDrawList, glm::vec4(canvas_pos.x, canvas_pos.y, outputSize.x, outputSize.y));
 
     if (!background)
     {
