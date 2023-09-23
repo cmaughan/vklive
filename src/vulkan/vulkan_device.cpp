@@ -104,7 +104,11 @@ RenderOutput VulkanDevice::Render_3D(Scene& scene, const glm::vec2& size)
 
 void VulkanDevice::WriteToFile(Scene& scene, const fs::path& path)
 {
-    vulkan::render_write_output(ctx, scene, path);
+    if (scene.GlobalFrameCount < 10)
+    {
+        vulkan::render_write_output(ctx, scene, path);
+    }
+
 }
 
 void VulkanDevice::WaitIdle()

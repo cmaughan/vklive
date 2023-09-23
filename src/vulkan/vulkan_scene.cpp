@@ -180,7 +180,7 @@ VulkanSurface* vulkan_scene_get_or_create_surface(VulkanScene& vulkanScene, cons
         return nullptr;
     }
 
-    SurfaceKey key(surfaceName, pSurface->isDefaultColorTarget ? frameCount : 0, sampling);
+    SurfaceKey key(surfaceName, /* pSurface->isDefaultColorTarget ? frameCount :*/ 0, sampling);
 
     auto itr = vulkanScene.surfaces.find(key);
     if (itr != vulkanScene.surfaces.end())

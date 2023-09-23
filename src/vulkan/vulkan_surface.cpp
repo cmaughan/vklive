@@ -22,12 +22,6 @@ std::string to_string(const VulkanSurface& surf)
     return fmt::format("Surface Key:{}, Image:{}, Extent:{},{}", surf.key.DebugName(), (void*)surf.image, surf.extent.width, surf.extent.height);
 }
 
-void surface_unmap(VulkanContext& ctx, VulkanSurface& img)
-{
-    ctx.device.unmapMemory(img.memory);
-    img.mapped = nullptr;
-}
-
 void vulkan_surface_destroy(VulkanContext& ctx, VulkanSurface& img)
 {
     if (img.stagingBuffer.buffer)
@@ -40,12 +34,6 @@ void vulkan_surface_destroy(VulkanContext& ctx, VulkanSurface& img)
         LOG(DBG, "Destroy Sampler: " << img.sampler);
         ctx.device.destroySampler(img.sampler);
         img.sampler = nullptr;
-    }
-
-    if (img.mapped)
-    {
-        surface_unmap(ctx, img);
-        img.mapped = nullptr;
     }
 
     if (img.view)
@@ -72,7 +60,8 @@ void vulkan_surface_destroy(VulkanContext& ctx, VulkanSurface& img)
     img.ImGuiDescriptorSet = nullptr;
 };
 
-void vulkan_surface_create(VulkanContext& ctx, VulkanSurface& vulkanSurface, const vk::ImageCreateInfo& imageCreateInfo, const vk::MemoryPropertyFlags& memoryPropertyFlags)
+// Internal helper
+void vulkan_surface_create_image_internal(VulkanContext& ctx, VulkanSurface& vulkanSurface, const vk::ImageCreateInfo& imageCreateInfo, const vk::MemoryPropertyFlags& memoryPropertyFlags)
 {
     vulkan_surface_destroy(ctx, vulkanSurface);
 
@@ -91,11 +80,43 @@ void vulkan_surface_create(VulkanContext& ctx, VulkanSurface& vulkanSurface, con
     vulkanSurface.generation++;
 }
 
-void vulkan_surface_create(VulkanContext& ctx, VulkanSurface& vulkanSurface, const glm::uvec2& size, vk::Format colorFormat, bool sampled)
+void vulkan_surface_create_upload_image_internal(VulkanContext& ctx, VulkanSurface& vulkanSurface, const glm::uvec2& size)
+{
+    if (vulkanSurface.uploadImage)
+    {
+        ctx.device.destroyImage(vulkanSurface.uploadImage);
+        vulkanSurface.uploadImage = nullptr;
+    }
+    
+    vk::ImageCreateInfo createInfo;
+    createInfo.imageType = vk::ImageType::e2D;
+    createInfo.extent.width = size.x;
+    createInfo.extent.height = size.y;
+    createInfo.extent.depth = 1;
+    createInfo.mipLevels = 1;
+    createInfo.arrayLayers = 1;
+    createInfo.samples = vk::SampleCountFlagBits::e1;
+    createInfo.tiling = vk::ImageTiling::eLinear;
+    createInfo.usage = vk::ImageUsageFlagBits::eTransferDst ;
+    createInfo.format = vk::Format::eR8G8B8A8Unorm;
+
+    vulkanSurface.uploadImage = ctx.device.createImage(createInfo);
+    debug_set_image_name(ctx.device, vulkanSurface.uploadImage, "Upload_Image");
+
+    vk::MemoryRequirements memReqs = ctx.device.getImageMemoryRequirements(vulkanSurface.uploadImage);
+    vk::MemoryAllocateInfo memAllocInfo;
+    memAllocInfo.allocationSize = vulkanSurface.uploadAllocSize = memReqs.size;
+    memAllocInfo.memoryTypeIndex = utils_memory_type(ctx, vk::MemoryPropertyFlagBits::eHostVisible | vk::MemoryPropertyFlagBits::eHostCoherent, memReqs.memoryTypeBits);
+    vulkanSurface.uploadMemory = ctx.device.allocateMemory(memAllocInfo);
+    ctx.device.bindImageMemory(vulkanSurface.uploadImage, vulkanSurface.uploadMemory, 0);
+    debug_set_devicememory_name(ctx.device, vulkanSurface.uploadMemory, "Upload_Image");
+}
+
+void vulkan_surface_create(VulkanContext& ctx, VulkanSurface& vulkanSurface, const glm::uvec2& size, vk::Format colorFormat, uint32_t flags)
 {
     vulkan_surface_destroy(ctx, vulkanSurface);
 
-    vk::ImageUsageFlags colorUsage = sampled ? vk::ImageUsageFlagBits::eSampled : vk::ImageUsageFlagBits();
+    vk::ImageUsageFlags colorUsage = (flags & VulkanSurfaceFlags::Sampled) ? vk::ImageUsageFlagBits::eSampled : vk::ImageUsageFlagBits();
 
     // Color attachment
     vk::ImageCreateInfo image;
@@ -107,15 +128,29 @@ void vulkan_surface_create(VulkanContext& ctx, VulkanSurface& vulkanSurface, con
     image.arrayLayers = 1;
     image.samples = vk::SampleCountFlagBits::e1;
     image.tiling = vk::ImageTiling::eOptimal;
-    image.usage = vk::ImageUsageFlagBits::eColorAttachment | colorUsage;
+    image.usage = vk::ImageUsageFlagBits::eColorAttachment | vk::ImageUsageFlagBits::eTransferSrc | colorUsage;
     if (vulkanSurface.pSurface->isRayTarget)
     {
         image.usage |= vk::ImageUsageFlagBits::eStorage;
     }
     image.format = colorFormat;
-    vulkan_surface_create(ctx, vulkanSurface, image, vk::MemoryPropertyFlagBits::eDeviceLocal);
 
-    if (sampled)
+    auto memFlags = vk::MemoryPropertyFlagBits::eDeviceLocal;
+    vulkan_surface_create_image_internal(ctx, vulkanSurface, image, memFlags);
+
+    if (flags & VulkanSurfaceFlags::Uploadable)
+    {
+        vulkan_surface_create_upload_image_internal(ctx, vulkanSurface, size);
+
+        auto formatProperties = ctx.physicalDevice.getFormatProperties(colorFormat);
+        if ((formatProperties.optimalTilingFeatures & vk::FormatFeatureFlagBits::eBlitSrc) && 
+            (formatProperties.linearTilingFeatures & vk::FormatFeatureFlagBits::eBlitDst))
+        {
+            vulkanSurface.isBlitUpload = true;
+        }
+    }
+
+    if (flags & VulkanSurfaceFlags::Sampled)
     {
         vk::ImageViewCreateInfo colorImageView;
         colorImageView.viewType = vk::ImageViewType::e2D;
@@ -134,7 +169,7 @@ void vulkan_surface_create(VulkanContext& ctx, VulkanSurface& vulkanSurface, con
     vulkanSurface.generation++;
 }
 
-void vulkan_surface_create_depth(VulkanContext& ctx, VulkanSurface& vulkanSurface, const glm::uvec2& size, vk::Format depthFormat, bool sampled)
+void vulkan_surface_create_depth(VulkanContext& ctx, VulkanSurface& vulkanSurface, const glm::uvec2& size, vk::Format depthFormat)
 {
     vulkan_surface_destroy(ctx, vulkanSurface);
 
@@ -155,7 +190,7 @@ void vulkan_surface_create_depth(VulkanContext& ctx, VulkanSurface& vulkanSurfac
     image.format = depthFormat;
     image.usage = vk::ImageUsageFlagBits::eDepthStencilAttachment | depthUsage;
 
-    vulkan_surface_create(ctx, vulkanSurface, image, vk::MemoryPropertyFlagBits::eDeviceLocal);
+    vulkan_surface_create_image_internal(ctx, vulkanSurface, image, vk::MemoryPropertyFlagBits::eDeviceLocal);
 
     vk::ImageViewCreateInfo depthStencilView;
     depthStencilView.viewType = vk::ImageViewType::e2D;
@@ -266,7 +301,7 @@ void surface_stage_to_device(VulkanContext& ctx, VulkanSurface& surface, vk::Ima
 
     debug_set_buffer_name(ctx.device, staging.buffer, "Staging");
 
-    vulkan_surface_create(ctx, surface, imageCreateInfo, memoryPropertyFlags);
+    vulkan_surface_create_image_internal(ctx, surface, imageCreateInfo, memoryPropertyFlags);
 
     LOG(DBG, "Surface Stage To Device");
     utils_with_command_buffer(ctx, [&](const vk::CommandBuffer& copyCmd) {
@@ -448,7 +483,7 @@ void surface_update_from_audio(VulkanContext& ctx, VulkanSurface& surface, bool&
             imageCreateInfo.extent = surface.extent;
             imageCreateInfo.usage = imageUsageFlags | vk::ImageUsageFlagBits::eTransferDst;
 
-            vulkan_surface_create(ctx, surface, imageCreateInfo, vk::MemoryPropertyFlagBits::eDeviceLocal);
+            vulkan_surface_create_image_internal(ctx, surface, imageCreateInfo, vk::MemoryPropertyFlagBits::eDeviceLocal);
 
             // Add the staging buffer for transfers
             surface.stagingBuffer = buffer_create_staging(ctx, width * height * sizeof(float));

@@ -33,9 +33,18 @@ struct Allocation
     vk::DeviceSize size{ 0 };
     vk::DeviceSize alignment{ 0 };
     vk::DeviceSize allocSize{ 0 };
-    void* mapped = nullptr;
+    //void* mapped = nullptr;
     vk::MemoryPropertyFlags memoryPropertyFlags;
 };
+
+namespace VulkanSurfaceFlags
+{
+enum 
+{
+    Sampled = (1 << 0),
+    Uploadable = (1 << 1)
+};
+}
 
 // These structures mirror the scene structures and add the vulkan specific bits
 // The vulkan objects should not live longer than the scene!
@@ -50,6 +59,12 @@ struct VulkanSurface : Allocation
     std::string debugName;
 
     vk::Image image;
+
+    vk::Image uploadImage;
+    vk::DeviceMemory uploadMemory;
+    vk::DeviceSize uploadAllocSize{ 0 };
+    bool isBlitUpload = false;
+
     vk::Extent3D extent;
     vk::ImageView view;
     uint32_t mipLevels = 1;
@@ -68,6 +83,7 @@ struct VulkanSurface : Allocation
 
     // For UI read of this surface
     vk::DescriptorSet ImGuiDescriptorSet = nullptr;
+    
 };
 
 inline std::ostream& operator<<(std::ostream& os, const VulkanSurface& surf)
@@ -80,12 +96,8 @@ std::string to_string(const VulkanSurface& surf);
 
 using MipData = ::std::pair<vk::Extent3D, vk::DeviceSize>;
 
-void vulkan_surface_create(VulkanContext& ctx, VulkanSurface& vulkanImage, const vk::ImageCreateInfo& imageCreateInfo, const vk::MemoryPropertyFlags& memoryPropertyFlags);
-void vulkan_surface_create(VulkanContext& ctx, VulkanSurface& vulkanImage, const glm::uvec2& size, vk::Format colorFormat, bool sampled);
-void vulkan_surface_create_depth(VulkanContext& ctx, VulkanSurface& vulkanImage, const glm::uvec2& size, vk::Format depthFormat, bool sampled);
-
-// void surface_set_layout(VulkanContext& ctx, vk::CommandBuffer const& commandBuffer, vk::Image image, vk::Format format, vk::ImageLayout oldImageLayout, vk::ImageLayout newImageLayout);
-void surface_unmap(VulkanContext& ctx, VulkanSurface& img);
+void vulkan_surface_create(VulkanContext& ctx, VulkanSurface& vulkanImage, const glm::uvec2& size, vk::Format colorFormat, uint32_t flags);
+void vulkan_surface_create_depth(VulkanContext& ctx, VulkanSurface& vulkanImage, const glm::uvec2& size, vk::Format depthFormat);
 void vulkan_surface_destroy(VulkanContext& ctx, VulkanSurface& img);
 
 void surface_set_layout(VulkanContext& ctx, vk::CommandBuffer cmdbuffer, vk::Image image, vk::ImageLayout oldImageLayout, vk::ImageLayout newImageLayout, vk::ImageSubresourceRange subresourceRange);
@@ -94,6 +106,7 @@ void surface_set_layout(VulkanContext& ctx, vk::CommandBuffer cmdbuffer, vk::Ima
 void surface_set_layout(VulkanContext& ctx, vk::Image image, vk::ImageLayout oldImageLayout, vk::ImageLayout newImageLayout, vk::ImageSubresourceRange subresourceRange);
 void surface_set_layout(VulkanContext& ctx, vk::Image image, vk::ImageAspectFlags aspectMask, vk::ImageLayout oldImageLayout, vk::ImageLayout newImageLayout);
 
+// Aren't these the same thing?
 void surface_create_sampler(VulkanContext& ctx, VulkanSurface& surface);
 void surface_set_sampling(VulkanContext& ctx, VulkanSurface& image);
 

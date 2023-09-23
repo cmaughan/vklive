@@ -1,7 +1,10 @@
 #include <zest/file/file.h>
 #include <zest/logger/logger.h>
 
+#include <fstream>
+
 #include "config_app.h"
+#include "vklive/vulkan/vulkan_command.h"
 #include "vklive/vulkan/vulkan_framebuffer.h"
 #include "vklive/vulkan/vulkan_model.h"
 #include "vklive/vulkan/vulkan_pipeline.h"
@@ -24,6 +27,28 @@ VertexLayout g_vertexLayout{ {
     Component::VERTEX_COMPONENT_COLOR,
     Component::VERTEX_COMPONENT_NORMAL,
 } };
+
+#pragma pack(push, 1) // Ensure correct structure packing
+struct BMPHeader {
+    uint16_t fileType{0x4D42}; // BM
+    uint32_t fileSize{0};       // File size in bytes
+    uint16_t reserved1{0};      // Reserved (0)
+    uint16_t reserved2{0};      // Reserved (0)
+    uint32_t dataOffset{54};    // Offset to image data (bytes)
+    uint32_t headerSize{40};    // Header size (bytes)
+    int32_t width{0};           // Image width (pixels)
+    int32_t height{0};          // Image height (pixels)
+    uint16_t planes{1};         // Number of color planes (1)
+    uint16_t bitsPerPixel{24};  // Bits per pixel (24 for 8-bit R, G, B components)
+    uint32_t compression{0};    // Compression method (0 for no compression)
+    uint32_t dataSize{0};       // Size of raw image data (bytes, 0 for no compression)
+    int32_t horizontalRes{2835}; // Horizontal resolution (pixels/meter)
+    int32_t verticalRes{2835};   // Vertical resolution (pixels/meter)
+    uint32_t colors{0};          // Number of colors in the palette (0 for no palette)
+    uint32_t importantColors{0}; // Important colors (0 means all are important)
+};
+#pragma pack(pop) // Restore default structure packing
+
 } // namespace
 
 void render_init(VulkanContext& ctx)
@@ -100,77 +125,85 @@ RenderOutput render_get_output(VulkanContext& ctx, Scene& scene)
 void render_write_output(VulkanContext& ctx, Scene& scene, const fs::path& path)
 {
     auto pVulkanSurface = get_default_target(ctx, scene);
-    if (pVulkanSurface)
+    if (pVulkanSurface && pVulkanSurface->uploadMemory)
     {
-        //auto pMem = ctx.device.mapMemory(pVulkanSurface->memory, 0, VK_WHOLE_SIZE);
-
-
-        //ctx.device.unmapMemory(pVulkanSurface->memory);
-        /*
-        auto result = buffer_create(ctx,
-            vk::BufferUsageFlagBits::eTransferDst,
-            vk::MemoryPropertyFlagBits::eHostVisible | vk::MemoryPropertyFlagBits::eHostCoherent, pVulkanSurface->allocSize);
-        debug_set_buffer_name(ctx.device, result.buffer, "FileCopyImage");
+        ctx.device.waitIdle();
 
         utils_with_command_buffer(ctx, [&](vk::CommandBuffer copyCmd) {
-            debug_set_commandbuffer_name(ctx.device, copyCmd, "Buffer::ReadColor");
-            copyCmd.copyBuffer(pVulkanSurface->image, result.buffer, vk::BufferCopy(0, 0, pVulkanSurface->allocSize));
+            debug_set_commandbuffer_name(ctx.device, copyCmd, "Buffer::ImageUpload");
+
+            auto sz = pVulkanSurface->pSurface->currentSize;
+
+            surface_set_layout(ctx, copyCmd, pVulkanSurface->image, vk::ImageLayout::eUndefined, vk::ImageLayout::eTransferSrcOptimal);
+            surface_set_layout(ctx, copyCmd, pVulkanSurface->uploadImage, vk::ImageLayout::eUndefined, vk::ImageLayout::eTransferDstOptimal);
+            if (pVulkanSurface->isBlitUpload)
+            {
+                vk::ImageBlit blitRegion(
+                    vk::ImageSubresourceLayers(vk::ImageAspectFlagBits::eColor, 0, 0, 1),
+                    { vk::Offset3D(0, 0, 0), vk::Offset3D(sz.x, sz.y, 1) },
+                    vk::ImageSubresourceLayers(vk::ImageAspectFlagBits::eColor, 0, 0, 1),
+                    { vk::Offset3D(0, 0, 0), vk::Offset3D(sz.x, sz.y, 1) });
+
+                copyCmd.blitImage(pVulkanSurface->image, vk::ImageLayout::eTransferSrcOptimal, pVulkanSurface->uploadImage, vk::ImageLayout::eTransferDstOptimal, blitRegion, vk::Filter::eNearest);
+            }
+            else
+            {
+                vk::ImageCopy copyRegion(
+                    vk::ImageSubresourceLayers(vk::ImageAspectFlagBits::eColor, 0, 0, 1),
+                    vk::Offset3D(0, 0, 0),
+                    vk::ImageSubresourceLayers(vk::ImageAspectFlagBits::eColor, 0, 0, 1),
+                    vk::Offset3D(0, 0, 0),
+                    { sz.x, sz.y, 1 });
+                copyCmd.copyImage(pVulkanSurface->image, vk::ImageLayout::eTransferSrcOptimal, pVulkanSurface->uploadImage, vk::ImageLayout::eTransferDstOptimal, copyRegion);
+
+            }
+            surface_set_layout(ctx, copyCmd, pVulkanSurface->image, vk::ImageLayout::eUndefined, vk::ImageLayout::eShaderReadOnlyOptimal);
         });
-        */
- 
-        //vulkan_buffer_destroy(ctx, result);
-    }
 
-}
-/*// Transition back the swap chain image after the blit is done
-        vks::tools::insertImageMemoryBarrier(
-            copyCmd,
-            srcImage,
-            VK_ACCESS_TRANSFER_READ_BIT,
-            VK_ACCESS_MEMORY_READ_BIT,
-            VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
-            VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
-            VK_PIPELINE_STAGE_TRANSFER_BIT,
-            VK_PIPELINE_STAGE_TRANSFER_BIT,
-            VkImageSubresourceRange{ VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1 });
+        ctx.device.waitIdle();
 
-        vulkanDevice->flushCommandBuffer(copyCmd, queue);
-
-        // Get layout of the image (including row pitch)
-        VkImageSubresource subResource { VK_IMAGE_ASPECT_COLOR_BIT, 0, 0 };
+        VkImageSubresource subResource{ VK_IMAGE_ASPECT_COLOR_BIT, 0, 0 };
         VkSubresourceLayout subResourceLayout;
-        vkGetImageSubresourceLayout(device, dstImage, &subResource, &subResourceLayout);
+        vkGetImageSubresourceLayout(ctx.device, pVulkanSurface->uploadImage, &subResource, &subResourceLayout);
 
-        // Map image memory so we can start copying from it
-        const char* data;
-        vkMapMemory(device, dstImageMemory, 0, VK_WHOLE_SIZE, 0, (void**)&data);
-        data += subResourceLayout.offset;
+        char* pMem = (char*)ctx.device.mapMemory(pVulkanSurface->uploadMemory, 0, VK_WHOLE_SIZE);
+        pMem += subResourceLayout.offset;
 
-        std::ofstream file(filename, std::ios::out | std::ios::binary);
+        std::ofstream file(path / fmt::format("Frame_{}.bmp", scene.GlobalFrameCount), std::ios::out | std::ios::binary);
+
+        auto width = pVulkanSurface->pSurface->currentSize.x;
+        auto height = pVulkanSurface->pSurface->currentSize.y;
+
+        BMPHeader bmpHeader;
+        bmpHeader.width = width;
+        bmpHeader.height = height;
+        bmpHeader.fileSize = sizeof(BMPHeader) + (3 * width * height);
 
         // ppm header
-        file << "P6\n" << width << "\n" << height << "\n" << 255 << "\n";
+        file.write((char*)&bmpHeader, sizeof(BMPHeader));
 
         // If source is BGR (destination is always RGB) and we can't use blit (which does automatic conversion), we'll have to manually swizzle color components
         bool colorSwizzle = false;
+
         // Check if source is BGR
         // Note: Not complete, only contains most common and basic BGR surface formats for demonstration purposes
-        if (!supportsBlit)
+        if (!pVulkanSurface->isBlitUpload)
         {
-            std::vector<VkFormat> formatsBGR = { VK_FORMAT_B8G8R8A8_SRGB, VK_FORMAT_B8G8R8A8_UNORM, VK_FORMAT_B8G8R8A8_SNORM };
-            colorSwizzle = (std::find(formatsBGR.begin(), formatsBGR.end(), swapChain.colorFormat) != formatsBGR.end());
+            std::vector<vk::Format> formatsBGR = { vk::Format::eB8G8R8A8Srgb, vk::Format::eB8G8R8A8Unorm, vk::Format::eB8G8R8A8Snorm };
+            colorSwizzle = (std::find(formatsBGR.begin(), formatsBGR.end(), (vk::Format)pVulkanSurface->format) != formatsBGR.end());
         }
 
+        colorSwizzle = true;
         // ppm binary pixel data
         for (uint32_t y = 0; y < height; y++)
         {
-            unsigned int *row = (unsigned int*)data;
+            unsigned int* row = (unsigned int*)(pMem + (subResourceLayout.rowPitch * (height - y - 1)));
             for (uint32_t x = 0; x < width; x++)
             {
                 if (colorSwizzle)
                 {
-                    file.write((char*)row+2, 1);
-                    file.write((char*)row+1, 1);
+                    file.write((char*)row + 2, 1);
+                    file.write((char*)row + 1, 1);
                     file.write((char*)row, 1);
                 }
                 else
@@ -179,18 +212,14 @@ void render_write_output(VulkanContext& ctx, Scene& scene, const fs::path& path)
                 }
                 row++;
             }
-            data += subResourceLayout.rowPitch;
+            //pMem += subResourceLayout.rowPitch;
         }
         file.close();
 
         std::cout << "Screenshot saved to disk" << std::endl;
 
-        // Clean up resources
-        vkUnmapMemory(device, dstImageMemory);
-        vkFreeMemory(device, dstImageMemory, nullptr);
-        vkDestroyImage(device, dstImage, nullptr);
-
-        screenshotSaved = true;
-        */
+        ctx.device.unmapMemory(pVulkanSurface->uploadMemory);
+    }
+}
 
 } // namespace vulkan

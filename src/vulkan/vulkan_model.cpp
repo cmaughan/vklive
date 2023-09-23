@@ -42,6 +42,9 @@ void vulkan_model_stage(VulkanContext& ctx, VulkanModel& model)
 
         model.verticesDescriptor = vk::DescriptorBufferInfo(model.vertices.buffer, 0, VK_WHOLE_SIZE);
         model.indicesDescriptor = vk::DescriptorBufferInfo(model.indices.buffer, 0, VK_WHOLE_SIZE);
+
+        // TODO: This is heavy handed, but we need to wait for vertices to be staged to the device
+        //ctx.device.waitIdle();
     }
 }
 

@@ -66,6 +66,7 @@ struct Surface
 
     // Is this the default color target?
     bool isDefaultColorTarget = false;
+
 };
 
 enum class GeometryType

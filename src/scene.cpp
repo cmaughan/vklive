@@ -623,6 +623,10 @@ std::shared_ptr<Scene> scene_build(const fs::path& root)
                         spSurface->format = itrFormat->second;
                     }
                 }
+                if (spSurface->name == "default_color")
+                {
+                    spSurface->isDefaultColorTarget = true;
+                }
                 spScene->surfaces[spSurface->name] = spSurface;
             }
 

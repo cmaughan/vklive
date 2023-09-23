@@ -219,11 +219,16 @@ VulkanSurface* get_vulkan_surface(VulkanContext& ctx, VulkanPass& vulkanPass, co
         {
             if (format_is_depth(pSurface->format))
             {
-                vulkan_surface_create_depth(ctx, *pVulkanSurface, size, utils_format_to_vulkan(pSurface->format), true);
+                vulkan_surface_create_depth(ctx, *pVulkanSurface, size, utils_format_to_vulkan(pSurface->format));
             }
             else
             {
-                vulkan_surface_create(ctx, *pVulkanSurface, size, utils_format_to_vulkan(pSurface->format), true);
+                uint32_t flags = VulkanSurfaceFlags::Sampled; 
+                if (pSurface->isDefaultColorTarget)
+                {
+                    flags |= VulkanSurfaceFlags::Uploadable;
+                }
+                vulkan_surface_create(ctx, *pVulkanSurface, size, utils_format_to_vulkan(pSurface->format), flags);
             }
         }
 
@@ -677,6 +682,8 @@ void vulkan_pass_prepare_uniforms(VulkanContext& ctx, VulkanPass& vulkanPass)
 
     auto& scene = *vulkanPass.vulkanScene.pScene;
 
+    ubo.model = glm::mat4(1.0f);
+
     // Setup the camera for this pass
     // pVulkanPass->pPass->camera.orbitDelta = glm::vec2(4.0f, 0.0f);
     // Note that the camera might need different setup each time
@@ -744,10 +751,10 @@ void vulkan_pass_prepare_uniforms(VulkanContext& ctx, VulkanPass& vulkanPass)
     // TODO: Used for offset into the sound buffer for the current frame, I think
     ubo.ifFragCoordOffsetUniform = glm::vec4(0.0f);
 
-    ubo.model = glm::mat4(1.0f);
-
     // TODO: Should we stage using command buffer?  This is a direct write
     utils_copy_to_memory(ctx, passFrameData.vsUniform.memory, ubo);
+
+    //ctx.device.waitIdle();
 }
 
 bool vulkan_pass_build_descriptors(VulkanContext& ctx, VulkanPass& vulkanPass)

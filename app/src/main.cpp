@@ -522,13 +522,6 @@ int main(int argc, char** argv)
                 continue;
             }
 
-            static bool written = false;
-            if (!written)
-            {
-                written = true;
-                g_pDevice->WriteToFile(*spScene, fs::path("d:/dev/vklive_renders"));
-            }
-
             window_targets(*g_Controller.spCurrentProject->spScene);
             validation_enable_messages(false);
         }
@@ -559,6 +552,12 @@ int main(int argc, char** argv)
                 validation_enable_messages(true);
                 LOG_SCOPE(DBG, "Draw IMGUI created data");
                 g_pDevice->ImGui_Render(main_draw_data);
+
+                /*
+                if (g_Controller.spCurrentProject && project_has_scene(g_Controller.spCurrentProject.get()))
+                {
+                    g_pDevice->WriteToFile(*g_Controller.spCurrentProject->spScene, fs::path("d:/dev/vklive_renders"));
+                }*/
             }
             catch (std::exception& ex)
             {
