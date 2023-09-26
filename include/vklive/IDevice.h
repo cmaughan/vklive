@@ -9,11 +9,14 @@
 #include <glm/glm.hpp>
 
 struct SDL_Window;
-
 struct ImDrawData;
 
 namespace fs = std::filesystem;
 
+namespace Zest
+{
+struct FontContext;
+}
 struct IContextData
 {
 };
@@ -43,7 +46,10 @@ struct DeviceContext
     std::shared_ptr<IContextData> spRenderData;
 
     DeviceState deviceState = DeviceState::Normal;
-    
+
+    std::shared_ptr<Zest::FontContext> spFontContext;
+    int defaultFont = 0;
+
     float hdpi = 1.0;
     float vdpi = 1.0;
 };

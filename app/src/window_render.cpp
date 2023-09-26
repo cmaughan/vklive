@@ -7,7 +7,7 @@
 
 #include <zest/logger/logger.h>
 
-void window_render(Scene& scene, bool background, const std::function<RenderOutput(const glm::vec2& size, Scene& scene)>& fnRender)
+void window_render(IDevice* pDevice, Scene& scene, bool background, const std::function<RenderOutput(const glm::vec2& size, Scene& scene)>& fnRender)
 {
     ImVec2 canvas_size;
     ImVec2 canvas_pos;
@@ -46,49 +46,54 @@ void window_render(Scene& scene, bool background, const std::function<RenderOutp
         }
 
         auto renderOutput = fnRender(glm::vec2(outputSize.x, outputSize.y), scene);
-
-        scene.sceneFlags &= ~SceneFlags::DefaultTargetResize;
-
-        auto border = glm::vec2(0.0f);
-        auto currentSurfaceSize = renderOutput.pSurface->currentSize;
-        if (currentSurfaceSize.x < outputSize.x)
+        if (renderOutput.pSurface)
         {
-            border.x = (outputSize.x - currentSurfaceSize.x) * 0.5f;
-        }
-        
-        if (currentSurfaceSize.y < outputSize.y)
-        {
-            border.y = (outputSize.y - currentSurfaceSize.y) * 0.5f;
-        }
+            scene.sceneFlags &= ~SceneFlags::DefaultTargetResize;
 
-        const auto frameSize = 2.0f;
-        auto topLeft = ImVec2(canvas_pos.x + border.x - frameSize, canvas_pos.y + border.y - frameSize);
-        auto bottomRight = ImVec2(canvas_pos.x + currentSurfaceSize.x + border.x + frameSize, canvas_pos.y + currentSurfaceSize.y + border.y + frameSize);
-
-        if (border.x > 0 || border.y > 0)
-        {
-            pDrawList->AddRectFilled(topLeft, bottomRight, 0xFF888888);
-        }
-
-        topLeft.x += frameSize;
-        topLeft.y += frameSize;
-        bottomRight.x -= frameSize;
-        bottomRight.y -= frameSize;
-
-        if (renderOutput.textureId)
-        {
-            pDrawList->AddImage(renderOutput.textureId, topLeft, bottomRight);
-            drawn = true;
-        }
-
-        for (auto& p : scene.post_2d)
-        {
-            auto itr = scene.scripts.find(p);
-            if (itr != scene.scripts.end())
+            auto border = glm::vec2(0.0f);
+            auto currentSurfaceSize = renderOutput.pSurface->currentSize;
+            if (currentSurfaceSize.x < outputSize.x)
             {
-                python_run_2d(*itr->second, scene, pDrawList, glm::vec4(canvas_pos.x + border.x, canvas_pos.y + border.y, currentSurfaceSize.x, currentSurfaceSize.y));
+                border.x = (outputSize.x - currentSurfaceSize.x) * 0.5f;
             }
-            drawn = true;
+
+            if (currentSurfaceSize.y < outputSize.y)
+            {
+                border.y = (outputSize.y - currentSurfaceSize.y) * 0.5f;
+            }
+
+            const auto frameSize = 2.0f;
+            auto topLeft = ImVec2(canvas_pos.x + border.x - frameSize, canvas_pos.y + border.y - frameSize);
+            auto bottomRight = ImVec2(canvas_pos.x + currentSurfaceSize.x + border.x + frameSize, canvas_pos.y + currentSurfaceSize.y + border.y + frameSize);
+
+            if (border.x > 0 || border.y > 0)
+            {
+                pDrawList->AddRectFilled(topLeft, bottomRight, 0xFF888888);
+            }
+
+            topLeft.x += frameSize;
+            topLeft.y += frameSize;
+            bottomRight.x -= frameSize;
+            bottomRight.y -= frameSize;
+
+            if (renderOutput.textureId)
+            {
+                pDrawList->AddImage(renderOutput.textureId, topLeft, bottomRight);
+
+                scene.targetViewport = glm::vec4(topLeft.x, topLeft.y, bottomRight.x, bottomRight.y);
+
+                drawn = true;
+            }
+
+            for (auto& p : scene.post_2d)
+            {
+                auto itr = scene.scripts.find(p);
+                if (itr != scene.scripts.end())
+                {
+                    python_run_2d(*itr->second, pDevice, scene, pDrawList, glm::vec4(canvas_pos.x + border.x, canvas_pos.y + border.y, currentSurfaceSize.x, currentSurfaceSize.y));
+                }
+                drawn = true;
+            }
         }
     }
 

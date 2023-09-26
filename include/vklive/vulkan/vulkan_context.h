@@ -18,6 +18,7 @@
 namespace vulkan
 {
 
+struct VulkanImGuiTexture;
 struct VulkanContext : DeviceContext
 {
     // Members
@@ -32,6 +33,8 @@ struct VulkanContext : DeviceContext
     glm::uvec2 frameBufferSize;
 
     vk::PipelineCache pipelineCache;
+
+    std::shared_ptr<VulkanImGuiTexture> spFontTexture;
 
     // Currently used by IMGui for the font.  Maybe factor this out later
     uint64_t descriptorCacheIndex = 0;

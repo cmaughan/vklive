@@ -19,6 +19,7 @@
 
 #include <vklive/process/process.h>
 #include <vklive/vulkan/vulkan_shader.h>
+#include <vklive/vulkan/vulkan_imgui_texture.h>
 
 static std::string iniPath;
 
@@ -201,6 +202,8 @@ void imgui_destroy_device_objects(VulkanContext& ctx)
     imgui->pipelineLayout = nullptr;
     imgui->pipeline = nullptr;
     imgui->renderPass = nullptr; /* destroyed in the window */
+    
+    fonts_destroy(*ctx.spFontContext);
 }
 
 void imgui_shutdown(VulkanContext& ctx)
@@ -458,6 +461,13 @@ bool imgui_init(VulkanContext& ctx, const std::string& iniPath, bool viewports)
     }
 
     imgui_upload_font(ctx);
+
+    ctx.spFontContext = std::make_shared<Zest::FontContext>();
+    ctx.spFontTexture = std::make_shared<VulkanImGuiTexture>(ctx, ctx.physicalDevice, ctx.device, ctx.queue, ctx.descriptorPool);
+    fonts_init(*ctx.spFontContext, ctx.spFontTexture.get());
+
+    auto fontPath = Zest::runtree_find_path("fonts/Roboto-Regular.ttf");
+    ctx.defaultFont = fonts_create(*ctx.spFontContext, "sans", fontPath.string().c_str());
 
     return true;
 }

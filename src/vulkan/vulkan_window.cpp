@@ -266,6 +266,19 @@ bool main_window_init(VulkanContext& ctx)
     return true;
 }
 
+VulkanSurface* main_window_current_swap_image(VulkanContext& ctx)
+{
+    auto wnd = &ctx.mainWindowData;
+    if (wnd->imageCount > wnd->frameIndex)
+    {
+        if (!wnd->frames[wnd->frameIndex].colorBuffers.empty())
+        {
+            return &wnd->frames[wnd->frameIndex].colorBuffers[0];
+        }
+    }
+    return nullptr;
+}
+
 // Ensure the swap chain is valid for the main window
 void main_window_validate_swapchain(VulkanContext& ctx)
 {

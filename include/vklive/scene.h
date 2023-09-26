@@ -231,6 +231,8 @@ struct Scene
     uint32_t sceneFlags = SceneFlags::DefaultTargetResize;
 
     uint32_t reportedErrorCount = 0;
+
+    glm::vec4 targetViewport = glm::vec4(0.0f);
 };
 
 enum class AssetType

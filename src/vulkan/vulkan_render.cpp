@@ -124,55 +124,57 @@ RenderOutput render_get_output(VulkanContext& ctx, Scene& scene)
 
 void render_write_output(VulkanContext& ctx, Scene& scene, const fs::path& path)
 {
-    auto pVulkanSurface = get_default_target(ctx, scene);
-    if (pVulkanSurface && pVulkanSurface->uploadMemory)
+    auto pSwapSurface = main_window_current_swap_image(ctx);
+
+    auto pDefaultTargetSurface = get_default_target(ctx, scene);
+    if (pSwapSurface && pDefaultTargetSurface && pDefaultTargetSurface->uploadMemory)
     {
         ctx.device.waitIdle();
 
         utils_with_command_buffer(ctx, [&](vk::CommandBuffer copyCmd) {
             debug_set_commandbuffer_name(ctx.device, copyCmd, "Buffer::ImageUpload");
 
-            auto sz = pVulkanSurface->pSurface->currentSize;
+            auto sz = pDefaultTargetSurface->pSurface->currentSize;
 
-            surface_set_layout(ctx, copyCmd, pVulkanSurface->image, vk::ImageLayout::eUndefined, vk::ImageLayout::eTransferSrcOptimal);
-            surface_set_layout(ctx, copyCmd, pVulkanSurface->uploadImage, vk::ImageLayout::eUndefined, vk::ImageLayout::eTransferDstOptimal);
-            if (pVulkanSurface->isBlitUpload)
+            surface_set_layout(ctx, copyCmd, pSwapSurface->image, vk::ImageLayout::eUndefined, vk::ImageLayout::eTransferSrcOptimal);
+            surface_set_layout(ctx, copyCmd, pDefaultTargetSurface->uploadImage, vk::ImageLayout::eUndefined, vk::ImageLayout::eTransferDstOptimal);
+            if (pDefaultTargetSurface->isBlitUpload)
             {
                 vk::ImageBlit blitRegion(
                     vk::ImageSubresourceLayers(vk::ImageAspectFlagBits::eColor, 0, 0, 1),
-                    { vk::Offset3D(0, 0, 0), vk::Offset3D(sz.x, sz.y, 1) },
+                    { vk::Offset3D(scene.targetViewport.x, scene.targetViewport.y, 0), vk::Offset3D(sz.x, sz.y, 1) },
                     vk::ImageSubresourceLayers(vk::ImageAspectFlagBits::eColor, 0, 0, 1),
                     { vk::Offset3D(0, 0, 0), vk::Offset3D(sz.x, sz.y, 1) });
 
-                copyCmd.blitImage(pVulkanSurface->image, vk::ImageLayout::eTransferSrcOptimal, pVulkanSurface->uploadImage, vk::ImageLayout::eTransferDstOptimal, blitRegion, vk::Filter::eNearest);
+                copyCmd.blitImage(pSwapSurface->image, vk::ImageLayout::eTransferSrcOptimal, pDefaultTargetSurface->uploadImage, vk::ImageLayout::eTransferDstOptimal, blitRegion, vk::Filter::eNearest);
             }
             else
             {
                 vk::ImageCopy copyRegion(
                     vk::ImageSubresourceLayers(vk::ImageAspectFlagBits::eColor, 0, 0, 1),
-                    vk::Offset3D(0, 0, 0),
+                    vk::Offset3D(scene.targetViewport.x, scene.targetViewport.y, 0),
                     vk::ImageSubresourceLayers(vk::ImageAspectFlagBits::eColor, 0, 0, 1),
                     vk::Offset3D(0, 0, 0),
                     { sz.x, sz.y, 1 });
-                copyCmd.copyImage(pVulkanSurface->image, vk::ImageLayout::eTransferSrcOptimal, pVulkanSurface->uploadImage, vk::ImageLayout::eTransferDstOptimal, copyRegion);
+                copyCmd.copyImage(pSwapSurface->image, vk::ImageLayout::eTransferSrcOptimal, pDefaultTargetSurface->uploadImage, vk::ImageLayout::eTransferDstOptimal, copyRegion);
 
             }
-            surface_set_layout(ctx, copyCmd, pVulkanSurface->image, vk::ImageLayout::eUndefined, vk::ImageLayout::eShaderReadOnlyOptimal);
+            surface_set_layout(ctx, copyCmd, pSwapSurface->image, vk::ImageLayout::eUndefined, vk::ImageLayout::ePresentSrcKHR);
         });
 
         ctx.device.waitIdle();
 
         VkImageSubresource subResource{ VK_IMAGE_ASPECT_COLOR_BIT, 0, 0 };
         VkSubresourceLayout subResourceLayout;
-        vkGetImageSubresourceLayout(ctx.device, pVulkanSurface->uploadImage, &subResource, &subResourceLayout);
+        vkGetImageSubresourceLayout(ctx.device, pDefaultTargetSurface->uploadImage, &subResource, &subResourceLayout);
 
-        char* pMem = (char*)ctx.device.mapMemory(pVulkanSurface->uploadMemory, 0, VK_WHOLE_SIZE);
+        char* pMem = (char*)ctx.device.mapMemory(pDefaultTargetSurface->uploadMemory, 0, VK_WHOLE_SIZE);
         pMem += subResourceLayout.offset;
 
         std::ofstream file(path / fmt::format("Frame_{}.bmp", scene.GlobalFrameCount), std::ios::out | std::ios::binary);
 
-        auto width = pVulkanSurface->pSurface->currentSize.x;
-        auto height = pVulkanSurface->pSurface->currentSize.y;
+        auto width = pDefaultTargetSurface->pSurface->currentSize.x;
+        auto height = pDefaultTargetSurface->pSurface->currentSize.y;
 
         BMPHeader bmpHeader;
         bmpHeader.width = width;
@@ -187,13 +189,13 @@ void render_write_output(VulkanContext& ctx, Scene& scene, const fs::path& path)
 
         // Check if source is BGR
         // Note: Not complete, only contains most common and basic BGR surface formats for demonstration purposes
-        if (!pVulkanSurface->isBlitUpload)
+        if (!pDefaultTargetSurface->isBlitUpload)
         {
             std::vector<vk::Format> formatsBGR = { vk::Format::eB8G8R8A8Srgb, vk::Format::eB8G8R8A8Unorm, vk::Format::eB8G8R8A8Snorm };
-            colorSwizzle = (std::find(formatsBGR.begin(), formatsBGR.end(), (vk::Format)pVulkanSurface->format) != formatsBGR.end());
+            colorSwizzle = (std::find(formatsBGR.begin(), formatsBGR.end(), (vk::Format)pDefaultTargetSurface->format) != formatsBGR.end());
         }
 
-        colorSwizzle = true;
+        //colorSwizzle = true;
         // ppm binary pixel data
         for (uint32_t y = 0; y < height; y++)
         {
@@ -218,7 +220,7 @@ void render_write_output(VulkanContext& ctx, Scene& scene, const fs::path& path)
 
         std::cout << "Screenshot saved to disk" << std::endl;
 
-        ctx.device.unmapMemory(pVulkanSurface->uploadMemory);
+        ctx.device.unmapMemory(pDefaultTargetSurface->uploadMemory);
     }
 }
 

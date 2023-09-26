@@ -92,6 +92,7 @@ set(VULKAN_SOURCES
     src/vulkan/vulkan_framebuffer.cpp
     src/vulkan/vulkan_imgui.cpp
     src/vulkan/vulkan_imgui_viewports.cpp
+    src/vulkan/vulkan_imgui_texture.cpp
     src/vulkan/vulkan_model.cpp
     src/vulkan/vulkan_model_as.cpp
     src/vulkan/vulkan_pass.cpp
@@ -112,6 +113,7 @@ set(VULKAN_SOURCES
     include/vklive/vulkan/vulkan_device.h
     include/vklive/vulkan/vulkan_framebuffer.h
     include/vklive/vulkan/vulkan_imgui.h
+    include/vklive/vulkan/vulkan_imgui_texture.h
     include/vklive/vulkan/vulkan_model.h
     include/vklive/vulkan/vulkan_pass.h
     include/vklive/vulkan/vulkan_pipeline.h

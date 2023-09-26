@@ -1,11 +1,12 @@
 #pragma once
 
 #include <filesystem>
-#include <glm/glm.hpp>
+#include <zest/math/imgui_glm.h>
 
 namespace fs = std::filesystem;
 
 struct ImDrawList;
+struct IDevice;
 
 namespace pkpy
 {
@@ -30,6 +31,6 @@ struct PythonModule
 //void python_destroy();
 
 std::shared_ptr<PythonModule> python_compile(Scene& scene, const fs::path& path);
-bool python_run_2d(PythonModule& mod, Scene& scene, ImDrawList* pDrawList, const glm::vec4& viewport);
+bool python_run_2d(PythonModule& mod, IDevice* pDevice, Scene& scene, ImDrawList* pDrawList, const glm::vec4& viewport);
 
 

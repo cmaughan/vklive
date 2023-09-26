@@ -21,6 +21,7 @@
 
 #include <vklive/IDevice.h>
 #include <vklive/scene.h>
+#include <zest/ui/fonts.h>
 
 #include <vklive/validation.h>
 
@@ -334,6 +335,8 @@ int main(int argc, char** argv)
         ImGui_ImplSDL2_NewFrame(g_pDevice->Context().window);
         ImGui::NewFrame();
 
+        Zest::fonts_begin_frame(*g_pDevice->Context().spFontContext);
+
         if (menu_show())
         {
             zepFocusFlags &= ~(ZepFocusFlags::CheckFocus | ZepFocusFlags::Focus);
@@ -507,7 +510,7 @@ int main(int argc, char** argv)
             auto spScene = g_Controller.spCurrentProject->spScene;
             LOG_SCOPE(DBG, "\nDraw Current Scene: " << spScene.get());
 
-            window_render(*spScene, appConfig.draw_on_background, [=](const glm::vec2& size, Scene& scene) {
+            window_render(g_pDevice.get(), *spScene, appConfig.draw_on_background, [=](const glm::vec2& size, Scene& scene) {
                 return g_pDevice->Render_3D(scene, size);
             });
 
@@ -553,11 +556,10 @@ int main(int argc, char** argv)
                 LOG_SCOPE(DBG, "Draw IMGUI created data");
                 g_pDevice->ImGui_Render(main_draw_data);
 
-                /*
                 if (g_Controller.spCurrentProject && project_has_scene(g_Controller.spCurrentProject.get()))
                 {
                     g_pDevice->WriteToFile(*g_Controller.spCurrentProject->spScene, fs::path("d:/dev/vklive_renders"));
-                }*/
+                }
             }
             catch (std::exception& ex)
             {
@@ -577,6 +579,8 @@ int main(int argc, char** argv)
             ImGui::UpdatePlatformWindows();
             ImGui::RenderPlatformWindowsDefault();
         }
+
+        Zest::fonts_end_frame(*g_pDevice->Context().spFontContext);
 
         // Present Main Platform Window
         if (!g_pDevice->Context().minimized)

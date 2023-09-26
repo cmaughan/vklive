@@ -70,6 +70,7 @@ struct VulkanContext;
 bool main_window_init(VulkanContext& ctx);
 void main_window_validate_swapchain(VulkanContext& ctx);
 void main_window_present(VulkanContext& ctx);
+VulkanSurface* main_window_current_swap_image(VulkanContext& ctx);
 
 void window_destroy(VulkanContext& ctx, VulkanWindow* wd);
 
