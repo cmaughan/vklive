@@ -3,7 +3,7 @@
 #include <iostream>
 #include <sstream>
 
-#include "toml++/toml.h"
+#include <tomlplusplus/toml.hpp>
 
 #include <zest/file/file.h>
 #include <zest/file/runtree.h>

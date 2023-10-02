@@ -1,6 +1,8 @@
 #include <zest/file/file.h>
 #include <zest/logger/logger.h>
 
+#include <lodepng.h>
+
 #include <fstream>
 
 #include "config_app.h"
@@ -175,15 +177,9 @@ void render_write_output(VulkanContext& ctx, Scene& scene, const fs::path& path)
 
         auto width = pDefaultTargetSurface->pSurface->currentSize.x;
         auto height = pDefaultTargetSurface->pSurface->currentSize.y;
+        lodepng::encode((path / fmt::format("Frame_{}.bmp", scene.GlobalFrameCount)).string(), (const unsigned char*)pMem, width, height); 
 
-        BMPHeader bmpHeader;
-        bmpHeader.width = width;
-        bmpHeader.height = height;
-        bmpHeader.fileSize = sizeof(BMPHeader) + (3 * width * height);
-
-        // ppm header
-        file.write((char*)&bmpHeader, sizeof(BMPHeader));
-
+        /*
         // If source is BGR (destination is always RGB) and we can't use blit (which does automatic conversion), we'll have to manually swizzle color components
         bool colorSwizzle = false;
 
@@ -217,6 +213,7 @@ void render_write_output(VulkanContext& ctx, Scene& scene, const fs::path& path)
             //pMem += subResourceLayout.rowPitch;
         }
         file.close();
+        */
 
         std::cout << "Screenshot saved to disk" << std::endl;
 

@@ -38,7 +38,6 @@ find_package(clipp CONFIG REQUIRED) # Commandline parser for command line argume
 find_package(fmt CONFIG REQUIRED) # String formatting library
 find_package(reproc++ REQUIRED) # Process launch library for loading shader compiler binary
 find_package(SDL2 CONFIG REQUIRED) # SDL UI library for creating windows, etc.
-find_package(tomlplusplus CONFIG REQUIRED) # Toml file format parser for reading config files
 find_package(unofficial-concurrentqueue REQUIRED) # Concurrent lock/free queue for thread interactions
 find_package(tinyfiledialogs CONFIG REQUIRED) # File dialogs that look OS specific and more standard
 find_package(unofficial-nativefiledialog CONFIG REQUIRED) # File dialogs that look OS specific and more standard
@@ -48,6 +47,7 @@ find_package(gli CONFIG REQUIRED)
 find_path(STB_INCLUDE_DIRS "stb_c_lexer.h")
 find_package(range-v3 CONFIG REQUIRED)
 find_path(TSL_ORDERED_MAP_INCLUDE_DIRS "tsl/ordered_hash.h")
+find_package(lodepng CONFIG REQUIRED)
 
 # Set this if we are sitting on SDL
 add_definitions(-DZEP_USE_SDL)
@@ -199,6 +199,7 @@ set(APP_SOURCES
 set_source_files_properties (external/mpc/mpc.c PROPERTIES SKIP_PRECOMPILE_HEADERS 1)
 set_source_files_properties (src/python_scripting.cpp PROPERTIES SKIP_PRECOMPILE_HEADERS 1)
 
+
 add_library(vklive ${LIB_SOURCES})
 target_link_libraries(vklive
     PUBLIC
@@ -206,12 +207,12 @@ target_link_libraries(vklive
         reproc++
         assimp::assimp
         fmt::fmt-header-only
-        tomlplusplus::tomlplusplus
         range-v3
         range-v3-meta
         range-v3::meta
         range-v3-concepts
         Zing::Zing
+        lodepng
     )
 target_precompile_headers(vklive
   PRIVATE
