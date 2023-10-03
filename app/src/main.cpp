@@ -37,6 +37,7 @@
 #include <app/menu.h>
 #include <app/project.h>
 #include <app/window_render.h>
+#include <app/window_sequencer.h>
 #include <app/window_targets.h>
 
 #include <range/v3/algorithm/for_each.hpp>
@@ -143,6 +144,7 @@ void register_windows()
 {
     Zest::layout_manager_register_window("Profiler", "Profiler", &g_WindowEnables.profiler);
     Zest::layout_manager_register_window("Targets", "Targets", &g_WindowEnables.targets);
+    Zest::layout_manager_register_window("Sequencer", "Sequencer", &g_WindowEnables.sequencer);
 
     Zest::layout_manager_load_layouts_file("vklive", [](const std::string& name, const Zest::LayoutInfo& info) {
         if (!info.windowLayout.empty())
@@ -341,7 +343,7 @@ int main(int argc, char** argv)
         {
             zepFocusFlags &= ~(ZepFocusFlags::CheckFocus | ZepFocusFlags::Focus);
         }
-        // ImGui::ShowDemoWindow();
+         ImGui::ShowDemoWindow();
 
         static bool update = false;
         static bool z_init = false;
@@ -527,6 +529,8 @@ int main(int argc, char** argv)
 
             window_targets(*g_Controller.spCurrentProject->spScene);
             validation_enable_messages(false);
+
+            window_sequencer(*g_Controller.spCurrentProject->spScene);
         }
 
         if (g_WindowEnables.profiler)

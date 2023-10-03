@@ -4,6 +4,7 @@ struct WindowEnables
 {
     bool profiler = false;
     bool targets = false;
+    bool sequencer = false;
 };
 
 extern WindowEnables g_WindowEnables;

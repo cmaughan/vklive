@@ -16,12 +16,17 @@
 #include "vklive/vulkan/vulkan_uniform.h"
 #include "vklive/vulkan/vulkan_utils.h"
 
+#include <zest/thread/threadpool.h>
+#include <zest/time/profiler.h>
 #include "zest/imgui/imgui.h"
 
 namespace vulkan
 {
 namespace
 {
+
+TPool threadPool;
+
 // Vertex layout for this example
 VertexLayout g_vertexLayout{ {
     Component::VERTEX_COMPONENT_POSITION,
@@ -31,23 +36,24 @@ VertexLayout g_vertexLayout{ {
 } };
 
 #pragma pack(push, 1) // Ensure correct structure packing
-struct BMPHeader {
-    uint16_t fileType{0x4D42}; // BM
-    uint32_t fileSize{0};       // File size in bytes
-    uint16_t reserved1{0};      // Reserved (0)
-    uint16_t reserved2{0};      // Reserved (0)
-    uint32_t dataOffset{54};    // Offset to image data (bytes)
-    uint32_t headerSize{40};    // Header size (bytes)
-    int32_t width{0};           // Image width (pixels)
-    int32_t height{0};          // Image height (pixels)
-    uint16_t planes{1};         // Number of color planes (1)
-    uint16_t bitsPerPixel{24};  // Bits per pixel (24 for 8-bit R, G, B components)
-    uint32_t compression{0};    // Compression method (0 for no compression)
-    uint32_t dataSize{0};       // Size of raw image data (bytes, 0 for no compression)
-    int32_t horizontalRes{2835}; // Horizontal resolution (pixels/meter)
-    int32_t verticalRes{2835};   // Vertical resolution (pixels/meter)
-    uint32_t colors{0};          // Number of colors in the palette (0 for no palette)
-    uint32_t importantColors{0}; // Important colors (0 means all are important)
+struct BMPHeader
+{
+    uint16_t fileType{ 0x4D42 }; // BM
+    uint32_t fileSize{ 0 }; // File size in bytes
+    uint16_t reserved1{ 0 }; // Reserved (0)
+    uint16_t reserved2{ 0 }; // Reserved (0)
+    uint32_t dataOffset{ 54 }; // Offset to image data (bytes)
+    uint32_t headerSize{ 40 }; // Header size (bytes)
+    int32_t width{ 0 }; // Image width (pixels)
+    int32_t height{ 0 }; // Image height (pixels)
+    uint16_t planes{ 1 }; // Number of color planes (1)
+    uint16_t bitsPerPixel{ 24 }; // Bits per pixel (24 for 8-bit R, G, B components)
+    uint32_t compression{ 0 }; // Compression method (0 for no compression)
+    uint32_t dataSize{ 0 }; // Size of raw image data (bytes, 0 for no compression)
+    int32_t horizontalRes{ 2835 }; // Horizontal resolution (pixels/meter)
+    int32_t verticalRes{ 2835 }; // Vertical resolution (pixels/meter)
+    uint32_t colors{ 0 }; // Number of colors in the palette (0 for no palette)
+    uint32_t importantColors{ 0 }; // Important colors (0 means all are important)
 };
 #pragma pack(pop) // Restore default structure packing
 
@@ -126,6 +132,8 @@ RenderOutput render_get_output(VulkanContext& ctx, Scene& scene)
 
 void render_write_output(VulkanContext& ctx, Scene& scene, const fs::path& path)
 {
+    PROFILE_SCOPE(render_write_output);
+
     auto pSwapSurface = main_window_current_swap_image(ctx);
 
     auto pDefaultTargetSurface = get_default_target(ctx, scene);
@@ -133,36 +141,38 @@ void render_write_output(VulkanContext& ctx, Scene& scene, const fs::path& path)
     {
         ctx.device.waitIdle();
 
-        utils_with_command_buffer(ctx, [&](vk::CommandBuffer copyCmd) {
-            debug_set_commandbuffer_name(ctx.device, copyCmd, "Buffer::ImageUpload");
+        {
+            PROFILE_SCOPE(image_upload);
+            utils_with_command_buffer(ctx, [&](vk::CommandBuffer copyCmd) {
+                debug_set_commandbuffer_name(ctx.device, copyCmd, "Buffer::ImageUpload");
 
-            auto sz = pDefaultTargetSurface->pSurface->currentSize;
+                auto sz = pDefaultTargetSurface->pSurface->currentSize;
 
-            surface_set_layout(ctx, copyCmd, pSwapSurface->image, vk::ImageLayout::eUndefined, vk::ImageLayout::eTransferSrcOptimal);
-            surface_set_layout(ctx, copyCmd, pDefaultTargetSurface->uploadImage, vk::ImageLayout::eUndefined, vk::ImageLayout::eTransferDstOptimal);
-            if (pDefaultTargetSurface->isBlitUpload)
-            {
-                vk::ImageBlit blitRegion(
-                    vk::ImageSubresourceLayers(vk::ImageAspectFlagBits::eColor, 0, 0, 1),
-                    { vk::Offset3D(scene.targetViewport.x, scene.targetViewport.y, 0), vk::Offset3D(sz.x, sz.y, 1) },
-                    vk::ImageSubresourceLayers(vk::ImageAspectFlagBits::eColor, 0, 0, 1),
-                    { vk::Offset3D(0, 0, 0), vk::Offset3D(sz.x, sz.y, 1) });
+                surface_set_layout(ctx, copyCmd, pSwapSurface->image, vk::ImageLayout::eUndefined, vk::ImageLayout::eTransferSrcOptimal);
+                surface_set_layout(ctx, copyCmd, pDefaultTargetSurface->uploadImage, vk::ImageLayout::eUndefined, vk::ImageLayout::eTransferDstOptimal);
+                if (pDefaultTargetSurface->isBlitUpload)
+                {
+                    vk::ImageBlit blitRegion(
+                        vk::ImageSubresourceLayers(vk::ImageAspectFlagBits::eColor, 0, 0, 1),
+                        { vk::Offset3D(scene.targetViewport.x, scene.targetViewport.y, 0), vk::Offset3D(sz.x, sz.y, 1) },
+                        vk::ImageSubresourceLayers(vk::ImageAspectFlagBits::eColor, 0, 0, 1),
+                        { vk::Offset3D(0, 0, 0), vk::Offset3D(sz.x, sz.y, 1) });
 
-                copyCmd.blitImage(pSwapSurface->image, vk::ImageLayout::eTransferSrcOptimal, pDefaultTargetSurface->uploadImage, vk::ImageLayout::eTransferDstOptimal, blitRegion, vk::Filter::eNearest);
-            }
-            else
-            {
-                vk::ImageCopy copyRegion(
-                    vk::ImageSubresourceLayers(vk::ImageAspectFlagBits::eColor, 0, 0, 1),
-                    vk::Offset3D(scene.targetViewport.x, scene.targetViewport.y, 0),
-                    vk::ImageSubresourceLayers(vk::ImageAspectFlagBits::eColor, 0, 0, 1),
-                    vk::Offset3D(0, 0, 0),
-                    { sz.x, sz.y, 1 });
-                copyCmd.copyImage(pSwapSurface->image, vk::ImageLayout::eTransferSrcOptimal, pDefaultTargetSurface->uploadImage, vk::ImageLayout::eTransferDstOptimal, copyRegion);
-
-            }
-            surface_set_layout(ctx, copyCmd, pSwapSurface->image, vk::ImageLayout::eUndefined, vk::ImageLayout::ePresentSrcKHR);
-        });
+                    copyCmd.blitImage(pSwapSurface->image, vk::ImageLayout::eTransferSrcOptimal, pDefaultTargetSurface->uploadImage, vk::ImageLayout::eTransferDstOptimal, blitRegion, vk::Filter::eNearest);
+                }
+                else
+                {
+                    vk::ImageCopy copyRegion(
+                        vk::ImageSubresourceLayers(vk::ImageAspectFlagBits::eColor, 0, 0, 1),
+                        vk::Offset3D(scene.targetViewport.x, scene.targetViewport.y, 0),
+                        vk::ImageSubresourceLayers(vk::ImageAspectFlagBits::eColor, 0, 0, 1),
+                        vk::Offset3D(0, 0, 0),
+                        { sz.x, sz.y, 1 });
+                    copyCmd.copyImage(pSwapSurface->image, vk::ImageLayout::eTransferSrcOptimal, pDefaultTargetSurface->uploadImage, vk::ImageLayout::eTransferDstOptimal, copyRegion);
+                }
+                surface_set_layout(ctx, copyCmd, pSwapSurface->image, vk::ImageLayout::eUndefined, vk::ImageLayout::ePresentSrcKHR);
+            });
+        }
 
         ctx.device.waitIdle();
 
@@ -173,51 +183,57 @@ void render_write_output(VulkanContext& ctx, Scene& scene, const fs::path& path)
         char* pMem = (char*)ctx.device.mapMemory(pDefaultTargetSurface->uploadMemory, 0, VK_WHOLE_SIZE);
         pMem += subResourceLayout.offset;
 
-        std::ofstream file(path / fmt::format("Frame_{}.bmp", scene.GlobalFrameCount), std::ios::out | std::ios::binary);
-
         auto width = pDefaultTargetSurface->pSurface->currentSize.x;
         auto height = pDefaultTargetSurface->pSurface->currentSize.y;
-        lodepng::encode((path / fmt::format("Frame_{}.bmp", scene.GlobalFrameCount)).string(), (const unsigned char*)pMem, width, height); 
 
-        /*
         // If source is BGR (destination is always RGB) and we can't use blit (which does automatic conversion), we'll have to manually swizzle color components
-        bool colorSwizzle = false;
+        bool colorSwizzle = true;
 
         // Check if source is BGR
         // Note: Not complete, only contains most common and basic BGR surface formats for demonstration purposes
         if (!pDefaultTargetSurface->isBlitUpload)
         {
             std::vector<vk::Format> formatsBGR = { vk::Format::eB8G8R8A8Srgb, vk::Format::eB8G8R8A8Unorm, vk::Format::eB8G8R8A8Snorm };
-            colorSwizzle = (std::find(formatsBGR.begin(), formatsBGR.end(), (vk::Format)pDefaultTargetSurface->format) != formatsBGR.end());
+            colorSwizzle = !(std::find(formatsBGR.begin(), formatsBGR.end(), (vk::Format)pDefaultTargetSurface->format) != formatsBGR.end());
         }
 
-        //colorSwizzle = true;
-        // ppm binary pixel data
-        for (uint32_t y = 0; y < height; y++)
-        {
-            unsigned int* row = (unsigned int*)(pMem + (subResourceLayout.rowPitch * (height - y - 1)));
-            for (uint32_t x = 0; x < width; x++)
-            {
-                if (colorSwizzle)
-                {
-                    file.write((char*)row + 2, 1);
-                    file.write((char*)row + 1, 1);
-                    file.write((char*)row, 1);
-                }
-                else
-                {
-                    file.write((char*)row, 3);
-                }
-                row++;
-            }
-            //pMem += subResourceLayout.rowPitch;
-        }
-        file.close();
-        */
-
-        std::cout << "Screenshot saved to disk" << std::endl;
-
+        auto pSrc = (char*)malloc(subResourceLayout.rowPitch * height);
+        memcpy(pSrc, pMem, subResourceLayout.rowPitch * height);
+            
         ctx.device.unmapMemory(pDefaultTargetSurface->uploadMemory);
+
+        threadPool.enqueue([=]() {
+            PROFILE_SCOPE(write_png_thread)
+            std::vector<char> image;
+            image.resize(width * height * 3);
+
+            // ppm binary pixel data
+            uint32_t index = 0;
+            for (uint32_t y = 0; y < height; y++)
+            {
+                uint32_t* row = (uint32_t*)(pSrc + (subResourceLayout.rowPitch * y));
+                for (uint32_t x = 0; x < width; x++)
+                {
+                    if (colorSwizzle)
+                    {
+                        image[index++] = *((char*)row + 2);
+                        image[index++] = *((char*)row + 1);
+                        image[index++] = *((char*)row);
+                    }
+                    else
+                    {
+                        image[index++] = *((char*)row);
+                        image[index++] = *((char*)row + 1);
+                        image[index++] = *((char*)row + 2);
+                    }
+                    row++;
+                }
+            }
+
+            lodepng::encode((path / fmt::format("Frame_{:05}.png", scene.GlobalFrameCount)).string(), (const unsigned char*)image.data(), width, height, LCT_RGB);
+
+            free(pSrc);
+        });
     }
 }
 

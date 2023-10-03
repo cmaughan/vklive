@@ -169,7 +169,6 @@ set(VK_SOURCES
     include/vklive/scene.h
     include/vklive/validation.h
     include/vklive/python_scripting.h
-
 )
 
 set(LIB_SOURCES
@@ -186,6 +185,7 @@ set(APP_SOURCES
     app/src/main.cpp
     app/src/window_render.cpp
     app/src/window_targets.cpp
+    app/src/window_sequencer.cpp
     app/src/menu.cpp
     app/src/project.cpp
 
@@ -194,6 +194,9 @@ set(APP_SOURCES
     app/include/app/editor.h
     app/include/app/menu.h
     app/include/app/project.h
+    app/include/app/window_sequencer.h
+    app/include/app/window_render.h
+    app/include/app/window_targets.h
 )
 
 set_source_files_properties (external/mpc/mpc.c PROPERTIES SKIP_PRECOMPILE_HEADERS 1)
