@@ -2,6 +2,9 @@
 #include <zest/logger/logger.h>
 
 #include <lodepng.h>
+       
+//#define STB_IMAGE_WRITE_IMPLEMENTATION
+//#include <stb_image_write.h>
 
 #include <fstream>
 
@@ -206,8 +209,9 @@ void render_write_output(VulkanContext& ctx, Scene& scene, const fs::path& path)
                     row++;
                 }
             }
-
-            lodepng::encode((path / fmt::format("Frame_{:05}.png", scene.GlobalFrameCount)).string(), (const unsigned char*)image.data(), sz.x, sz.y, LCT_RGB);
+            
+            auto fileName = path / fmt::format("Frame_{:05}.png", scene.GlobalFrameCount);
+            lodepng::encode(fileName.string(), (const unsigned char*)image.data(), sz.x, sz.y, LCT_RGB);
 
             free(pSrc);
         });

@@ -3,6 +3,8 @@
 #include <imgui.h>
 #include <imgui_internal.h>
 
+#include <zest/time/timer.h>
+
 bool ToggleButton(const char* str_id, bool* v, const ImVec4& color)
 {
     uint32_t popColorCount = 0;
@@ -54,20 +56,38 @@ void window_sequencer(Scene& scene)
     float framePixelWidthTarget = 10.f;
     int tickerHeight = 60.0f;
 
+    ImGuiIO& io = ImGui::GetIO();
     if (ImGui::Begin("Sequencer", &g_WindowEnables.sequencer))
     {
         ImGui::PushItemWidth(200);
-        ImGui::InputInt("Frame ", &currentFrame);
+        if (ImGui::InputInt("Frame ", &currentFrame))
+        {
+            Scene::GlobalFrameCount = currentFrame;
+        }
         ImGui::SameLine();
-        ImGui::InputInt("Frame Count", &frameMax);
+        if (ImGui::InputInt("Frame Count", &frameMax))
+        {
+            scene.maxRecordFrame = frameMax;
+        }
         ImGui::SameLine();
 
+        if (ToggleButton("Pause", &scene.pause, ImVec4(0.1f, 0.8f, 0.1f, 1.0f)))
+        {
+            if (scene.pause)
+            {
+                scene.recording = false;
+            }
+        }
+        
+        ImGui::SameLine();
         if (ToggleButton("Record", &scene.recording, ImVec4(0.8f, 0.1f, 0.1f, 1.0f)))
         {
             if (scene.recording)
             {
                 scene.GlobalFrameCount = 0;
                 scene.GlobalElapsedSeconds = 0.0f;
+                Zest::timer_restart(Zest::globalTimer);
+                scene.pause = false;
             }
         }
         ImGui::PopItemWidth();
@@ -94,6 +114,9 @@ void window_sequencer(Scene& scene)
 
         auto xForFrame = [=](int i) {
             return (int)canvas_pos.x + int(i * framePixelWidth) + legendWidth - int(firstFrameUsed * framePixelWidth);
+        };
+        auto frameForX = [=](int i) {
+            return firstFrameUsed + (int(i - canvas_pos.x) / framePixelWidth);
         };
         auto drawLine = [&](int i, int regionHeight) {
             bool baseIndex = ((i % modFrameCount) == 0) || (i == frameMax || i == frameMin);
@@ -126,7 +149,12 @@ void window_sequencer(Scene& scene)
 
         draw_list->AddLine(ImVec2((float)xForFrame(currentFrame), canvas_pos.y), ImVec2((float)xForFrame(currentFrame), canvas_pos.y + (float)tickerHeight - 1), 0xEE1111FF, 3);
 
-
+        ImRect selectionArea(canvas_pos.x, canvas_pos.y, canvas_pos.x + canvas_size.x, canvas_pos.y + canvas_size.y);
+        if (selectionArea.Contains(io.MousePos) && io.MouseClicked[0])
+        {
+            Scene::GlobalFrameCount = frameForX(io.MousePos.x);
+            Scene::GlobalElapsedSeconds = Scene::GlobalFrameCount * (1.0 / 60.0);
+        }
     }
     ImGui::End();
 }

@@ -228,6 +228,7 @@ struct Scene
     uint32_t minRecordFrame = 0;
     uint32_t maxRecordFrame = 100;
     bool recording = false;
+    bool pause = false;
 
     glm::vec2 lastOutputSize = glm::vec2(0.0f);
 

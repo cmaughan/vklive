@@ -283,9 +283,17 @@ void vulkan_scene_render(VulkanContext& ctx, VulkanScene& vulkanScene)
 
     LOG(DBG, "Vulkan Scene Render: " << vulkanScene.pScene << " Generation: " << vulkanScene.generation);
 
-    Scene::GlobalElapsedSeconds = /* vulkanScene.pScene->GlobalFrameCount * (1.0 / 60.0); */ Zest::timer_get_elapsed_seconds(Zest::globalTimer);
     ctx.descriptorCacheIndex++;
-    Scene::GlobalFrameCount++;
+
+    if (!vulkanScene.pScene->pause)
+    {
+        Scene::GlobalFrameCount++;
+        Scene::GlobalElapsedSeconds = vulkanScene.pScene->recording ? (vulkanScene.pScene->GlobalFrameCount * (1.0 / 60.0)) : (Zest::timer_get_elapsed_seconds(Zest::globalTimer));
+    }
+    else
+    {
+        Scene::GlobalElapsedSeconds = (vulkanScene.pScene->GlobalFrameCount * (1.0 / 60.0));
+    }
 
     // Too small
     if (ctx.frameBufferSize.x <= 0.0f || ctx.frameBufferSize.y <= 0.0f)
