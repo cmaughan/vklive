@@ -138,6 +138,8 @@ void save_state()
             appConfig.main_window_state = WindowState::Normal;
         }
     }
+    
+    Zest::layout_manager_save();
 }
 
 void register_windows()
@@ -145,6 +147,7 @@ void register_windows()
     Zest::layout_manager_register_window("Profiler", "Profiler", &g_WindowEnables.profiler);
     Zest::layout_manager_register_window("Targets", "Targets", &g_WindowEnables.targets);
     Zest::layout_manager_register_window("Sequencer", "Sequencer", &g_WindowEnables.sequencer);
+    Zest::layout_manager_register_window("Demo Window", "Demo Window", &g_WindowEnables.demoWindow);
 
     Zest::layout_manager_load_layouts_file("vklive", [](const std::string& name, const Zest::LayoutInfo& info) {
         if (!info.windowLayout.empty())
@@ -343,7 +346,6 @@ int main(int argc, char** argv)
         {
             zepFocusFlags &= ~(ZepFocusFlags::CheckFocus | ZepFocusFlags::Focus);
         }
-         ImGui::ShowDemoWindow();
 
         static bool update = false;
         static bool z_init = false;
@@ -540,6 +542,11 @@ int main(int argc, char** argv)
                 Zest::Profiler::ShowProfile();
             }
             ImGui::End();
+        }
+        
+        if (g_WindowEnables.demoWindow)
+        {
+            ImGui::ShowDemoWindow(&g_WindowEnables.demoWindow);
         }
 
         // Show the editor
