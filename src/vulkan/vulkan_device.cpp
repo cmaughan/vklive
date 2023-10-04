@@ -104,12 +104,14 @@ RenderOutput VulkanDevice::Render_3D(Scene& scene, const glm::vec2& size)
 
 void VulkanDevice::WriteToFile(Scene& scene, const fs::path& path)
 {
-    /*
-    if (scene.GlobalFrameCount < (60 * 4))
+    if ((scene.GlobalFrameCount < scene.maxRecordFrame) && scene.recording)
     {
         vulkan::render_write_output(ctx, scene, path);
     }
-    */
+    else
+    {
+        scene.recording = false;
+    }
 }
 
 void VulkanDevice::WaitIdle()

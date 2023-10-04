@@ -80,7 +80,7 @@ void window_render(IDevice* pDevice, Scene& scene, bool background, const std::f
             {
                 pDrawList->AddImage(renderOutput.textureId, topLeft, bottomRight);
 
-                scene.targetViewport = glm::vec4(topLeft.x, topLeft.y, bottomRight.x, bottomRight.y);
+                scene.targetViewport = glm::vec4(topLeft.x, topLeft.y, std::min(bottomRight.x, maxRect.x), std::min(bottomRight.y, maxRect.y));
 
                 drawn = true;
             }

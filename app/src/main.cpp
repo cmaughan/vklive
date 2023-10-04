@@ -569,7 +569,7 @@ int main(int argc, char** argv)
 
                 if (g_Controller.spCurrentProject && project_has_scene(g_Controller.spCurrentProject.get()))
                 {
-                    g_pDevice->WriteToFile(*g_Controller.spCurrentProject->spScene, fs::path("d:/dev/vklive_renders"));
+                    g_pDevice->WriteToFile(*g_Controller.spCurrentProject->spScene, Zest::runtree_path() / "renders");
                 }
             }
             catch (std::exception& ex)

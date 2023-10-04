@@ -34,7 +34,7 @@ bld/
 [Oo]bj/
 
 Ninja
-
+run_tree/renders
 imgui.ini
 git_stats
 # Visual Studio 2015 cache/options directory

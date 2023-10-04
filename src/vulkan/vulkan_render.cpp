@@ -35,28 +35,6 @@ VertexLayout g_vertexLayout{ {
     Component::VERTEX_COMPONENT_NORMAL,
 } };
 
-#pragma pack(push, 1) // Ensure correct structure packing
-struct BMPHeader
-{
-    uint16_t fileType{ 0x4D42 }; // BM
-    uint32_t fileSize{ 0 }; // File size in bytes
-    uint16_t reserved1{ 0 }; // Reserved (0)
-    uint16_t reserved2{ 0 }; // Reserved (0)
-    uint32_t dataOffset{ 54 }; // Offset to image data (bytes)
-    uint32_t headerSize{ 40 }; // Header size (bytes)
-    int32_t width{ 0 }; // Image width (pixels)
-    int32_t height{ 0 }; // Image height (pixels)
-    uint16_t planes{ 1 }; // Number of color planes (1)
-    uint16_t bitsPerPixel{ 24 }; // Bits per pixel (24 for 8-bit R, G, B components)
-    uint32_t compression{ 0 }; // Compression method (0 for no compression)
-    uint32_t dataSize{ 0 }; // Size of raw image data (bytes, 0 for no compression)
-    int32_t horizontalRes{ 2835 }; // Horizontal resolution (pixels/meter)
-    int32_t verticalRes{ 2835 }; // Vertical resolution (pixels/meter)
-    uint32_t colors{ 0 }; // Number of colors in the palette (0 for no palette)
-    uint32_t importantColors{ 0 }; // Important colors (0 means all are important)
-};
-#pragma pack(pop) // Restore default structure packing
-
 } // namespace
 
 void render_init(VulkanContext& ctx)
@@ -141,12 +119,14 @@ void render_write_output(VulkanContext& ctx, Scene& scene, const fs::path& path)
     {
         ctx.device.waitIdle();
 
+        glm::uvec2 origin = glm::uvec2(scene.targetViewport.x, scene.targetViewport.y);
+        auto sz = glm::uvec2(scene.targetViewport.z - scene.targetViewport.x, scene.targetViewport.w - scene.targetViewport.y);
+        //auto sz = pDefaultTargetSurface->pSurface->currentSize;
         {
             PROFILE_SCOPE(image_upload);
             utils_with_command_buffer(ctx, [&](vk::CommandBuffer copyCmd) {
                 debug_set_commandbuffer_name(ctx.device, copyCmd, "Buffer::ImageUpload");
 
-                auto sz = pDefaultTargetSurface->pSurface->currentSize;
 
                 surface_set_layout(ctx, copyCmd, pSwapSurface->image, vk::ImageLayout::eUndefined, vk::ImageLayout::eTransferSrcOptimal);
                 surface_set_layout(ctx, copyCmd, pDefaultTargetSurface->uploadImage, vk::ImageLayout::eUndefined, vk::ImageLayout::eTransferDstOptimal);
@@ -183,9 +163,6 @@ void render_write_output(VulkanContext& ctx, Scene& scene, const fs::path& path)
         char* pMem = (char*)ctx.device.mapMemory(pDefaultTargetSurface->uploadMemory, 0, VK_WHOLE_SIZE);
         pMem += subResourceLayout.offset;
 
-        auto width = pDefaultTargetSurface->pSurface->currentSize.x;
-        auto height = pDefaultTargetSurface->pSurface->currentSize.y;
-
         // If source is BGR (destination is always RGB) and we can't use blit (which does automatic conversion), we'll have to manually swizzle color components
         bool colorSwizzle = true;
 
@@ -197,22 +174,22 @@ void render_write_output(VulkanContext& ctx, Scene& scene, const fs::path& path)
             colorSwizzle = !(std::find(formatsBGR.begin(), formatsBGR.end(), (vk::Format)pDefaultTargetSurface->format) != formatsBGR.end());
         }
 
-        auto pSrc = (char*)malloc(subResourceLayout.rowPitch * height);
-        memcpy(pSrc, pMem, subResourceLayout.rowPitch * height);
+        auto pSrc = (char*)malloc(subResourceLayout.rowPitch * sz.y);
+        memcpy(pSrc, pMem, subResourceLayout.rowPitch * sz.y);
             
         ctx.device.unmapMemory(pDefaultTargetSurface->uploadMemory);
 
         threadPool.enqueue([=]() {
             PROFILE_SCOPE(write_png_thread)
             std::vector<char> image;
-            image.resize(width * height * 3);
+            image.resize(sz.x * sz.y * 3);
 
             // ppm binary pixel data
             uint32_t index = 0;
-            for (uint32_t y = 0; y < height; y++)
+            for (uint32_t y = 0; y < sz.y; y++)
             {
                 uint32_t* row = (uint32_t*)(pSrc + (subResourceLayout.rowPitch * y));
-                for (uint32_t x = 0; x < width; x++)
+                for (uint32_t x = 0; x < sz.x; x++)
                 {
                     if (colorSwizzle)
                     {
@@ -230,7 +207,7 @@ void render_write_output(VulkanContext& ctx, Scene& scene, const fs::path& path)
                 }
             }
 
-            lodepng::encode((path / fmt::format("Frame_{:05}.png", scene.GlobalFrameCount)).string(), (const unsigned char*)image.data(), width, height, LCT_RGB);
+            lodepng::encode((path / fmt::format("Frame_{:05}.png", scene.GlobalFrameCount)).string(), (const unsigned char*)image.data(), sz.x, sz.y, LCT_RGB);
 
             free(pSrc);
         });

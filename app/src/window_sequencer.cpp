@@ -3,23 +3,30 @@
 #include <imgui.h>
 #include <imgui_internal.h>
 
-inline void ToggleButton(const char* str_id, bool* v)
+bool ToggleButton(const char* str_id, bool* v, const ImVec4& color)
 {
     uint32_t popColorCount = 0;
     if (*v)
     {
-        ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.8f, 0.1f, 0.1f, 1.0f));
-        ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.85f, 0.1f, 0.1f, 1.0f));
-        ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(0.8f, 0.1f, 0.1f, 1.0f));
-        popColorCount+=3;
+        ImGui::PushStyleColor(ImGuiCol_Button, color);
+        ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(color.x + 0.1f, color.y + 0.1f, color.z + 0.1f, 1.0f));
+        ImGui::PushStyleColor(ImGuiCol_ButtonActive, color);
+        popColorCount += 3;
     }
+
+    bool triggered = false;
     if (ImGui::ButtonEx(str_id))
     {
         *v = !*v;
+        triggered = true;
     }
 
     if (popColorCount != 0)
-    ImGui::PopStyleColor(popColorCount);
+    {
+        ImGui::PopStyleColor(popColorCount);
+    }
+
+    return triggered;
 }
 
 void window_sequencer(Scene& scene)
@@ -35,20 +42,91 @@ void window_sequencer(Scene& scene)
         init = true;
     }
 
-    int currentFrame = 0;
-    int frameMax = 100;
+    int currentFrame = scene.GlobalFrameCount;
     static bool recording = false;
+    int modFrameCount = 10;
+    int frameStep = 1;
+    int legendWidth = 0;
+    int frameMin = scene.minRecordFrame;
+    int frameMax = scene.maxRecordFrame;
+    int firstFrameUsed = 0;
+    float framePixelWidth = 10.f;
+    float framePixelWidthTarget = 10.f;
+    int tickerHeight = 60.0f;
+
     if (ImGui::Begin("Sequencer", &g_WindowEnables.sequencer))
     {
-        ImGui::PushItemWidth(160);
+        ImGui::PushItemWidth(200);
         ImGui::InputInt("Frame ", &currentFrame);
         ImGui::SameLine();
         ImGui::InputInt("Frame Count", &frameMax);
         ImGui::SameLine();
-        ToggleButton("Record", &recording);
-        ImGui::SameLine();
-        ImGui::Text("Record");
+
+        if (ToggleButton("Record", &scene.recording, ImVec4(0.8f, 0.1f, 0.1f, 1.0f)))
+        {
+            if (scene.recording)
+            {
+                scene.GlobalFrameCount = 0;
+                scene.GlobalElapsedSeconds = 0.0f;
+            }
+        }
         ImGui::PopItemWidth();
+        ImGui::Separator();
+
+        ImDrawList* draw_list = ImGui::GetWindowDrawList();
+        ImVec2 canvas_pos = ImGui::GetCursorScreenPos(); // ImDrawList API uses screen coordinates!
+        ImVec2 canvas_size = ImGui::GetContentRegionAvail(); // Resize canvas to what's available
+
+        draw_list->AddRectFilled(canvas_pos, ImVec2(canvas_size.x + canvas_pos.x, canvas_pos.y + tickerHeight), 0xFF3D3837, 0);
+
+        // header frame number and lines
+
+        const ImVec2 contentMin = ImGui::GetItemRectMin();
+        const ImVec2 contentMax = ImGui::GetItemRectMax();
+        const ImRect contentRect(contentMin, contentMax);
+        const float contentHeight = contentMax.y - contentMin.y;
+        while ((modFrameCount * framePixelWidth) < 150)
+        {
+            modFrameCount *= 2;
+            frameStep *= 2;
+        };
+        int halfModFrameCount = modFrameCount / 2;
+
+        auto xForFrame = [=](int i) {
+            return (int)canvas_pos.x + int(i * framePixelWidth) + legendWidth - int(firstFrameUsed * framePixelWidth);
+        };
+        auto drawLine = [&](int i, int regionHeight) {
+            bool baseIndex = ((i % modFrameCount) == 0) || (i == frameMax || i == frameMin);
+            bool halfIndex = (i % halfModFrameCount) == 0;
+            int px = xForFrame(i);
+            int tiretStart = baseIndex ? 4 : (halfIndex ? 10 : 14);
+            int tiretEnd = baseIndex ? regionHeight : tickerHeight;
+
+            if (px <= (canvas_size.x + canvas_pos.x) && px >= (canvas_pos.x + legendWidth))
+            {
+                draw_list->AddLine(ImVec2((float)px, canvas_pos.y + (float)tiretStart), ImVec2((float)px, canvas_pos.y + (float)tiretEnd - 1), 0xFF606060, 1);
+
+                draw_list->AddLine(ImVec2((float)px, canvas_pos.y + (float)tickerHeight), ImVec2((float)px, canvas_pos.y + (float)regionHeight - 1), 0x30606060, 1);
+            }
+
+            if (baseIndex && px > (canvas_pos.x + legendWidth))
+            {
+                char tmps[512];
+                ImFormatString(tmps, IM_ARRAYSIZE(tmps), "%d", i);
+                draw_list->AddText(ImVec2((float)px + 3.f, canvas_pos.y), 0xFFBBBBBB, tmps);
+            }
+        };
+
+        for (int i = frameMin; i <= frameMax; i += frameStep)
+        {
+            drawLine(i, tickerHeight);
+        }
+        drawLine(frameMin, tickerHeight);
+        drawLine(frameMax, tickerHeight);
+
+        draw_list->AddLine(ImVec2((float)xForFrame(currentFrame), canvas_pos.y), ImVec2((float)xForFrame(currentFrame), canvas_pos.y + (float)tickerHeight - 1), 0xEE1111FF, 3);
+
+
     }
     ImGui::End();
 }
@@ -263,7 +341,6 @@ namespace ImSequencer
                popupOpened = true;
             }
          }
-
          //header frame number and lines
          int modFrameCount = 10;
          int frameStep = 1;

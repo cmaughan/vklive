@@ -61,7 +61,7 @@ void CreateWindowSwapChain(VulkanContext& ctx, VulkanWindow* wd, int w, int h)
         info.imageFormat = wd->surfaceFormat.format;
         info.imageColorSpace = wd->surfaceFormat.colorSpace;
         info.imageArrayLayers = 1;
-        info.imageUsage = vk::ImageUsageFlagBits::eColorAttachment;
+        info.imageUsage = vk::ImageUsageFlagBits::eColorAttachment | vk::ImageUsageFlagBits::eTransferSrc;
         info.imageSharingMode = vk::SharingMode::eExclusive; // Assume that graphics family == present family
         info.preTransform = vk::SurfaceTransformFlagBitsKHR::eIdentity;
         info.compositeAlpha = vk::CompositeAlphaFlagBitsKHR::eOpaque;
