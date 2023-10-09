@@ -15,6 +15,8 @@
 #include <vklive/vulkan/vulkan_scene.h>
 #include <vklive/vulkan/vulkan_window.h>
 
+struct NVGcontext;
+
 namespace vulkan
 {
 
@@ -90,6 +92,8 @@ struct VulkanContext : DeviceContext
     VkPhysicalDeviceBufferDeviceAddressFeatures enabledBufferDeviceAddresFeatures{};
     VkPhysicalDeviceRayTracingPipelineFeaturesKHR enabledRayTracingPipelineFeatures{};
     VkPhysicalDeviceAccelerationStructureFeaturesKHR enabledAccelerationStructureFeatures{};
+
+    NVGcontext* vg = nullptr;
 };
 
 bool context_init(VulkanContext& ctx);

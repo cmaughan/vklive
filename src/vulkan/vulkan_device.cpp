@@ -7,6 +7,7 @@
 #include <vklive/vulkan/vulkan_imgui.h>
 #include <vklive/vulkan/vulkan_render.h>
 #include <vklive/vulkan/vulkan_scene.h>
+#include <vklive/vulkan/vulkan_nanovg.h>
 
 #include <imgui_impl_sdl2.h>
 
@@ -39,6 +40,7 @@ VulkanDevice::VulkanDevice(SDL_Window* pWindow, const std::string& iniPath, bool
     vulkan::main_window_init(ctx);
     vulkan::render_init(ctx);
     vulkan::imgui_init(ctx, iniPath, viewports);
+    vulkan::vulkan_nanovg_init(ctx);
 }
 
 VulkanDevice::~VulkanDevice()

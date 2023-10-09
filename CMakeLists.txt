@@ -91,6 +91,7 @@ set(VULKAN_SOURCES
     src/vulkan/vulkan_device.cpp
     src/vulkan/vulkan_framebuffer.cpp
     src/vulkan/vulkan_imgui.cpp
+    src/vulkan/vulkan_nanovg.cpp
     src/vulkan/vulkan_imgui_viewports.cpp
     src/vulkan/vulkan_imgui_texture.cpp
     src/vulkan/vulkan_model.cpp
@@ -105,6 +106,7 @@ set(VULKAN_SOURCES
     src/vulkan/vulkan_uniform.cpp
     src/vulkan/vulkan_utils.cpp
     src/vulkan/vulkan_window.cpp
+
     include/vklive/vulkan/vulkan_buffer.h
     include/vklive/vulkan/vulkan_command.h
     include/vklive/vulkan/vulkan_context.h
@@ -113,6 +115,7 @@ set(VULKAN_SOURCES
     include/vklive/vulkan/vulkan_device.h
     include/vklive/vulkan/vulkan_framebuffer.h
     include/vklive/vulkan/vulkan_imgui.h
+    include/vklive/vulkan/vulkan_nanovg.h
     include/vklive/vulkan/vulkan_imgui_texture.h
     include/vklive/vulkan/vulkan_model.h
     include/vklive/vulkan/vulkan_pass.h
@@ -125,6 +128,7 @@ set(VULKAN_SOURCES
     include/vklive/vulkan/vulkan_uniform.h
     include/vklive/vulkan/vulkan_utils.h
     include/vklive/vulkan/vulkan_window.h
+    include/vklive/vulkan/nanovg_vk.h
 )
 
 set(EXTERNAL_DIR external)

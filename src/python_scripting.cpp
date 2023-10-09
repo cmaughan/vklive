@@ -131,11 +131,16 @@ std::shared_ptr<VM> make_vm()
         float rad = CAST(float, args[2]);
         float thickness = CAST(float, args[3]);
 
+        pos.x += 1.0f;
+        pos.y += 1.0f;
+        pos.x *= (g_viewPort.z * .5);
+        pos.y *= (g_viewPort.w * .5);
+
         pos.x += g_viewPort.x;
         pos.y += g_viewPort.y;
 
         auto imCol = glm::packUnorm4x8(glm::vec4(col.x, col.y, col.z, col.w));
-        g_pDrawList->AddCircle(ImVec2(pos.x, pos.y), rad, imCol, 0, thickness);
+        g_pDrawList->AddCircleFilled(ImVec2(pos.x, pos.y), rad, imCol, 0);//, thickness);
         return vm->None;
     });
 
@@ -145,9 +150,17 @@ std::shared_ptr<VM> make_vm()
         auto col = CAST(PyVec4, args[2]);
         float thickness = CAST(float, args[3]);
 
+        start.x += 1.0f;
+        start.y += 1.0f;
+        start.x *= (g_viewPort.z * .5);
+        start.y *= (g_viewPort.w * .5);
         start.x += g_viewPort.x;
         start.y += g_viewPort.y;
-
+        
+        end.x += 1.0f;
+        end.y += 1.0f;
+        end.x *= (g_viewPort.z * .5);
+        end.y *= (g_viewPort.w * .5);
         end.x += g_viewPort.x;
         end.y += g_viewPort.y;
 
@@ -223,6 +236,10 @@ std::shared_ptr<PythonModule> python_compile(Scene& scene, const fs::path& path)
     try
     {
         spModule->spCode = spModule->spVM->compile(spModule->script, path.string(), EXEC_MODE);
+        if (spModule->spCode)
+        {
+            spModule->spVM->_exec(spModule->spCode, spModule->spVM->_main);
+        }
     }
     catch (Exception& ex)
     {
@@ -254,7 +271,12 @@ bool python_run_2d(PythonModule& mod, IDevice* pDevice, Scene& scene, ImDrawList
 
     try
     {
-        mod.spVM->_exec(mod.spCode, mod.spVM->_main);
+        //mod.spVM->_exec(mod.spCode, mod.spVM->_main);
+        auto draw = mod.spVM->eval("draw");
+        if (draw)
+        {
+            mod.spVM->call(draw);
+        }
     }
     catch (Exception& ex)
     {

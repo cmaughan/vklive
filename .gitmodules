@@ -10,3 +10,6 @@
 [submodule "external/rccp"]
 	path = external/rccp
 	url = https://github.com/RuntimeCompiledCPlusPlus/RuntimeCompiledCPlusPlus
+[submodule "external/nanovg_vulkan"]
+	path = external/nanovg_vulkan
+	url = https://github.com/danilw/nanovg_vulkan.git

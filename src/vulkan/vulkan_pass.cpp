@@ -18,6 +18,7 @@
 #include "vklive/vulkan/vulkan_render.h"
 #include "vklive/vulkan/vulkan_uniform.h"
 #include "vklive/vulkan/vulkan_utils.h"
+#include "vklive/vulkan/vulkan_nanovg.h"
 
 using namespace ranges;
 
@@ -1249,6 +1250,8 @@ void vulkan_pass_submit(VulkanContext& ctx, VulkanPass& vulkanPass)
                 }
             }
         }
+
+        vulkan_nanovg_draw(ctx, passTargets.renderPass, cmd);
 
         cmd.endRenderPass();
 
