@@ -9,6 +9,7 @@
 
 #include <vklive/python_scripting.h>
 #include <zest/file/file.h>
+#include <zest/file/runtree.h>
 #include <zest/logger/logger.h>
 #include <zest/string/string_utils.h>
 #include <zest/ui/fonts.h>
@@ -18,10 +19,13 @@
 #include <vklive/IDevice.h>
 #include <vklive/scene.h>
 
+#include <zest/ui/nanovg.h>
+
 #include <imgui.h>
 
 // using namespace pkpy;
 using namespace Zest;
+using namespace vulkan;
 
 namespace
 {
@@ -30,6 +34,7 @@ namespace
 ImDrawList* g_pDrawList = nullptr;
 Scene* g_pScene = nullptr;
 IDevice* g_pDevice = nullptr;
+NVGcontext* g_vg = nullptr;
 
 glm::vec4 g_viewPort = glm::vec4(0.0f);
 std::mutex pyMutex;
@@ -97,21 +102,9 @@ std::shared_ptr<VM> make_vm()
         auto col = CAST(PyVec4, args[2]);
         auto sz = CAST(int, args[3]);
 
-        auto imCol = glm::packUnorm4x8(glm::vec4(col.x, col.y, col.z, col.w));
-
-        auto& ctx = g_pDevice->Context();
-        auto& fontContext = *g_pDevice->Context().spFontContext;
-
-        pos.x += g_viewPort.x;
-        pos.y += g_viewPort.y;
-
-        fonts_set_face(fontContext, ctx.defaultFont);
-
-
-        fonts_set_size(fontContext, sz);
-        fonts_set_align(fontContext, NVG_ALIGN_CENTER | NVG_ALIGN_MIDDLE);
-        fonts_set_scale(fontContext, 1.0f);
-        Zest::fonts_draw_text(fontContext, pos.x, pos.y, imCol, text.c_str(), nullptr);
+        nvgFontSize(g_vg, sz);
+        nvgFillColor(g_vg, NVGcolor{ col.x, col.y, col.z, col.w });
+        nvgText(g_vg, pos.x, pos.y, text.c_str(), nullptr);
 
         return vm->None;
     });
@@ -139,8 +132,10 @@ std::shared_ptr<VM> make_vm()
         pos.x += g_viewPort.x;
         pos.y += g_viewPort.y;
 
-        auto imCol = glm::packUnorm4x8(glm::vec4(col.x, col.y, col.z, col.w));
-        g_pDrawList->AddCircleFilled(ImVec2(pos.x, pos.y), rad, imCol, 0);//, thickness);
+        nvgBeginPath(g_vg);
+        nvgCircle(g_vg, pos.x, pos.y, rad);
+        nvgFillColor(g_vg, NVGcolor{ col.x, col.y, col.z, col.w });
+        nvgFill(g_vg);
         return vm->None;
     });
 
@@ -164,8 +159,12 @@ std::shared_ptr<VM> make_vm()
         end.x += g_viewPort.x;
         end.y += g_viewPort.y;
 
-        auto imCol = glm::packUnorm4x8(glm::vec4(col.x, col.y, col.z, col.w));
-        g_pDrawList->AddLine(ImVec2(start.x, start.y), ImVec2(end.x, end.y), imCol, thickness);
+        nvgBeginPath(g_vg);
+        nvgStrokeColor(g_vg, NVGcolor{ col.x, col.y, col.z, col.w });
+        nvgStrokeWidth(g_vg, thickness);
+        nvgMoveTo(g_vg, start.x, start.y);
+        nvgLineTo(g_vg, end.x, end.y);
+        nvgStroke(g_vg);
         return vm->None;
     });
     
@@ -179,8 +178,12 @@ std::shared_ptr<VM> make_vm()
         auto col = CAST(PyVec4, args[4]);
         float thickness = CAST(float, args[5]);
 
-        auto imCol = glm::packUnorm4x8(glm::vec4(col.x, col.y, col.z, col.w));
-        g_pDrawList->AddBezierCubic(points[0], points[1], points[2], points[3], imCol, thickness);
+        nvgBeginPath(g_vg);
+        nvgStrokeColor(g_vg, NVGcolor{ col.x, col.y, col.z, col.w });
+        nvgStrokeWidth(g_vg, thickness);
+        nvgMoveTo(g_vg, points[0].x, points[1].y);
+        nvgBezierTo(g_vg, points[1].x, points[1].y, points[2].x, points[2].y, points[3].x, points[3].y);
+        nvgStroke(g_vg);
         return vm->None;
     });
 
@@ -188,36 +191,30 @@ std::shared_ptr<VM> make_vm()
         auto start = CAST(PyVec2, args[0]);
         auto end = CAST(PyVec2, args[1]);
         auto col = CAST(PyVec4, args[2]);
-        float round = CAST(float, args[3]);
-        float thickness = CAST(float, args[4]);
+        float thickness = CAST(float, args[3]);
 
+        /* start.x += 1.0f;
+        start.y += 1.0f;
+        start.x *= (g_viewPort.z * .5);
+        start.y *= (g_viewPort.w * .5);
         start.x += g_viewPort.x;
         start.y += g_viewPort.y;
-
+        
+        end.x += 1.0f;
+        end.y += 1.0f;
+        end.x *= (g_viewPort.z * .5);
+        end.y *= (g_viewPort.w * .5);
         end.x += g_viewPort.x;
-        end.y += g_viewPort.y;
+        end.y += g_viewPort.y;*/
 
-        auto imCol = glm::packUnorm4x8(glm::vec4(col.x, col.y, col.z, col.w));
-        g_pDrawList->AddRect(ImVec2(start.x, start.y), ImVec2(end.x, end.y), imCol, round, 0, thickness);
+        nvgBeginPath(g_vg);
+        nvgStrokeColor(g_vg, NVGcolor{ col.x, col.y, col.z, col.w });
+        nvgStrokeWidth(g_vg, thickness);
+        nvgRect(g_vg, start.x, start.y, end.x - start.x, end.y - start.y);
+        nvgStroke(g_vg);
         return vm->None;
     });
     return vm;
-}
-
-void python_tick(ImDrawList* pDrawList, const glm::vec4& viewport)
-{
-    g_pDrawList = pDrawList;
-    g_viewPort = viewport;
-
-    /*
-    vm->exec("a = [1, 2, 3]");
-    auto result = vm->eval("sum(a)");
-    LOG(DBG, "Result: " << CAST(int, result));
-
-    vm->exec("circle(100.0, 100.0, 50.0, 10.0)");
-    */
-
-    g_pDrawList = nullptr;
 }
 
 void python_destroy()
@@ -269,10 +266,12 @@ bool python_run_2d(PythonModule& mod, IDevice* pDevice, Scene& scene, ImDrawList
     g_pScene = &scene;
     g_pDevice = pDevice;
 
+    return true;
+    /*
     try
     {
         //mod.spVM->_exec(mod.spCode, mod.spVM->_main);
-        auto draw = mod.spVM->eval("draw");
+        auto draw = mod.spVM->eval("draw_2d");
         if (draw)
         {
             mod.spVM->call(draw);
@@ -299,4 +298,74 @@ bool python_run_2d(PythonModule& mod, IDevice* pDevice, Scene& scene, ImDrawList
     g_pScene = nullptr;
     g_pDevice = nullptr;
     return true;
+    */
+}
+
+void python_run_pass(NVGcontext* vg, Pass& pass, const glm::uvec2& targetSize)
+{
+    if (pass.script.empty())
+    {
+        return;
+    }
+
+    auto itr = pass.scene.scripts.find(pass.script);
+    if (itr == pass.scene.scripts.end())
+    {
+        return;
+    }
+
+    auto& mod = *itr->second;
+    if (!mod.spCode)
+    {
+        return;
+    }
+
+    std::lock_guard<std::mutex> lk(pyMutex);
+    g_pDrawList = nullptr;
+    g_pDevice = nullptr;
+    g_viewPort = glm::vec4(0.0f, 0.0f, targetSize.x, targetSize.y);
+    g_pScene = &pass.scene;
+    g_vg = vg;
+
+    try
+    {
+        auto draw = mod.spVM->eval(pass.entry.c_str());
+        if (draw)
+        {
+            mod.spVM->call(draw);
+        }
+    }
+    catch (Exception& ex)
+    {
+        LOG(DBG, ex.summary());
+        python_parse_output(ex.summary().str(), mod.path, pass.scene);
+        mod.spCode.reset();
+        mod.spVM.reset();
+    }
+    catch (std::exception& ex)
+    {
+        LOG(DBG, ex.what());
+        python_parse_output(ex.what(), mod.path, pass.scene);
+        mod.spCode.reset();
+        mod.spVM.reset();
+    }
+
+    g_pDrawList = nullptr;
+    g_pScene = nullptr;
+    g_pDevice = nullptr;
+    g_vg = nullptr;
+
+    /*
+    NVGcolor col;
+    col.r = 1.0f;
+    col.a = 1.0f;
+    nvgFillColor(ctx.vg, col);
+    nvgCircle(ctx.vg, 100.0f, 100.0f, 50.0f);
+    nvgFill(ctx.vg);
+
+    col.g = 1.0f;
+    nvgFillColor(ctx.vg, col);
+    nvgFontSize(ctx.vg, 90.0);
+    nvgText(ctx.vg, 100, 200, "Hello", nullptr);
+    */
 }

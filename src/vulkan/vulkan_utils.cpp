@@ -71,9 +71,9 @@ vk::Viewport viewport(float width, float height, float minDepth, float maxDepth)
     return viewport;
 }
 
-vk::Viewport viewport(const glm::uvec2& size, float minDepth, float maxDepth)
+vk::Viewport viewport(const glm::vec2& size, float minDepth, float maxDepth)
 {
-    return viewport(static_cast<float>(size.x), static_cast<float>(size.y), minDepth, maxDepth);
+    return viewport(size.x, size.y, minDepth, maxDepth);
 }
 
 vk::Viewport viewport(const vk::Extent2D& size, float minDepth, float maxDepth)

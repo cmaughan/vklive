@@ -65,46 +65,46 @@ struct VulkanPassSwapFrameData
 
     VulkanBuffer vsUniform;
 
-    struct Channel {
+    struct Channel
+    {
         alignas(16) glm::vec4 resolution;
         alignas(4) float time;
     };
 
     struct UBO
     {
-        alignas(4) float iTime;            // Elapsed 
-        alignas(4) float iGlobalTime;      // Elapsed (same as iTime)
-        alignas(4) float iTimeDelta;       // Delta since last frame
-        alignas(4) float iFrame;           // Number of frames drawn since begin
-        alignas(4) float iFrameRate;       // 1 / Elapsed
-        alignas(4) float iSampleRate;      // Sound sample rate
-        alignas(4) uint32_t iSceneFlags;   // Scene flags
-        alignas(4) uint32_t vertexSize;    // Size of each vertex element for ray tracing
-        alignas(16) glm::vec4 iResolution;  // Resolution of current target
-        alignas(16) glm::vec4 iMouse;       // Mouse coords in pixels
-        alignas(16) glm::vec4 iDate;        // Year, Month, Day, Seconds since epoch
+        alignas(4) float iTime; // Elapsed
+        alignas(4) float iGlobalTime; // Elapsed (same as iTime)
+        alignas(4) float iTimeDelta; // Delta since last frame
+        alignas(4) float iFrame; // Number of frames drawn since begin
+        alignas(4) float iFrameRate; // 1 / Elapsed
+        alignas(4) float iSampleRate; // Sound sample rate
+        alignas(4) uint32_t iSceneFlags; // Scene flags
+        alignas(4) uint32_t vertexSize; // Size of each vertex element for ray tracing
+        alignas(16) glm::vec4 iResolution; // Resolution of current target
+        alignas(16) glm::vec4 iMouse; // Mouse coords in pixels
+        alignas(16) glm::vec4 iDate; // Year, Month, Day, Seconds since epoch
         alignas(16) glm::vec4 iSpectrumBands[2]; // 4 Audio spectrum bands, configured in the UI.
-    
+
         // Note originally an array of 4 floats; std140 alignment makes this tricky
         alignas(16) glm::vec4 iChannelTime; // Time for an input channel
 
-        alignas(16) glm::vec4 iChannelResolution[4];    // Resolution for an input channel
+        alignas(16) glm::vec4 iChannelResolution[4]; // Resolution for an input channel
         alignas(16) glm::vec4 ifFragCoordOffsetUniform; // ?
-        alignas(16) glm::vec4 eye;                      // The eye in world space
-        
-        alignas(16) glm::mat4 model;                    // Transforms for camera based rendering
+        alignas(16) glm::vec4 eye; // The eye in world space
+
+        alignas(16) glm::mat4 model; // Transforms for camera based rendering
         alignas(16) glm::mat4 view;
         alignas(16) glm::mat4 projection;
         alignas(16) glm::mat4 modelViewProjection;
-       
+
         alignas(16) glm::mat4 viewInverse;
         alignas(16) glm::mat4 projectionInverse;
 
-        Channel iChannel[4];                // Packed version
-        
+        Channel iChannel[4]; // Packed version
     };
     UBO vsUBO;
-    
+
     vk::Pipeline pipeline;
     vk::PipelineLayout geometryPipelineLayout;
     std::map<uint32_t, VulkanBindingSet> mergedBindingSets;
@@ -134,8 +134,8 @@ struct VulkanPassSwapFrameData
 struct VulkanPass
 {
     VulkanPass(VulkanScene& s, Pass& p)
-        : vulkanScene(s),
-        pass(p)
+        : vulkanScene(s)
+        , pass(p)
     {
     }
 
@@ -150,4 +150,7 @@ void vulkan_pass_destroy(VulkanContext& ctx, VulkanPass& vulkanPass);
 void vulkan_pass_wait(VulkanContext& ctx, VulkanPassSwapFrameData& passData);
 bool vulkan_pass_draw(VulkanContext& ctx, VulkanPass& vulkanPass);
 
-}
+VulkanPassSwapFrameData& vulkan_pass_frame_data(VulkanContext& ctx, VulkanPass& vulkanPass);
+VulkanPassTargets& vulkan_pass_targets(VulkanContext& ctx, VulkanPassSwapFrameData& passFrameData);
+
+} // namespace vulkan

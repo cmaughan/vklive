@@ -52,6 +52,8 @@ extern "C" {
 #define T_VECTOR "vector"
 #define T_BOOL "bool"
 #define T_VS "vs"
+#define T_SCRIPT "script"
+#define T_ENTRY "entry"
 #define T_RAY_GROUP_GENERAL "ray_group_general"
 #define T_RAY_GROUP_TRIANGLES "ray_group_triangles"
 #define T_RAY_GROUP_PROCEDURAL "ray_group_procedural"
@@ -159,6 +161,8 @@ void scene_init_parser()
     ADD_PARSER(fs, T_FS);
     ADD_PARSER(gs, T_GS);
     ADD_PARSER(vs, T_VS);
+    ADD_PARSER(script, T_SCRIPT);
+    ADD_PARSER(entry, T_ENTRY);
     ADD_PARSER(geometry, T_GEOMETRY);
     ADD_PARSER(post_2d, T_POST_2D);
 
@@ -218,6 +222,8 @@ field_of_view    : "field_of_view" ':' <float> ;
 vs               : "vs" ':' <path_name> ;
 gs               : "gs" ':' <path_name> ;
 fs               : "fs" ':' <path_name> ;
+script           : "script" ':' <path_name> (',' <ident>)?;
+entry            : "entry" ':' <path_name> ;
 ray_gen          : "ray_gen" ':' <path_name> ;
 miss             : "miss" ':' <path_name> ;
 callable         : "callable" ':' <path_name> ;
@@ -232,11 +238,11 @@ ray_group_triangles : "ray_group_triangles" ':' <ident> '{' (<closest_hit> | <an
 ray_group_procedural : "ray_group_procedural" ':' <ident> '{' <intersection> (<closest_hit> | <any_hit>)* '}';
 geometry         : "geometry" ':' <ident> '{' (<path> | <scale> | <build_as> | <ray_group_general> | <ray_group_triangles> | <ray_group_procedural> | <vs> | <fs> | <gs> | <comment>)* '}';
 disable          : '!' ;
-pass             : <disable>? "pass" ':' <ident> '{' (<geometry> | <targets> | <samplers> | <camera_id> | <comment> | <clear>)* '}'; 
+pass             : <disable>? "pass" ':' <ident> '{' (<script> | <entry> | <geometry> | <targets> | <samplers> | <camera_id> | <comment> | <clear>)* '}'; 
 scenegraph       : /^/ (<comment> | <surface> | <camera>)* (<comment> | <pass> )* <post_2d>? /$/ ;
     )",
         path_name, path_id, comment, ident, bool_id, flt, vector, ident_array, build_as, scale, size, clear, format,
-        samplers, targets, vs, gs, fs, surface, camera, camera_id, position, look_at, field_of_view, near_far, post_2d, geometry, disable, pass, ray_group_general, ray_group_triangles, ray_group_procedural, ray_gen, miss, any_hit, closest_hit, intersection, callable, parser.pSceneGraph, nullptr);
+        samplers, targets, vs, gs, fs, script, entry, surface, camera, camera_id, position, look_at, field_of_view, near_far, post_2d, geometry, disable, pass, ray_group_general, ray_group_triangles, ray_group_procedural, ray_gen, miss, any_hit, closest_hit, intersection, callable, parser.pSceneGraph, nullptr);
 }
 
 void scene_destroy_parser()
@@ -646,10 +652,34 @@ std::shared_ptr<Scene> scene_build(const fs::path& root)
                 auto setPassType = [&](PassType type, int row = 0) {
                     if ((spPass->passType != PassType::Unknown) && (spPass->passType != type))
                     {
-                        AddMessage(*spScene, fmt::format("Pass {} can only be RT or shading?", spPass->name), MessageSeverity::Error, row);
+                        AddMessage(*spScene, fmt::format("Pass {} can only be RT or shading or scripting?", spPass->name), MessageSeverity::Error, row);
                     }
                     spPass->passType = type;
                 };
+
+                auto scripts = childrenOf(pPassNode, T_SCRIPT);
+                for (auto& pScriptNode : scripts)
+                {
+                    spPass->script = root / getChild(pScriptNode, T_PATH_NAME)->contents;
+                    if (hasChild(pScriptNode, T_IDENT))
+                    {
+                        auto pEntryNode = getChild(pScriptNode, T_IDENT);
+                        spPass->entry = pEntryNode->contents;
+                    }
+
+                    if (!fs::exists(spPass->script))
+                    {
+                        AddMessage(*spScene, std::string("Python missing: " + spPass->script.filename().string()), MessageSeverity::Error, pScriptNode->state.row, pScriptNode->state.col);
+                    }
+                    else
+                    {
+                        if (spScene->scripts.find(spPass->script) == spScene->scripts.end())
+                        {
+                            spScene->scripts[spPass->script] = python_compile(*spScene, spPass->script);
+                        }
+                    }
+                    setPassType(PassType::Scripted);
+                }
 
                 auto models = childrenOf(pPassNode, T_GEOMETRY);
                 for (auto& pGeometryNode : models)
@@ -837,7 +867,7 @@ std::shared_ptr<Scene> scene_build(const fs::path& root)
                 }
 
                 // Complete the pass
-                if (spPass->models.empty())
+                if (spPass->models.empty() && spPass->script.empty())
                 {
                     AddMessage(*spScene, fmt::format("No geometries in pass: {}", spPass->name), MessageSeverity::Error, pPassNode->state.row);
                 }

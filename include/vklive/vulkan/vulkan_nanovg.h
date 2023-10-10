@@ -9,6 +9,8 @@ namespace vulkan
 {
 
 void vulkan_nanovg_init(VulkanContext& ctx);
-void vulkan_nanovg_draw(VulkanContext& ctx, VkRenderPass renderPass, VkCommandBuffer cmd);
+
+void vulkan_nanovg_begin(VulkanContext& ctx, VulkanPass& vulkanPass, vk::CommandBuffer& cmd);
+void vulkan_nanovg_end(VulkanContext& ctx);
 
 } // namespace vulkan

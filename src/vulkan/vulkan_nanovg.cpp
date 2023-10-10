@@ -25,7 +25,10 @@
 #include <vklive/vulkan/nanovg_vk.h>
 #include <vklive/vulkan/vulkan_buffer.h>
 #include <vklive/vulkan/vulkan_command.h>
+#include <vklive/vulkan/vulkan_scene.h>
+#include <vklive/vulkan/vulkan_pass.h>
 #include <zest/ui/nanovg.h>
+#include <zest/file/runtree.h>
 
 namespace vulkan
 {
@@ -47,28 +50,30 @@ void vulkan_nanovg_init(VulkanContext& ctx)
     utils_with_command_buffer(ctx, [&](auto cmd) {
         createInfo.cmdBuffer = cmd;
         ctx.vg = nvgCreateVk(createInfo, flags, ctx.queue);
+
+
+        auto fontPath = Zest::runtree_find_path("fonts/Roboto-Regular.ttf");
+        ctx.defaultFont = nvgCreateFont(ctx.vg, "sans", fontPath.string().c_str());
     });
 }
 
-void vulkan_nanovg_draw(VulkanContext& ctx, VkRenderPass renderPass, VkCommandBuffer cmd)
+void vulkan_nanovg_begin(VulkanContext& ctx, VulkanPass& vulkanPass, vk::CommandBuffer& cmd)
 {
-    /*
+    auto& passFrameData = vulkan_pass_frame_data(ctx, vulkanPass);
+    auto& passTargets = vulkan_pass_targets(ctx, passFrameData);
+
     NVGparams* pParams = nvgInternalParams(ctx.vg);
-    VKNVGcontext *vk = (VKNVGcontext *)pParams->userPtr;
-    vk->createInfo.renderpass = renderPass;
+    VKNVGcontext* vk = (VKNVGcontext*)pParams->userPtr;
+
+    vk->createInfo.renderpass = passTargets.renderPass;
     vk->createInfo.cmdBuffer = cmd;
-    nvgBeginFrame(ctx.vg, (float)ctx.frameBufferSize.x, (float)ctx.frameBufferSize.y, 1.0f);
 
-    NVGcolor col;
-    col.r = 1.0f;
-    col.a = 1.0f;
-    nvgFillColor(ctx.vg, col);
-    nvgCircle(ctx.vg, 100.0f, 100.0f, 50.0f);
-    nvgFill(ctx.vg);
-
-    nvgEndFrame(ctx, ctx.vg);
-    */
+    nvgBeginFrame(ctx.vg, (float)passTargets.targetSize.x, (float)passTargets.targetSize.y, 1.0f);
 }
 
+void vulkan_nanovg_end(VulkanContext& ctx)
+{
+    nvgEndFrame(ctx, ctx.vg);
+}
 
 } // namespace vulkan

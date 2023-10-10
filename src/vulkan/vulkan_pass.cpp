@@ -13,12 +13,13 @@
 
 #include "vklive/validation.h"
 
+#include "vklive/vulkan/vulkan_nanovg.h"
 #include "vklive/vulkan/vulkan_pass.h"
 #include "vklive/vulkan/vulkan_pipeline.h"
 #include "vklive/vulkan/vulkan_render.h"
 #include "vklive/vulkan/vulkan_uniform.h"
 #include "vklive/vulkan/vulkan_utils.h"
-#include "vklive/vulkan/vulkan_nanovg.h"
+#include <vklive/python_scripting.h>
 
 using namespace ranges;
 
@@ -224,7 +225,7 @@ VulkanSurface* get_vulkan_surface(VulkanContext& ctx, VulkanPass& vulkanPass, co
             }
             else
             {
-                uint32_t flags = VulkanSurfaceFlags::Sampled; 
+                uint32_t flags = VulkanSurfaceFlags::Sampled;
                 if (pSurface->isDefaultColorTarget)
                 {
                     flags |= VulkanSurfaceFlags::Uploadable;
@@ -755,7 +756,7 @@ void vulkan_pass_prepare_uniforms(VulkanContext& ctx, VulkanPass& vulkanPass)
     // TODO: Should we stage using command buffer?  This is a direct write
     utils_copy_to_memory(ctx, passFrameData.vsUniform.memory, ubo);
 
-    //ctx.device.waitIdle();
+    // ctx.device.waitIdle();
 }
 
 bool vulkan_pass_build_descriptors(VulkanContext& ctx, VulkanPass& vulkanPass)
@@ -1131,7 +1132,7 @@ bool vulkan_pass_prepare_pipeline(VulkanContext& ctx, VulkanPassSwapFrameData& f
                 debug_set_buffer_name(ctx.device, frameData.rayGenBindingTable.buffer, fmt::format("{}:{}", frameData.debugName, "RayGenBindingTable"));
                 debug_set_buffer_name(ctx.device, frameData.missBindingTable.buffer, fmt::format("{}:{}", frameData.debugName, "MissBindingTable"));
                 debug_set_buffer_name(ctx.device, frameData.hitBindingTable.buffer, fmt::format("{}:{}", frameData.debugName, "HitBindingTable"));
-        
+
                 debug_set_pipeline_name(ctx.device, frameData.pipeline, fmt::format("RayTracePipe: {}", frameData.debugName));
                 LOG(DBG, "Create RayTracePipe: " << frameData.pipeline);
             }
@@ -1218,7 +1219,14 @@ void vulkan_pass_submit(VulkanContext& ctx, VulkanPass& vulkanPass)
     renderPassBeginInfo.clearValueCount = clearValues.size();
     renderPassBeginInfo.pClearValues = clearValues.data();
 
-    auto rect = passTargets.targetSize;
+    auto rect = glm::vec2(passTargets.targetSize);
+    vk::Viewport viewport;
+    viewport.x = 0.0f;
+    viewport.y = 0.0f;
+    viewport.width = rect.x;
+    viewport.height = rect.y;
+    viewport.minDepth = 0.0f;
+    viewport.maxDepth = 1.0f;
 
     auto& cmd = passFrameData.commandBuffer;
     debug_begin_region(cmd, passFrameData.debugName, glm::vec4(1.0f, 0.0f, 0.0f, 1.0f));
@@ -1226,7 +1234,7 @@ void vulkan_pass_submit(VulkanContext& ctx, VulkanPass& vulkanPass)
     if (passFrameData.pVulkanPass->pass.passType == PassType::Standard)
     {
         cmd.beginRenderPass(renderPassBeginInfo, vk::SubpassContents::eInline);
-        cmd.setViewport(0, viewport(glm::uvec2(rect.x, rect.y)));
+        cmd.setViewport(0, viewport);
         cmd.setScissor(0, rect2d(glm::uvec2(rect.x, rect.y)));
         if (!passFrameData.descriptorSets.empty())
         {
@@ -1251,7 +1259,44 @@ void vulkan_pass_submit(VulkanContext& ctx, VulkanPass& vulkanPass)
             }
         }
 
-        vulkan_nanovg_draw(ctx, passTargets.renderPass, cmd);
+        cmd.endRenderPass();
+
+        vulkan_pass_make_targets_readable(ctx, passFrameData);
+    }
+    else if (passFrameData.pVulkanPass->pass.passType == PassType::Scripted)
+    {
+        cmd.beginRenderPass(renderPassBeginInfo, vk::SubpassContents::eInline);
+        cmd.setViewport(0, viewport);
+        cmd.setScissor(0, rect2d(glm::uvec2(rect.x, rect.y)));
+        /* if (!passFrameData.descriptorSets.empty())
+        {
+            cmd.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, passFrameData.geometryPipelineLayout, 0, passFrameData.descriptorSets, {});
+        }
+
+        if (passFrameData.pipeline)
+        {
+            // Graphics Pipe
+            cmd.bindPipeline(vk::PipelineBindPoint::eGraphics, passFrameData.pipeline);
+
+            for (auto& geom : vulkanPass.pass.models)
+            {
+                auto itrGeom = vulkanPass.vulkanScene.models.find(geom);
+                if (itrGeom != vulkanPass.vulkanScene.models.end())
+                {
+                    auto pVulkanGeom = itrGeom->second;
+                    cmd.bindVertexBuffers(0, pVulkanGeom->vertices.buffer, { 0 });
+                    cmd.bindIndexBuffer(pVulkanGeom->indices.buffer, 0, vk::IndexType::eUint32);
+                    cmd.drawIndexed(pVulkanGeom->indexCount, 1, 0, 0, 0);
+                }
+            }
+        }*/
+
+        if (!vulkanPass.pass.script.empty())
+        {
+            vulkan_nanovg_begin(ctx, vulkanPass, cmd);
+            python_run_pass(ctx.vg, vulkanPass.pass, passTargets.targetSize);
+            vulkan_nanovg_end(ctx);
+        }
 
         cmd.endRenderPass();
 
@@ -1398,4 +1443,3 @@ bool vulkan_pass_draw(VulkanContext& ctx, VulkanPass& vulkanPass)
 }
 
 } // namespace vulkan
-

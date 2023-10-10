@@ -57,7 +57,7 @@ vk::Format utils_format_to_vulkan(const Format& format);
 
 // TODO
 vk::Viewport viewport(float width, float height, float minDepth = 0, float maxDepth = 1);
-vk::Viewport viewport(const glm::uvec2& size, float minDepth = 0, float maxDepth = 1);
+vk::Viewport viewport(const glm::vec2& size, float minDepth = 0, float maxDepth = 1);
 vk::Viewport viewport(const vk::Extent2D& size, float minDepth = 0, float maxDepth = 1);
 vk::Rect2D rect2d(uint32_t width, uint32_t height, int32_t offsetX = 0, int32_t offsetY = 0);
 vk::Rect2D rect2d(const glm::uvec2& size, const glm::ivec2& offset = glm::ivec2(0));

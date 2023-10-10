@@ -158,7 +158,8 @@ enum class PassType
 {
     Unknown,
     Standard,
-    RayTracing
+    RayTracing,
+    Scripted
 };
 
 struct Pass
@@ -181,6 +182,9 @@ struct Pass
     std::vector<fs::path> shaders;
     std::vector<std::string> cameras;
     std::vector<std::shared_ptr<ShaderGroup>> shaderGroups;
+
+    fs::path script;
+    std::string entry = "pass";
 
     int scriptTargetsLine = 0;
     int scriptSamplersLine = 0;

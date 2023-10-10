@@ -12,10 +12,12 @@ namespace pkpy
 {
 class VM;
 struct CodeObject;
-
 }
 
+struct NVGcontext;
+
 class Scene;
+struct Pass;
 
 struct PythonModule
 {
@@ -26,11 +28,8 @@ struct PythonModule
     std::shared_ptr<pkpy::CodeObject> spCode;
 };
 
-//void python_init();
-//void python_tick(ImDrawList* pDrawList, const glm::vec4& viewport);
-//void python_destroy();
-
 std::shared_ptr<PythonModule> python_compile(Scene& scene, const fs::path& path);
 bool python_run_2d(PythonModule& mod, IDevice* pDevice, Scene& scene, ImDrawList* pDrawList, const glm::vec4& viewport);
+void python_run_pass(NVGcontext* vg, Pass& pass, const glm::uvec2& targetSize);
 
 
