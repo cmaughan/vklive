@@ -3,8 +3,15 @@
 #include <string.h>
 #include <vklive/vulkan/vulkan_descriptor.h>
 #include <zest/ui/nanovg.h>
+#include <zest/logger/logger.h>
 
 using namespace vulkan;
+
+namespace
+{
+std::vector<vk::DescriptorSet> desc1;
+std::vector<vk::DescriptorSet> desc2;
+} // namespace
 
 enum NVGcreateFlags
 {
@@ -211,6 +218,9 @@ typedef struct VKNVGcontext
     VkShaderModule fillFragShaderAA;
     VkShaderModule fillVertShader;
     VkQueue queue;
+
+    // Descriptors, per flush
+
 } VKNVGcontext;
 
 static int vknvg_maxi(int a, int b)
@@ -654,22 +664,6 @@ static VkDescriptorSetLayout vknvg_createDescriptorSetLayout(VkDevice device, co
     return descLayout;
 }
 
-/*
-static VkDescriptorPool vknvg_createDescriptorPool(VkDevice device, uint32_t count, const VkAllocationCallbacks* allocator)
-{
-
-    const VkDescriptorPoolSize type_count[3] = {
-        { VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT, 2 * count },
-        { VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 4 * count },
-        { VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 2 * count },
-    };
-    const VkDescriptorPoolCreateInfo descriptor_pool = { VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO, nullptr, 0, count * 2, 3, type_count };
-    VkDescriptorPool descPool;
-    NVGVK_CHECK_RESULT(vkCreateDescriptorPool(device, &descriptor_pool, allocator, &descPool));
-    return descPool;
-}
-*/
-
 static VkPipelineLayout vknvg_createPipelineLayout(VkDevice device, VkDescriptorSetLayout descLayout, const VkAllocationCallbacks* allocator)
 {
     VkPipelineLayoutCreateInfo pipelineLayoutCreateInfo = { VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO };
@@ -777,13 +771,9 @@ static VkPipelineDepthStencilStateCreateInfo initializeDepthStencilCreateInfo(VK
 }
 static VKNVGPipeline* vknvg_createPipeline(VKNVGcontext* vk, VKNVGCreatePipelineKey* pipelinekey)
 {
-
     VkDevice device = vk->createInfo.device;
-    VkPipelineLayout pipelineLayout = vk->pipelineLayout;
-    VkRenderPass renderpass = vk->createInfo.renderpass;
     const VkAllocationCallbacks* allocator = vk->createInfo.allocator;
 
-    VkDescriptorSetLayout descLayout = vk->descLayout;
     VkShaderModule vert_shader = vk->fillVertShader;
     VkShaderModule frag_shader = vk->fillFragShader;
     VkShaderModule frag_shader_aa = vk->fillFragShaderAA;
@@ -881,7 +871,7 @@ static VKNVGPipeline* vknvg_createPipeline(VKNVGcontext* vk, VKNVGCreatePipeline
     }
 
     VkGraphicsPipelineCreateInfo pipelineCreateInfo = { VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO };
-    pipelineCreateInfo.layout = pipelineLayout;
+    pipelineCreateInfo.layout = vk->pipelineLayout;
     pipelineCreateInfo.stageCount = 2;
     pipelineCreateInfo.pStages = shaderStages;
     pipelineCreateInfo.pVertexInputState = &vi;
@@ -891,7 +881,7 @@ static VKNVGPipeline* vknvg_createPipeline(VKNVGcontext* vk, VKNVGCreatePipeline
     pipelineCreateInfo.pMultisampleState = &ms;
     pipelineCreateInfo.pViewportState = &vp;
     pipelineCreateInfo.pDepthStencilState = &ds;
-    pipelineCreateInfo.renderPass = renderpass;
+    pipelineCreateInfo.renderPass = vk->createInfo.renderpass;
     pipelineCreateInfo.pDynamicState = &dynamicState;
 
     VkPipeline pipeline;
@@ -1175,7 +1165,7 @@ static void vknvg_setUniforms(VKNVGcontext* vk, VkDescriptorSet descSet, int uni
     vkUpdateDescriptorSets(device, 3, writes, 0, nullptr);
 }
 
-static void vknvg_fill(VulkanContext& ctx, VKNVGcontext* vk, VKNVGcall* call)
+static void vknvg_fill(VulkanContext& ctx, VKNVGcontext* vk, VKNVGcall* call, int descriptor_offset)
 {
     VKNVGpath* paths = &vk->paths[call->pathOffset];
     int npaths = call->pathCount;
@@ -1201,14 +1191,10 @@ static void vknvg_fill(VulkanContext& ctx, VKNVGcontext* vk, VKNVGcall* call)
 
     vknvg_bindPipeline(vk, cmdBuffer, &pipelinekey);
 
-    vk::DescriptorSet desc1;
-    vk::DescriptorSet desc2;
-    descriptor_allocate(ctx, descriptor_get_cache(ctx), &desc1, vk->descLayout);
-    descriptor_allocate(ctx, descriptor_get_cache(ctx), &desc2, vk->descLayout);
-    auto set1 = (VkDescriptorSet)desc1;
-    auto set2 = (VkDescriptorSet)desc1;
+    auto set1 = (VkDescriptorSet)desc1[descriptor_offset];
+    auto set2 = (VkDescriptorSet)desc2[descriptor_offset];
 
-    vknvg_setUniforms(vk, desc1, call->uniformOffset, call->image);
+    vknvg_setUniforms(vk, desc1[descriptor_offset], call->uniformOffset, call->image);
     vkCmdBindDescriptorSets(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, vk->pipelineLayout, 0, 1, &set1, 0, nullptr);
 
     for (int i = 0; i < npaths; i++)
@@ -1218,7 +1204,7 @@ static void vknvg_fill(VulkanContext& ctx, VKNVGcontext* vk, VKNVGcall* call)
         vkCmdDraw(cmdBuffer, paths[i].fillCount, 1, 0, 0);
     }
 
-    vknvg_setUniforms(vk, desc2, call->uniformOffset + vk->fragSize, call->image);
+    vknvg_setUniforms(vk, desc2[descriptor_offset], call->uniformOffset + vk->fragSize, call->image);
     vkCmdBindDescriptorSets(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, vk->pipelineLayout, 0, 1, &set2, 0, nullptr);
 
     if (vk->flags & NVG_ANTIALIAS)
@@ -1251,7 +1237,7 @@ static void vknvg_fill(VulkanContext& ctx, VKNVGcontext* vk, VKNVGcall* call)
     vkCmdDraw(cmdBuffer, call->triangleCount, 1, 0, 0);
 }
 
-static void vknvg_convexFill(VulkanContext& ctx, VKNVGcontext* vk, VKNVGcall* call)
+static void vknvg_convexFill(VulkanContext& ctx, VKNVGcontext* vk, VKNVGcall* call, int descriptor_offset)
 {
     VKNVGpath* paths = &vk->paths[call->pathOffset];
     int npaths = call->pathCount;
@@ -1276,11 +1262,9 @@ static void vknvg_convexFill(VulkanContext& ctx, VKNVGcontext* vk, VKNVGcall* ca
 
     vknvg_bindPipeline(vk, cmdBuffer, &pipelinekey);
 
-    vk::DescriptorSet desc1;
-    descriptor_allocate(ctx, descriptor_get_cache(ctx), &desc1, vk->descLayout);
-    auto set1 = (VkDescriptorSet)desc1;
+    auto set1 = (VkDescriptorSet)desc1[descriptor_offset];
 
-    vknvg_setUniforms(vk, desc1, call->uniformOffset, call->image);
+    vknvg_setUniforms(vk, desc1[descriptor_offset], call->uniformOffset, call->image);
     vkCmdBindDescriptorSets(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, vk->pipelineLayout, 0, 1, &set1, 0, nullptr);
 
     for (int i = 0; i < npaths; ++i)
@@ -1304,7 +1288,7 @@ static void vknvg_convexFill(VulkanContext& ctx, VKNVGcontext* vk, VKNVGcall* ca
     }
 }
 
-static void vknvg_stroke(VulkanContext& ctx, VKNVGcontext* vk, VKNVGcall* call)
+static void vknvg_stroke(VulkanContext& ctx, VKNVGcontext* vk, VKNVGcall* call, int descriptor_offset)
 {
     VkDevice device = vk->createInfo.device;
     uint32_t currentFrame = *vk->createInfo.currentFrame;
@@ -1313,18 +1297,14 @@ static void vknvg_stroke(VulkanContext& ctx, VKNVGcontext* vk, VKNVGcall* call)
     VKNVGpath* paths = &vk->paths[call->pathOffset];
     int npaths = call->pathCount;
 
-    vk::DescriptorSet desc1;
-    descriptor_allocate(ctx, descriptor_get_cache(ctx), &desc1, vk->descLayout);
-    auto set1 = (VkDescriptorSet)desc1;
+    auto set1 = (VkDescriptorSet)desc1[descriptor_offset];
 
     if (vk->flags & NVG_STENCIL_STROKES)
     {
-        vk::DescriptorSet desc2;
-        descriptor_allocate(ctx, descriptor_get_cache(ctx), &desc2, vk->descLayout);
-        auto set2 = (VkDescriptorSet)desc1;
+        auto set2 = (VkDescriptorSet)desc2[descriptor_offset];
 
-        vknvg_setUniforms(vk, desc1, call->uniformOffset, call->image);
-        vknvg_setUniforms(vk, desc2, call->uniformOffset + vk->fragSize, call->image);
+        vknvg_setUniforms(vk, desc1[descriptor_offset], call->uniformOffset, call->image);
+        vknvg_setUniforms(vk, desc2[descriptor_offset], call->uniformOffset + vk->fragSize, call->image);
 
 #ifdef __cplusplus
         VKNVGCreatePipelineKey pipelinekey = {};
@@ -1393,7 +1373,7 @@ static void vknvg_stroke(VulkanContext& ctx, VKNVGcontext* vk, VKNVGcall* call)
         pipelinekey.renderPass = vk->createInfo.renderpass;
 
         vknvg_bindPipeline(vk, cmdBuffer, &pipelinekey);
-        vknvg_setUniforms(vk, desc1, call->uniformOffset, call->image);
+        vknvg_setUniforms(vk, desc1[descriptor_offset], call->uniformOffset, call->image);
         vkCmdBindDescriptorSets(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, vk->pipelineLayout, 0, 1, &set1, 0, nullptr);
         // Draw Strokes
 
@@ -1407,7 +1387,7 @@ static void vknvg_stroke(VulkanContext& ctx, VKNVGcontext* vk, VKNVGcall* call)
     }
 }
 
-static void vknvg_triangles(VulkanContext& ctx, VKNVGcontext* vk, VKNVGcall* call)
+static void vknvg_triangles(VulkanContext& ctx, VKNVGcontext* vk, VKNVGcall* call, int descriptor_offset)
 {
     if (call->triangleCount == 0)
     {
@@ -1428,12 +1408,10 @@ static void vknvg_triangles(VulkanContext& ctx, VKNVGcontext* vk, VKNVGcall* cal
     pipelinekey.edgeAAShader = vk->flags & NVG_ANTIALIAS;
     pipelinekey.renderPass = vk->createInfo.renderpass;
 
-    vk::DescriptorSet desc1;
-    descriptor_allocate(ctx, descriptor_get_cache(ctx), &desc1, vk->descLayout);
-    auto set1 = (VkDescriptorSet)desc1;
+    auto set1 = (VkDescriptorSet)desc1[descriptor_offset];
 
     vknvg_bindPipeline(vk, cmdBuffer, &pipelinekey);
-    vknvg_setUniforms(vk, desc1, call->uniformOffset, call->image);
+    vknvg_setUniforms(vk, desc1[descriptor_offset], call->uniformOffset, call->image);
     vkCmdBindDescriptorSets(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, vk->pipelineLayout, 0, 1, &set1, 0, nullptr);
 
     const VkDeviceSize offsets[1] = { call->triangleOffset * sizeof(NVGvertex) };
@@ -1702,51 +1680,32 @@ static void vknvg_renderFlush(VulkanContext& ctx, void* uptr)
         vknvg_UpdateBuffer(device, allocator, &vk->vertUniformBuffer[currentFrame], memoryProperties, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, flags, vk->view, sizeof(vk->view));
         vk->currentPipeline = nullptr;
 
-        /*
-        if (vk->ncalls > vk->cdescPool)
+        desc1.resize(vk->ncalls);
+        desc2.resize(vk->ncalls);
+        for (int i = 0; i < vk->ncalls; i++)
         {
-            vkDestroyDescriptorPool(device, vk->descPool, allocator);
-            vk->descPool = vknvg_createDescriptorPool(device, vk->ncalls * vk->createInfo.swapchainImageCount, allocator);
-
-            VkDescriptorSetAllocateInfo alloc_info[1] = {
-                { VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO, nullptr, vk->descPool, 1, &vk->descLayout },
-            };
-
-           vk->uniformDescriptorSet1 = (VkDescriptorSet*)calloc(vk->ncalls * vk->createInfo.swapchainImageCount, sizeof(VkDescriptorSet));
-            vk->uniformDescriptorSet2 = (VkDescriptorSet*)calloc(vk->ncalls * vk->createInfo.swapchainImageCount, sizeof(VkDescriptorSet));
-
-            for (i = 0; i < vk->ncalls * vk->createInfo.swapchainImageCount; i++)
-            {
-                descriptor_allocate(ctx, descriptor_get_cache(ctx), &vk->uniformDescriptorSet1, alloc_info->pSetLayouts, layout);
-                descriptor_allocate(ctx, descriptor_get_cache(ctx), &vk->uniformDescriptorSet2, layout);
-
-                //NVGVK_CHECK_RESULT(vkAllocateDescriptorSets(device, alloc_info, &vk->uniformDescriptorSet1[i]))
-                //NVGVK_CHECK_RESULT(vkAllocateDescriptorSets(device, alloc_info, &vk->uniformDescriptorSet2[i]))
-            }
-
-            vk->cdescPool = vk->ncalls;
+            descriptor_allocate(ctx, descriptor_get_cache(ctx), &desc1[i], vk->descLayout);
+            descriptor_allocate(ctx, descriptor_get_cache(ctx), &desc2[i], vk->descLayout);
         }
-        */
 
-        // uint32_t descriptor_offset = vk->cdescPool * currentFrame; // ensure descriptor sets dont clash
         for (i = 0; i < vk->ncalls; i++)
         {
             VKNVGcall* call = &vk->calls[i];
             if (call->type == VKNVG_FILL)
             {
-                vknvg_fill(ctx, vk, call);
+                vknvg_fill(ctx, vk, call, i);
             }
             else if (call->type == VKNVG_CONVEXFILL)
             {
-                vknvg_convexFill(ctx, vk, call);
+                vknvg_convexFill(ctx, vk, call, i);
             }
             else if (call->type == VKNVG_STROKE)
             {
-                vknvg_stroke(ctx, vk, call);
+                vknvg_stroke(ctx, vk, call, i);
             }
             else if (call->type == VKNVG_TRIANGLES)
             {
-                vknvg_triangles(ctx, vk, call);
+                vknvg_triangles(ctx, vk, call, i);
             }
         }
 

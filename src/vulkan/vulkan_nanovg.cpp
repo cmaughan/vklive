@@ -1,26 +1,3 @@
-/*#include <filesystem>
-
-#include <zest/file/file.h>
-#include <zest/file/runtree.h>
-#include <zest/logger/logger.h>
-#include <zest/time/timer.h>
-
-#include "vklive/vulkan/vulkan_command.h"
-#include "vklive/vulkan/vulkan_context.h"
-#include "vklive/vulkan/vulkan_framebuffer.h"
-#include "vklive/vulkan/vulkan_imgui.h"
-#include "vklive/vulkan/vulkan_render.h"
-#include "vklive/vulkan/vulkan_scene.h"
-#include "vklive/vulkan/vulkan_utils.h"
-
-#include "imgui_impl_sdl2.h"
-
-#include "config_app.h"
-
-#include <vklive/process/process.h>
-#include <vklive/vulkan/vulkan_imgui_texture.h>
-#include <vklive/vulkan/vulkan_shader.h>
-*/
 #define NANOVG_VULKAN_IMPLEMENTATION
 #include <vklive/vulkan/nanovg_vk.h>
 #include <vklive/vulkan/vulkan_buffer.h>

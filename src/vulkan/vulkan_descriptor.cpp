@@ -96,7 +96,7 @@ void descriptor_reset_pools(VulkanContext& ctx, DescriptorCache& cache)
     cache.currentPool = VK_NULL_HANDLE;
 }
 
-bool descriptor_allocate(VulkanContext& ctx, DescriptorCache& cache, vk::DescriptorSet* set, vk::DescriptorSetLayout layout)
+bool descriptor_allocate(VulkanContext& ctx, DescriptorCache& cache, vk::DescriptorSet* set, vk::DescriptorSetLayout layout, uint32_t numSets)
 {
     if (!cache.currentPool)
     {
@@ -109,7 +109,7 @@ bool descriptor_allocate(VulkanContext& ctx, DescriptorCache& cache, vk::Descrip
 
     allocInfo.pSetLayouts = &layout;
     allocInfo.descriptorPool = cache.currentPool;
-    allocInfo.descriptorSetCount = 1;
+    allocInfo.descriptorSetCount = numSets;
 
     vk::Result allocResult = ctx.device.allocateDescriptorSets(&allocInfo, set);
     bool needReallocate = false;
@@ -137,6 +137,7 @@ bool descriptor_allocate(VulkanContext& ctx, DescriptorCache& cache, vk::Descrip
         cache.currentPool = grab_pool(ctx, cache);
         cache.usedPools.push_back(cache.currentPool);
 
+        allocInfo.descriptorPool = cache.currentPool;
         allocResult = ctx.device.allocateDescriptorSets(&allocInfo, set);
 
         // if it still fails then we have big issues
