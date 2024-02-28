@@ -5,5 +5,5 @@ mkdir build_llvm > nul
 cd build_llvm
 cmake -G "Ninja" -DCMAKE_EXPORT_COMPILE_COMMANDS=1 ..\
 cd "%CURRENT_DIR%"
-copy build_llvm\compile_com* build
 
+ln -srfv build_llvm/compile_commands.json compile_commands.json
