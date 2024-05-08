@@ -50,7 +50,7 @@ find_path(TSL_ORDERED_MAP_INCLUDE_DIRS "tsl/ordered_hash.h")
 find_package(lodepng CONFIG REQUIRED)
 
 # Set this if we are sitting on SDL
-add_definitions(-DZEP_USE_SDL)
+add_definitions(-DZEP_USE_SDL -DGLM_ENABLE_EXPERIMENTAL)
 
 # Vulkan can use dynamic dispatch extensions
 add_definitions(-DVULKAN_HPP_DISPATCH_LOADER_DYNAMIC=1)

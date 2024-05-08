@@ -5,7 +5,6 @@
 #include <string>
 #include <vector>
 
-#define GLM_ENABLE_EXPERIMENTAL
 #include <glm/gtx/hash.hpp>
 
 #include <zest/file/file.h>

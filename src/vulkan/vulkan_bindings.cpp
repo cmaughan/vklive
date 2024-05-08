@@ -1,8 +1,7 @@
 #include <fmt/format.h>
 
-#define SPIRV_REFLECT_USE_SYSTEM_SPIRV_H
-#include <spirv_reflect.h>
-
+//#define SPIRV_REFLECT_USE_SYSTEM_SPIRV_H
+#include <spirv-reflect/spirv_reflect.h> 
 #include "config_app.h"
 
 #include <zest/logger/logger.h>

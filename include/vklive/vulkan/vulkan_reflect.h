@@ -1,8 +1,8 @@
 #ifndef SPIRV_REFLECT_OUTPUT_STREAM_H
 #define SPIRV_REFLECT_OUTPUT_STREAM_H
 
-#define SPIRV_REFLECT_USE_SYSTEM_SPIRV_H
-#include "spirv_reflect.h"
+//#define SPIRV_REFLECT_USE_SYSTEM_SPIRV_H
+#include <spirv-reflect/spirv_reflect.h>
 #include <map>
 #include <ostream>
 #include <string>
