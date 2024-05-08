@@ -1,5 +1,6 @@
 {
     "files.associations": {
         "sstream": "cpp"
-    }
+    },
+    "dotnet.defaultSolution": "disable"
 }

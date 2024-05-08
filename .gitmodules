@@ -4,12 +4,12 @@
 [submodule "vcpkg"]
 	path = vcpkg
 	url = https://github.com/Microsoft/vcpkg.git
-[submodule "external/zing"]
-	path = external/zing
+[submodule "libs/zing"]
+	path = libs/zing
 	url = https://github.com/Rezonality/zing
-[submodule "external/rccp"]
-	path = external/rccp
+[submodule "libs/rccp"]
+	path = libs/rccp
 	url = https://github.com/RuntimeCompiledCPlusPlus/RuntimeCompiledCPlusPlus
-[submodule "external/nanovg_vulkan"]
-	path = external/nanovg_vulkan
+[submodule "libs/nanovg_vulkan"]
+	path = libs/nanovg_vulkan
 	url = https://github.com/danilw/nanovg_vulkan.git

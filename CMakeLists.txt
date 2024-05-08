@@ -68,7 +68,7 @@ endif()
 set(ZING_LIBRARY_ONLY ON)
 set(ZEST_BUILD_TESTS OFF)
 add_definitions(-DIMGUI_DISABLE_INCLUDE_IMCONFIG_H)
-add_subdirectory(external/zing)
+add_subdirectory(libs/zing)
 
 # Set this to use a lib instead of the single header build
 set (ZEP_LIB 1)
