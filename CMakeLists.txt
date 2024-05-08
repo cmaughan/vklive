@@ -131,7 +131,7 @@ set(VULKAN_SOURCES
     include/vklive/vulkan/nanovg_vk.h
 )
 
-set(EXTERNAL_DIR external)
+set(EXTERNAL_DIR libs)
 
 set(CLIP_SOURCE
     ${EXTERNAL_DIR}/clip/clip.cpp
@@ -163,7 +163,7 @@ set(VK_SOURCES
     src/validation.cpp
     src/python_scripting.cpp
 
-    external/mpc/mpc.c
+    libs/mpc/mpc.c
 
     include/vklive/IDevice.h
     include/vklive/camera.h
@@ -203,7 +203,7 @@ set(APP_SOURCES
     app/include/app/window_targets.h
 )
 
-set_source_files_properties (external/mpc/mpc.c PROPERTIES SKIP_PRECOMPILE_HEADERS 1)
+set_source_files_properties (libs/mpc/mpc.c PROPERTIES SKIP_PRECOMPILE_HEADERS 1)
 set_source_files_properties (src/python_scripting.cpp PROPERTIES SKIP_PRECOMPILE_HEADERS 1)
 
 
@@ -243,7 +243,7 @@ target_include_directories(vklive
         ${CMAKE_CURRENT_LIST_DIR}/include
     PRIVATE
         ${CMAKE_BINARY_DIR}
-        ${CMAKE_CURRENT_SOURCE_DIR}/external
+        ${CMAKE_CURRENT_SOURCE_DIR}/libs
         ${TSL_ORDERED_MAP_INCLUDE_DIRS}
     )
 
@@ -261,7 +261,7 @@ target_include_directories(Rezonality
     ${CMAKE_BINARY_DIR}
     ${CMAKE_CURRENT_SOURCE_DIR}/zep/include
     ${CMAKE_CURRENT_LIST_DIR}/app/include
-    ${CMAKE_CURRENT_LIST_DIR}/external
+    ${CMAKE_CURRENT_LIST_DIR}/libs
     ${STB_INCLUDE_DIRS}
     )
 
@@ -275,7 +275,7 @@ target_link_libraries(Rezonality
         unofficial::concurrentqueue::concurrentqueue
         clipp::clipp
         unofficial::nativefiledialog::nfd
-        unofficial::spirv-reflect::spirv-reflect
+        unofficial::spirv-reflect
         gli
         Zing::Zing
     )
