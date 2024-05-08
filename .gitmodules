@@ -1,15 +1,20 @@
 [submodule "zep"]
 	path = zep
 	url = https://github.com/Rezonality/zep
+	branch = master
 [submodule "vcpkg"]
 	path = vcpkg
 	url = https://github.com/Microsoft/vcpkg.git
+	branch = master
 [submodule "libs/zing"]
 	path = libs/zing
 	url = https://github.com/Rezonality/zing
+	branch = main
 [submodule "libs/rccp"]
 	path = libs/rccp
 	url = https://github.com/RuntimeCompiledCPlusPlus/RuntimeCompiledCPlusPlus
+	branch = master
 [submodule "libs/nanovg_vulkan"]
 	path = libs/nanovg_vulkan
 	url = https://github.com/danilw/nanovg_vulkan.git
+	branch = master
