@@ -61,7 +61,7 @@ bool context_init(VulkanContext& ctx)
     vk::InstanceCreateFlags flags;
 
     // initialize the vk::ApplicationInfo structure
-    vk::ApplicationInfo applicationInfo(AppName.c_str(), 1, EngineName.c_str(), 1, VK_API_VERSION_1_2);
+    vk::ApplicationInfo applicationInfo(AppName.c_str(), 1, EngineName.c_str(), 1, VK_API_VERSION_1_3);
 
 #ifdef __APPLE__
     flags |= vk::InstanceCreateFlagBits::eEnumeratePortabilityKHR;
@@ -130,6 +130,8 @@ bool context_init(VulkanContext& ctx)
     // Required by VK_KHR_spirv_1_4
     ctx.requestedDeviceExtensions.push_back(VK_KHR_SHADER_FLOAT_CONTROLS_EXTENSION_NAME);
 
+    ctx.requestedDeviceExtensions.push_back(VK_KHR_DYNAMIC_RENDERING_EXTENSION_NAME);
+
     //ctx.requestedDeviceExtensions.push_back(VK_BUFFER_DEVICE_ADDRESS_EXTENSION_NAME);
     ctx.physicalDevice.getMemoryProperties(&ctx.memoryProperties);
     ctx.graphicsQueue = utils_find_queue(ctx, vk::QueueFlagBits::eGraphics);
@@ -146,6 +148,10 @@ bool context_init(VulkanContext& ctx)
     vk::PhysicalDeviceBufferDeviceAddressFeatures bufferDeviceAddressFeatures;
     bufferDeviceAddressFeatures.bufferDeviceAddress = true;
 
+    vk::PhysicalDeviceDynamicRenderingFeatures dynamicRender;
+    dynamicRender.setDynamicRendering(true);
+
+    rayTracingAccel.pNext = &dynamicRender;
     rayTracing.pNext = &rayTracingAccel;
     bufferDeviceAddressFeatures.pNext = &rayTracing;
 
