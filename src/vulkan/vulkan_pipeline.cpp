@@ -97,7 +97,8 @@ vk::Pipeline vulkan_pipeline_create(VulkanContext& ctx, const VertexLayout& vert
         info.pColorBlendState = &blend_info;
         info.pDynamicState = &dynamic_state;
         info.layout = layout;
-        info.renderPass = passTargets.renderPass;
+        //info.renderPass = passTargets.renderPass;
+        info.renderPass = nullptr;
         info.subpass = 0;
         return ctx.device.createGraphicsPipelines(ctx.pipelineCache, info).value[0];
     }

@@ -40,13 +40,15 @@ struct VulkanPassTargets
     VulkanPassSwapFrameData* pFrameData = nullptr;
 
     // Framebuffer for these pass targets
-    vk::Framebuffer frameBuffer;
+    //vk::Framebuffer frameBuffer;
 
     // Renderpass for this pass target
     // Note: this is dependent on the surface formats and their access masks, etc.
     // Probably not worth caching?  Just make one for each pass target
     // But this could be cached per access pattern style
-    vk::RenderPass renderPass;
+    //vk::RenderPass renderPass;
+
+    vk::RenderingInfo renderingInfo;
 
     // Debug name for these pass targets
     std::string debugName;

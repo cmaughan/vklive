@@ -14,8 +14,6 @@
 
 #include <tsl/ordered_map.h>
 
-#include "pass.h"
-
 struct Project;
 
 struct PythonModule;

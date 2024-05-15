@@ -4,6 +4,8 @@
 
 namespace vulkan
 {
+
+    /*
 void framebuffer_destroy(VulkanContext& ctx, vk::Framebuffer& frameBuffer)
 {
     ctx.device.destroyFramebuffer(frameBuffer);
@@ -44,4 +46,5 @@ void vulkan_framebuffer_create(VulkanContext& ctx, vk::Framebuffer& frameBuffer,
     fbufCreateInfo.layers = 1;
     frameBuffer = ctx.device.createFramebuffer(fbufCreateInfo);
 }
+*/
 } // namespace vulkan

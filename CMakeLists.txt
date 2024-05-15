@@ -89,7 +89,6 @@ set(VULKAN_SOURCES
     src/vulkan/vulkan_debug.cpp
     src/vulkan/vulkan_descriptor.cpp
     src/vulkan/vulkan_device.cpp
-    src/vulkan/vulkan_framebuffer.cpp
     src/vulkan/vulkan_imgui.cpp
     src/vulkan/vulkan_nanovg.cpp
     src/vulkan/vulkan_imgui_viewports.cpp
@@ -113,7 +112,6 @@ set(VULKAN_SOURCES
     include/vklive/vulkan/vulkan_debug.h
     include/vklive/vulkan/vulkan_descriptor.h
     include/vklive/vulkan/vulkan_device.h
-    include/vklive/vulkan/vulkan_framebuffer.h
     include/vklive/vulkan/vulkan_imgui.h
     include/vklive/vulkan/vulkan_nanovg.h
     include/vklive/vulkan/vulkan_imgui_texture.h
@@ -157,7 +155,6 @@ set(VK_SOURCES
     src/camera.cpp
     #src/imgui/imgui_utils.cpp
     src/model.cpp
-    src/pass.cpp
     src/process/process.cpp
     src/scene.cpp
     src/validation.cpp
@@ -168,7 +165,6 @@ set(VK_SOURCES
     include/vklive/IDevice.h
     include/vklive/camera.h
     include/vklive/model.h
-    include/vklive/pass.h
     include/vklive/process/process.h
     include/vklive/scene.h
     include/vklive/validation.h
@@ -306,6 +302,7 @@ if (APPLE)
         LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
         INCLUDES DESTINATION ${LIBLEGACY_INCLUDE_DIRS})
 else()
+    if (FALSE)
     # Artifacts are seperate, not in the bundle
     install(
         DIRECTORY
@@ -321,6 +318,7 @@ else()
         RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
         INCLUDES DESTINATION ${LIBLEGACY_INCLUDE_DIRS}
         )
+    endif()
 endif()
 
 source_group (vklive//vulkan FILES ${VULKAN_SOURCES})

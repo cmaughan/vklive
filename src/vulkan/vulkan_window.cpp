@@ -414,4 +414,5 @@ void window_create_or_resize(VulkanContext& ctx, VulkanWindow* wd, int width, in
     CreateWindowSwapChain(ctx, wd, width, height);
     CreateWindowCommandBuffers(ctx, wd);
 }
+
 } // namespace vulkan

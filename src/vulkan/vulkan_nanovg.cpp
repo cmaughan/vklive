@@ -42,7 +42,7 @@ void vulkan_nanovg_begin(VulkanContext& ctx, VulkanPass& vulkanPass, vk::Command
     NVGparams* pParams = nvgInternalParams(ctx.vg);
     VKNVGcontext* vk = (VKNVGcontext*)pParams->userPtr;
 
-    vk->createInfo.renderpass = passTargets.renderPass;
+    //vk->createInfo.renderpass = passTargets.renderPass;
     vk->createInfo.cmdBuffer = cmd;
 
     nvgBeginFrame(ctx.vg, (float)passTargets.targetSize.x, (float)passTargets.targetSize.y, 1.0f);

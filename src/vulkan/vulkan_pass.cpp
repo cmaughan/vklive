@@ -59,12 +59,12 @@ void vulkan_pass_destroy(VulkanContext& ctx, VulkanPass& vulkanPass)
         passData.commandPool = nullptr;
 
         // Pass buffers
-        for (auto& [id, target] : passData.passTargets)
+        //for (auto& [id, target] : passData.passTargets)
         {
-            framebuffer_destroy(ctx, target.frameBuffer);
-            target.frameBuffer = nullptr;
-            ctx.device.destroyRenderPass(target.renderPass);
-            target.renderPass = nullptr;
+            //framebuffer_destroy(ctx, target.frameBuffer);
+            //target.frameBuffer = nullptr;
+            //ctx.device.destroyRenderPass(target.renderPass);
+            //target.renderPass = nullptr;
         }
         vulkan_buffer_destroy(ctx, passData.vsUniform);
 
@@ -341,6 +341,7 @@ bool vulkan_pass_check_targets(VulkanContext& ctx, VulkanPassTargets& passTarget
         vulkan_pass_wait(ctx, *passTargets.pFrameData);
 
         // destroy the framebuffer since it depends on renderpass and targets
+        /*
         if (passTargets.frameBuffer)
         {
             // LOG(DBG, "Destroy Framebuffer: " << passTargets.frameBuffer);
@@ -355,6 +356,7 @@ bool vulkan_pass_check_targets(VulkanContext& ctx, VulkanPassTargets& passTarget
             ctx.device.destroyRenderPass(passTargets.renderPass);
             passTargets.renderPass = nullptr;
         }
+        */
 
         // Geom pipe uses the render pass
         if (passTargets.pFrameData && passTargets.pFrameData->pipeline)
@@ -430,6 +432,7 @@ void vulkan_pass_check_samplers(VulkanContext& ctx, VulkanPassTargets& passTarge
     }
 }
 
+/*
 void vulkan_pass_prepare_renderpass(VulkanContext& ctx, VulkanPassTargets& passTargets)
 {
     if (!passTargets.renderPass)
@@ -546,14 +549,46 @@ void vulkan_pass_prepare_renderpass(VulkanContext& ctx, VulkanPassTargets& passT
 
     if (!passTargets.frameBuffer)
     {
+        /*
+        // Add the attachments with the colors first, then the depth?
+        // Target ordering is enforced
+        std::vector<vk::ImageView> attachments;
+        vk::ImageView depthView;
+        for (auto& pTargetData : passTargets.orderedTargets)
+        {
+            if (vulkan_format_is_depth(pTargetData->pVulkanSurface->format))
+            {
+                depthView = pTargetData->pVulkanSurface->view;
+            }
+            else
+            {
+                attachments.emplace_back(pTargetData->pVulkanSurface->view);
+            }
+        }
+
+        if (depthView)
+        {
+            attachments.push_back(depthView);
+        }
+
+        assert(!attachments.empty() && passTargets.targetSize.x != 0 && passTargets.targetSize.y != 0);
+        vk::FramebufferCreateInfo fbufCreateInfo;
+        fbufCreateInfo.renderPass = renderPass;
+        fbufCreateInfo.attachmentCount = (uint32_t)attachments.size();
+        fbufCreateInfo.pAttachments = attachments.data();
+        fbufCreateInfo.width = passTargets.targetSize.x;
+        fbufCreateInfo.height = passTargets.targetSize.y;
+        fbufCreateInfo.layers = 1;
+        frameBuffer = ctx.device.createFramebuffer(fbufCreateInfo);
         vulkan_framebuffer_create(ctx, passTargets.frameBuffer, passTargets, passTargets.renderPass);
 
-        debug_set_framebuffer_name(ctx.device, passTargets.frameBuffer, "FrameBuffer:" + passTargets.debugName);
+        //debug_set_framebuffer_name(ctx.device, passTargets.frameBuffer, "FrameBuffer:" + passTargets.debugName);
     }
 
     // LOG(DBG, "  FrameBuffer: " << passTargets.frameBuffer);
     // LOG(DBG, "  RenderPass: " << passTargets.renderPass);
 }
+*/
 
 void vulkan_pass_dump_targets(VulkanPassTargets& passTargets)
 {
@@ -1211,20 +1246,42 @@ void vulkan_pass_submit(VulkanContext& ctx, VulkanPass& vulkanPass)
     }
 
     // Draw geometry
+    /*
     vk::RenderPassBeginInfo renderPassBeginInfo;
     renderPassBeginInfo.renderPass = passTargets.renderPass;
     renderPassBeginInfo.framebuffer = passTargets.frameBuffer;
-    renderPassBeginInfo.renderArea.extent.width = passTargets.targetSize.x;
-    renderPassBeginInfo.renderArea.extent.height = passTargets.targetSize.y;
+    //   renderPassBeginInfo.renderArea.extent.width = passTargets.targetSize.x;
+    //   renderPassBeginInfo.renderArea.extent.height = passTargets.targetSize.y;
     renderPassBeginInfo.clearValueCount = clearValues.size();
     renderPassBeginInfo.pClearValues = clearValues.data();
+    */
 
-    auto rect = glm::vec2(passTargets.targetSize);
+    /* auto renderingAttachmentInfo = vk::RenderingAttachmentInfo()
+                                       .loadOp(vk::AttachmentLoadOp::eClear)
+                                       .setAttachmentCount(static_cast<uint32_t>(clearValues.size()))
+                                       .setPAttachments(nullptr)
+                                       .setPColorClearValues(clearValues.data())
+                                       .setPDepthStencilClearValue(haveDepth ? &depthClearValue : nullptr);
+                                       */
+
+
+    auto rect = rect2d(passTargets.targetSize.x, passTargets.targetSize.y);
+    auto renderInfo = vk::RenderingInfo()
+                          .setRenderArea(rect)
+                          .setColorAttachments()
+                          .setFlags()
+                          .setLayerCount(1)
+                          .setViewMask()
+                          .setPDepthAttachment()
+
+                    //      .setColorAttachments()
+        
+
     vk::Viewport viewport;
     viewport.x = 0.0f;
     viewport.y = 0.0f;
-    viewport.width = rect.x;
-    viewport.height = rect.y;
+    viewport.width = rect.extent.width;
+    viewport.height = rect.extent.height;
     viewport.minDepth = 0.0f;
     viewport.maxDepth = 1.0f;
 
@@ -1233,9 +1290,10 @@ void vulkan_pass_submit(VulkanContext& ctx, VulkanPass& vulkanPass)
 
     if (passFrameData.pVulkanPass->pass.passType == PassType::Standard)
     {
-        cmd.beginRenderPass(renderPassBeginInfo, vk::SubpassContents::eInline);
+        // cmd.beginRenderPass(renderPassBeginInfo, vk::SubpassContents::eInline);
+        cmd.beginRendering(renderInfo);
         cmd.setViewport(0, viewport);
-        cmd.setScissor(0, rect2d(glm::uvec2(rect.x, rect.y)));
+        cmd.setScissor(0, rect);
         if (!passFrameData.descriptorSets.empty())
         {
             cmd.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, passFrameData.geometryPipelineLayout, 0, passFrameData.descriptorSets, {});
@@ -1259,15 +1317,17 @@ void vulkan_pass_submit(VulkanContext& ctx, VulkanPass& vulkanPass)
             }
         }
 
-        cmd.endRenderPass();
+        // cmd.endRenderPass();
+        cmd.endRendering();
 
         vulkan_pass_make_targets_readable(ctx, passFrameData);
     }
     else if (passFrameData.pVulkanPass->pass.passType == PassType::Scripted)
     {
-        cmd.beginRenderPass(renderPassBeginInfo, vk::SubpassContents::eInline);
+        cmd.beginRendering(renderInfo);
+        // cmd.beginRenderPass(renderPassBeginInfo, vk::SubpassContents::eInline);
         cmd.setViewport(0, viewport);
-        cmd.setScissor(0, rect2d(glm::uvec2(rect.x, rect.y)));
+        cmd.setScissor(0, rect);
         /* if (!passFrameData.descriptorSets.empty())
         {
             cmd.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, passFrameData.geometryPipelineLayout, 0, passFrameData.descriptorSets, {});
@@ -1298,7 +1358,8 @@ void vulkan_pass_submit(VulkanContext& ctx, VulkanPass& vulkanPass)
             vulkan_nanovg_end(ctx);
         }
 
-        cmd.endRenderPass();
+        // cmd.endRenderPass();
+        cmd.endRendering();
 
         vulkan_pass_make_targets_readable(ctx, passFrameData);
     }
@@ -1396,7 +1457,7 @@ bool vulkan_pass_draw(VulkanContext& ctx, VulkanPass& vulkanPass)
     vulkan_pass_prepare_surfaces(ctx, passFrameData);
 
     // Renderpasses
-    vulkan_pass_prepare_renderpass(ctx, passTargets);
+    //vulkan_pass_prepare_renderpass(ctx, passTargets);
 
     // Uniform buffers
     vulkan_pass_prepare_uniforms(ctx, vulkanPass);
