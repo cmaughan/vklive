@@ -2,9 +2,9 @@
 #include <zest/logger/logger.h>
 
 #include <lodepng.h>
-       
-//#define STB_IMAGE_WRITE_IMPLEMENTATION
-//#include <stb_image_write.h>
+
+// #define STB_IMAGE_WRITE_IMPLEMENTATION
+// #include <stb_image_write.h>
 
 #include <fstream>
 
@@ -19,9 +19,9 @@
 #include "vklive/vulkan/vulkan_uniform.h"
 #include "vklive/vulkan/vulkan_utils.h"
 
+#include "zest/imgui/imgui.h"
 #include <zest/thread/threadpool.h>
 #include <zest/time/profiler.h>
-#include "zest/imgui/imgui.h"
 
 namespace vulkan
 {
@@ -124,15 +124,14 @@ void render_write_output(VulkanContext& ctx, Scene& scene, const fs::path& path)
 
         glm::uvec2 origin = glm::uvec2(scene.targetViewport.x, scene.targetViewport.y);
         auto sz = glm::uvec2(scene.targetViewport.z - scene.targetViewport.x, scene.targetViewport.w - scene.targetViewport.y);
-        //auto sz = pDefaultTargetSurface->pSurface->currentSize;
+        // auto sz = pDefaultTargetSurface->pSurface->currentSize;
         {
             PROFILE_SCOPE(image_upload);
             utils_with_command_buffer(ctx, [&](vk::CommandBuffer copyCmd) {
                 debug_set_commandbuffer_name(ctx.device, copyCmd, "Buffer::ImageUpload");
 
-
-                surface_set_layout(ctx, copyCmd, pSwapSurface->image, vk::ImageLayout::eUndefined, vk::ImageLayout::eTransferSrcOptimal);
-                surface_set_layout(ctx, copyCmd, pDefaultTargetSurface->uploadImage, vk::ImageLayout::eUndefined, vk::ImageLayout::eTransferDstOptimal);
+                surface_set_layout(ctx, copyCmd, *pSwapSurface, vk::ImageAspectFlagBits::eColor, vk::ImageLayout::eUndefined, vk::ImageLayout::eTransferSrcOptimal);
+                surface_set_layout(ctx, copyCmd, *pDefaultTargetSurface, vk::ImageAspectFlagBits::eColor, vk::ImageLayout::eUndefined, vk::ImageLayout::eTransferDstOptimal, VulkanSurfaceLayoutFlags::UploadImage);
                 if (pDefaultTargetSurface->isBlitUpload)
                 {
                     vk::ImageBlit blitRegion(
@@ -153,7 +152,7 @@ void render_write_output(VulkanContext& ctx, Scene& scene, const fs::path& path)
                         { sz.x, sz.y, 1 });
                     copyCmd.copyImage(pSwapSurface->image, vk::ImageLayout::eTransferSrcOptimal, pDefaultTargetSurface->uploadImage, vk::ImageLayout::eTransferDstOptimal, copyRegion);
                 }
-                surface_set_layout(ctx, copyCmd, pSwapSurface->image, vk::ImageLayout::eUndefined, vk::ImageLayout::ePresentSrcKHR);
+                surface_set_layout(ctx, copyCmd, *pSwapSurface, vk::ImageAspectFlagBits::eColor, vk::ImageLayout::eUndefined, vk::ImageLayout::ePresentSrcKHR);
             });
         }
 
@@ -179,7 +178,7 @@ void render_write_output(VulkanContext& ctx, Scene& scene, const fs::path& path)
 
         auto pSrc = (char*)malloc(subResourceLayout.rowPitch * sz.y);
         memcpy(pSrc, pMem, subResourceLayout.rowPitch * sz.y);
-            
+
         ctx.device.unmapMemory(pDefaultTargetSurface->uploadMemory);
 
         threadPool.enqueue([=]() {
@@ -209,7 +208,7 @@ void render_write_output(VulkanContext& ctx, Scene& scene, const fs::path& path)
                     row++;
                 }
             }
-            
+
             auto fileName = path / fmt::format("Frame_{:05}.png", scene.GlobalFrameCount);
             lodepng::encode(fileName.string(), (const unsigned char*)image.data(), sz.x, sz.y, LCT_RGB);
 

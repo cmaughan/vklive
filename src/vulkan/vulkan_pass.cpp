@@ -58,14 +58,6 @@ void vulkan_pass_destroy(VulkanContext& ctx, VulkanPass& vulkanPass)
         ctx.device.destroyCommandPool(passData.commandPool);
         passData.commandPool = nullptr;
 
-        // Pass buffers
-        // for (auto& [id, target] : passData.passTargets)
-        {
-            // framebuffer_destroy(ctx, target.frameBuffer);
-            // target.frameBuffer = nullptr;
-            // ctx.device.destroyRenderPass(target.renderPass);
-            // target.renderPass = nullptr;
-        }
         vulkan_buffer_destroy(ctx, passData.vsUniform);
 
         vulkan_buffer_destroy(ctx, passData.rayGenBindingTable);
@@ -318,17 +310,6 @@ bool vulkan_pass_check_targets(VulkanContext& ctx, VulkanPassTargets& passTarget
         }
     }
 
-    /* if (!checkSize(passTargets.depth, size))
-    {
-        return false;
-    }
-
-    if (checkForChanges(passTargets.depth))
-    {
-        diff = true;
-    }
-    */
-
     // If our pass targets have changed size, then we need to clean up the framebuffer, renderpass and geom pipe
     // TODO: This only handles resizes, not recreation?...
     if (diff)
@@ -339,24 +320,6 @@ bool vulkan_pass_check_targets(VulkanContext& ctx, VulkanPassTargets& passTarget
         // Note that a previous pass may have changed targets, even if this one didn't.  So we need
         // to update our state here
         vulkan_pass_wait(ctx, *passTargets.pFrameData);
-
-        // destroy the framebuffer since it depends on renderpass and targets
-        /*
-        if (passTargets.frameBuffer)
-        {
-            // LOG(DBG, "Destroy Framebuffer: " << passTargets.frameBuffer);
-            framebuffer_destroy(ctx, passTargets.frameBuffer);
-            passTargets.frameBuffer = nullptr;
-        }
-
-        // Renderpass has the framebuffer, which we had to recreate, so recreate render pass
-        if (passTargets.renderPass)
-        {
-            // LOG(DBG, "Destroy RenderPass: " << passTargets.renderPass);
-            ctx.device.destroyRenderPass(passTargets.renderPass);
-            passTargets.renderPass = nullptr;
-        }
-        */
 
         // Geom pipe uses the render pass
         if (passTargets.pFrameData && passTargets.pFrameData->pipeline)
@@ -439,27 +402,34 @@ void vulkan_pass_prepare_attachments(VulkanContext& ctx, VulkanPass& vulkanPass,
 
     passTargets.colorAttachments.clear();
     passTargets.depthAttachment.reset();
+    passTargets.depthFormat = vk::Format::eUndefined;
+    passTargets.colorFormats.clear();
 
     for (auto& pTargetData : passTargets.orderedTargets)
     {
         vk::RenderingAttachmentInfo attachment;
         attachment.imageView = pTargetData->pVulkanSurface->view;
-        attachment.imageLayout = vk::ImageLayout::eColorAttachmentOptimal;
 
-        attachment.loadOp = passTargets.pFrameData->pVulkanPass->pass.hasClear ? vk::AttachmentLoadOp::eClear : vk::AttachmentLoadOp::eDontCare;
+        attachment.loadOp = passTargets.pFrameData->pVulkanPass->pass.hasClear ? vk::AttachmentLoadOp::eClear : vk::AttachmentLoadOp::eLoad;
         attachment.storeOp = vk::AttachmentStoreOp::eStore;
 
         // Finally add the attachment
         if (vulkan_format_is_depth(pTargetData->pVulkanSurface->format))
         {
+            attachment.loadOp = vk::AttachmentLoadOp::eClear;
             attachment.clearValue = vk::ClearDepthStencilValue{ 1.0f, 0 };
+            attachment.imageLayout = vk::ImageLayout::eDepthAttachmentOptimal;
+            
             passTargets.depthAttachment = attachment;
-
+            passTargets.depthFormat = pTargetData->pVulkanSurface->format;
         }
         else
         {
             attachment.clearValue = clear_color(vulkanPass.pass.clearColor);
+            attachment.imageLayout = vk::ImageLayout::eColorAttachmentOptimal;
+
             passTargets.colorAttachments.push_back(attachment);
+            passTargets.colorFormats.push_back(pTargetData->pVulkanSurface->format);
         }
     }
 }
@@ -530,7 +500,18 @@ void vulkan_pass_prepare_targets(VulkanContext& ctx, VulkanPassSwapFrameData& pa
 
         if (targetData.pVulkanSurface->pSurface->isRayTarget)
         {
-            surface_set_layout(ctx, passFrameData.commandBuffer, targetData.pVulkanSurface->image, vk::ImageLayout::eUndefined, vk::ImageLayout::eGeneral);
+            surface_set_layout(ctx, passFrameData.commandBuffer, *targetData.pVulkanSurface, vk::ImageAspectFlagBits::eColor, vk::ImageLayout::eUndefined, vk::ImageLayout::eGeneral);
+        }
+        else
+        {
+            if (vulkan_format_is_depth(targetData.pVulkanSurface->format))
+            {
+                surface_set_layout(ctx, passFrameData.commandBuffer, *targetData.pVulkanSurface, vk::ImageAspectFlagBits::eDepth, vk::ImageLayout::eUndefined, vk::ImageLayout::eDepthAttachmentOptimal);
+            }
+            else
+            {
+                surface_set_layout(ctx, passFrameData.commandBuffer, *targetData.pVulkanSurface, vk::ImageAspectFlagBits::eColor, vk::ImageLayout::eUndefined, vk::ImageLayout::eColorAttachmentOptimal);
+            }
         }
         vulkanPassTargets.orderedTargets.push_back(&targetData);
     }
@@ -1063,7 +1044,7 @@ void vulkan_pass_transition_samplers(VulkanContext& ctx, VulkanPassSwapFrameData
 
         if (pVulkanSurface && pVulkanSurface->image)
         {
-            surface_set_layout(ctx, passFrameData.commandBuffer, pVulkanSurface->image, vk::ImageLayout::eUndefined, vk::ImageLayout::eShaderReadOnlyOptimal);
+            surface_set_layout(ctx, passFrameData.commandBuffer, *pVulkanSurface, vk::ImageAspectFlagBits::eColor, vk::ImageLayout::eUndefined, vk::ImageLayout::eShaderReadOnlyOptimal);
         }
     }
 }
@@ -1082,7 +1063,7 @@ void vulkan_pass_make_targets_readable(VulkanContext& ctx, VulkanPassSwapFrameDa
         {
             if (!vulkan_format_is_depth(pTarget->pVulkanSurface->format))
             {
-                surface_set_layout(ctx, passFrameData.commandBuffer, pTarget->pVulkanSurface->image, vk::ImageLayout::eUndefined, vk::ImageLayout::eShaderReadOnlyOptimal);
+                surface_set_layout(ctx, passFrameData.commandBuffer, *pTarget->pVulkanSurface, vk::ImageAspectFlagBits::eColor, vk::ImageLayout::eUndefined, vk::ImageLayout::eShaderReadOnlyOptimal);
             }
         }
     }

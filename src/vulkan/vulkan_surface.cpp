@@ -87,7 +87,7 @@ void vulkan_surface_create_upload_image_internal(VulkanContext& ctx, VulkanSurfa
         ctx.device.destroyImage(vulkanSurface.uploadImage);
         vulkanSurface.uploadImage = nullptr;
     }
-    
+
     vk::ImageCreateInfo createInfo;
     createInfo.imageType = vk::ImageType::e2D;
     createInfo.extent.width = size.x;
@@ -97,8 +97,9 @@ void vulkan_surface_create_upload_image_internal(VulkanContext& ctx, VulkanSurfa
     createInfo.arrayLayers = 1;
     createInfo.samples = vk::SampleCountFlagBits::e1;
     createInfo.tiling = vk::ImageTiling::eLinear;
-    createInfo.usage = vk::ImageUsageFlagBits::eTransferDst ;
+    createInfo.usage = vk::ImageUsageFlagBits::eTransferDst;
     createInfo.format = vk::Format::eR8G8B8A8Unorm;
+    createInfo.pNext = nullptr;
 
     vulkanSurface.uploadImage = ctx.device.createImage(createInfo);
     debug_set_image_name(ctx.device, vulkanSurface.uploadImage, "Upload_Image");
@@ -134,6 +135,7 @@ void vulkan_surface_create(VulkanContext& ctx, VulkanSurface& vulkanSurface, con
         image.usage |= vk::ImageUsageFlagBits::eStorage;
     }
     image.format = colorFormat;
+    image.pNext = nullptr;
 
     auto memFlags = vk::MemoryPropertyFlagBits::eDeviceLocal;
     vulkan_surface_create_image_internal(ctx, vulkanSurface, image, memFlags);
@@ -143,8 +145,7 @@ void vulkan_surface_create(VulkanContext& ctx, VulkanSurface& vulkanSurface, con
         vulkan_surface_create_upload_image_internal(ctx, vulkanSurface, size);
 
         auto formatProperties = ctx.physicalDevice.getFormatProperties(colorFormat);
-        if ((formatProperties.optimalTilingFeatures & vk::FormatFeatureFlagBits::eBlitSrc) && 
-            (formatProperties.linearTilingFeatures & vk::FormatFeatureFlagBits::eBlitDst))
+        if ((formatProperties.optimalTilingFeatures & vk::FormatFeatureFlagBits::eBlitSrc) && (formatProperties.linearTilingFeatures & vk::FormatFeatureFlagBits::eBlitDst))
         {
             vulkanSurface.isBlitUpload = true;
         }
@@ -189,6 +190,7 @@ void vulkan_surface_create_depth(VulkanContext& ctx, VulkanSurface& vulkanSurfac
     image.tiling = vk::ImageTiling::eOptimal;
     image.format = depthFormat;
     image.usage = vk::ImageUsageFlagBits::eDepthStencilAttachment | depthUsage;
+    image.pNext = nullptr;
 
     vulkan_surface_create_image_internal(ctx, vulkanSurface, image, vk::MemoryPropertyFlagBits::eDeviceLocal);
 
@@ -242,45 +244,43 @@ void surface_set_sampling(VulkanContext& ctx, VulkanSurface& surface)
 // Create an image memory barrier for changing the layout of
 // an image and put it into an active command buffer
 // See chapter 11.4 "vk::Image Layout" for details
-void surface_set_layout(VulkanContext& ctx, vk::CommandBuffer cmdbuffer, vk::Image image, vk::ImageLayout oldImageLayout, vk::ImageLayout newImageLayout, vk::ImageSubresourceRange subresourceRange)
+void surface_set_layout(VulkanContext& ctx, vk::CommandBuffer cmdbuffer, VulkanSurface& vulkanSurface, vk::ImageAspectFlags aspectMask, vk::ImageLayout oldImageLayout, vk::ImageLayout newImageLayout, vk::ImageSubresourceRange subresourceRange, const VulkanSurfaceLayoutFlags& flags)
 {
+    LOG(DBG, "SetLayout: " << vulkanSurface << ", to: " << to_string(newImageLayout));
+
     // Create an image barrier object
     vk::ImageMemoryBarrier imageMemoryBarrier;
     imageMemoryBarrier.oldLayout = oldImageLayout;
     imageMemoryBarrier.newLayout = newImageLayout;
-    imageMemoryBarrier.image = image;
+    imageMemoryBarrier.image = (flags == VulkanSurfaceLayoutFlags::Image) ? vulkanSurface.image : vulkanSurface.uploadImage;
     imageMemoryBarrier.subresourceRange = subresourceRange;
     imageMemoryBarrier.srcAccessMask = utils_access_flags_for_layout(oldImageLayout);
     imageMemoryBarrier.dstAccessMask = utils_access_flags_for_layout(newImageLayout);
     vk::PipelineStageFlags srcStageMask = utils_pipeline_stage_flags_for_layout(oldImageLayout);
     vk::PipelineStageFlags destStageMask = utils_pipeline_stage_flags_for_layout(newImageLayout);
+
     // Put barrier on top
     // Put barrier inside setup command buffer
     cmdbuffer.pipelineBarrier(srcStageMask, destStageMask, vk::DependencyFlags(), nullptr, nullptr, imageMemoryBarrier);
 }
 
 // Fixed sub resource on first mip level and layer
-void surface_set_layout(VulkanContext& ctx, vk::CommandBuffer cmdbuffer, vk::Image image, vk::ImageLayout oldImageLayout, vk::ImageLayout newImageLayout)
-{
-    surface_set_layout(ctx, cmdbuffer, image, vk::ImageAspectFlagBits::eColor, oldImageLayout, newImageLayout);
-}
-
-// Fixed sub resource on first mip level and layer
-void surface_set_layout(VulkanContext& ctx, vk::CommandBuffer cmdbuffer, vk::Image image, vk::ImageAspectFlags aspectMask, vk::ImageLayout oldImageLayout, vk::ImageLayout newImageLayout)
+void surface_set_layout(VulkanContext& ctx, vk::CommandBuffer cmdbuffer, VulkanSurface& vulkanSurface, vk::ImageAspectFlags aspectMask, vk::ImageLayout oldImageLayout, vk::ImageLayout newImageLayout, const VulkanSurfaceLayoutFlags& flags)
 {
     vk::ImageSubresourceRange subresourceRange;
     subresourceRange.aspectMask = aspectMask;
     subresourceRange.levelCount = 1;
     subresourceRange.layerCount = 1;
-    surface_set_layout(ctx, cmdbuffer, image, oldImageLayout, newImageLayout, subresourceRange);
+    surface_set_layout(ctx, cmdbuffer, vulkanSurface, aspectMask, oldImageLayout, newImageLayout, subresourceRange);
 }
 
-void surface_set_layout(VulkanContext& ctx, vk::Image image, vk::ImageLayout oldImageLayout, vk::ImageLayout newImageLayout, vk::ImageSubresourceRange subresourceRange)
+/*
+void surface_set_layout(VulkanContext& ctx, vk::Image image, vk::ImageAspectFlags aspectMask, vk::ImageLayout oldImageLayout, vk::ImageLayout newImageLayout, vk::ImageSubresourceRange subresourceRange)
 {
     LOG(DBG, "Surface Set Layout");
     utils_with_command_buffer(ctx, [&](const auto& commandBuffer) {
         debug_set_commandbuffer_name(ctx.device, commandBuffer, "Buffer::ImageSetLayout");
-        surface_set_layout(ctx, commandBuffer, image, oldImageLayout, newImageLayout, subresourceRange);
+        surface_set_layout(ctx, commandBuffer, image, aspectMask, oldImageLayout, newImageLayout, subresourceRange);
     });
 }
 
@@ -293,6 +293,7 @@ void surface_set_layout(VulkanContext& ctx, vk::Image image, vk::ImageAspectFlag
         surface_set_layout(ctx, commandBuffer, image, aspectMask, oldImageLayout, newImageLayout);
     });
 }
+*/
 
 void surface_stage_to_device(VulkanContext& ctx, VulkanSurface& surface, vk::ImageCreateInfo imageCreateInfo, const vk::MemoryPropertyFlags& memoryPropertyFlags, vk::DeviceSize size, const void* data, const std::vector<MipData>& mipData, const vk::ImageLayout layout)
 {
@@ -309,7 +310,7 @@ void surface_stage_to_device(VulkanContext& ctx, VulkanSurface& surface, vk::Ima
         vk::ImageSubresourceRange range(vk::ImageAspectFlagBits::eColor, 0, imageCreateInfo.mipLevels, 0, 1);
 
         // Prepare for transfer
-        surface_set_layout(ctx, copyCmd, surface.image, vk::ImageLayout::eUndefined, vk::ImageLayout::eTransferDstOptimal, range);
+        surface_set_layout(ctx, copyCmd, surface, vk::ImageAspectFlagBits::eColor, vk::ImageLayout::eUndefined, vk::ImageLayout::eTransferDstOptimal, range);
 
         // Prepare for transfer
         std::vector<vk::BufferImageCopy> bufferCopyRegions;
@@ -335,7 +336,7 @@ void surface_stage_to_device(VulkanContext& ctx, VulkanSurface& surface, vk::Ima
         }
         copyCmd.copyBufferToImage(staging.buffer, surface.image, vk::ImageLayout::eTransferDstOptimal, bufferCopyRegions);
         // Prepare for shader read
-        surface_set_layout(ctx, copyCmd, surface.image, vk::ImageLayout::eTransferDstOptimal, layout, range);
+        surface_set_layout(ctx, copyCmd, surface, vk::ImageAspectFlagBits::eColor, vk::ImageLayout::eTransferDstOptimal, layout, range);
     });
     vulkan_buffer_destroy(ctx, staging);
 }
@@ -382,6 +383,7 @@ bool surface_create_from_memory(VulkanContext& ctx, VulkanSurface& vulkanSurface
         imageCreateInfo.arrayLayers = 1;
         imageCreateInfo.extent = vulkanSurface.extent;
         imageCreateInfo.usage = imageUsageFlags | vk::ImageUsageFlagBits::eTransferDst;
+        imageCreateInfo.pNext = nullptr;
 
         // Will create the surface image
         surface_stage_to_device(ctx, vulkanSurface, imageCreateInfo, vk::MemoryPropertyFlagBits::eDeviceLocal, *pTex, imageLayout);
@@ -405,6 +407,7 @@ bool surface_create_from_memory(VulkanContext& ctx, VulkanSurface& vulkanSurface
         imageCreateInfo.arrayLayers = 1;
         imageCreateInfo.extent = vulkanSurface.extent;
         imageCreateInfo.usage = imageUsageFlags | vk::ImageUsageFlagBits::eTransferDst;
+        imageCreateInfo.pNext = nullptr;
 
         // Will create the surface image
         surface_stage_to_device(ctx, vulkanSurface, imageCreateInfo, vk::MemoryPropertyFlagBits::eDeviceLocal, x * y * n, static_cast<const void*>(loaded));
@@ -482,6 +485,7 @@ void surface_update_from_audio(VulkanContext& ctx, VulkanSurface& surface, bool&
             imageCreateInfo.arrayLayers = 1;
             imageCreateInfo.extent = surface.extent;
             imageCreateInfo.usage = imageUsageFlags | vk::ImageUsageFlagBits::eTransferDst;
+            imageCreateInfo.pNext = nullptr;
 
             vulkan_surface_create_image_internal(ctx, surface, imageCreateInfo, vk::MemoryPropertyFlagBits::eDeviceLocal);
 
@@ -580,7 +584,7 @@ void surface_update_from_audio(VulkanContext& ctx, VulkanSurface& surface, bool&
     vk::ImageSubresourceRange range(vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1);
 
     // Prepare for transfer
-    surface_set_layout(ctx, commandBuffer, surface.image, vk::ImageLayout::eUndefined, vk::ImageLayout::eTransferDstOptimal, range);
+    surface_set_layout(ctx, commandBuffer, surface, vk::ImageAspectFlagBits::eColor, vk::ImageLayout::eUndefined, vk::ImageLayout::eTransferDstOptimal, range);
 
     // Prepare for transfer
     std::vector<vk::BufferImageCopy> bufferCopyRegions;

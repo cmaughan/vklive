@@ -42,6 +42,9 @@ struct VulkanPassTargets
     std::vector<vk::RenderingAttachmentInfo> colorAttachments;
     std::optional<vk::RenderingAttachmentInfo> depthAttachment;
 
+    std::vector<vk::Format> colorFormats;
+    vk::Format depthFormat;
+
     vk::RenderingInfo renderingInfo;
 
     // Debug name for these pass targets

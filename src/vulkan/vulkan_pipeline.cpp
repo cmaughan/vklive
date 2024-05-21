@@ -82,6 +82,11 @@ vk::Pipeline vulkan_pipeline_create(VulkanContext& ctx, const VertexLayout& vert
         dynamic_state.dynamicStateCount = (uint32_t)(dynamic_states.size());
         dynamic_state.pDynamicStates = dynamic_states.data();
 
+        vk::PipelineRenderingCreateInfo rendering_info;
+        rendering_info.colorAttachmentCount = passTargets.colorAttachments.size();
+        rendering_info.pColorAttachmentFormats = &passTargets.colorFormats[0];
+        rendering_info.depthAttachmentFormat = passTargets.depthFormat;
+
         // Pipeline create.
         // 1. Shaders for pStages
         // 2. Vertex input state
@@ -97,8 +102,7 @@ vk::Pipeline vulkan_pipeline_create(VulkanContext& ctx, const VertexLayout& vert
         info.pColorBlendState = &blend_info;
         info.pDynamicState = &dynamic_state;
         info.layout = layout;
-        //info.renderPass = passTargets.renderPass;
-        info.renderPass = nullptr;
+        info.pNext = &rendering_info;
         info.subpass = 0;
         return ctx.device.createGraphicsPipelines(ctx.pipelineCache, info).value[0];
     }

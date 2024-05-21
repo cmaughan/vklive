@@ -1,4 +1,4 @@
-cd external
+cd libs
 cd zing
 cd libs
 cd zest

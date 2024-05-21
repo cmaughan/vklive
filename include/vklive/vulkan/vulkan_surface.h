@@ -1,15 +1,15 @@
 #pragma once
 
-#include <glm/glm.hpp>
 #include <gli/gli.hpp>
+#include <glm/glm.hpp>
 
 #include <zest/file/file.h>
 
 #pragma warning(disable : 26812)
 #include <vulkan/vulkan.hpp>
 #pragma warning(default : 26812)
-#include <vklive/vulkan/vulkan_context.h>
 #include <vklive/vulkan/vulkan_buffer.h>
+#include <vklive/vulkan/vulkan_context.h>
 
 struct Surface;
 
@@ -33,13 +33,13 @@ struct Allocation
     vk::DeviceSize size{ 0 };
     vk::DeviceSize alignment{ 0 };
     vk::DeviceSize allocSize{ 0 };
-    //void* mapped = nullptr;
+    // void* mapped = nullptr;
     vk::MemoryPropertyFlags memoryPropertyFlags;
 };
 
 namespace VulkanSurfaceFlags
 {
-enum 
+enum
 {
     Sampled = (1 << 0),
     Uploadable = (1 << 1)
@@ -83,7 +83,6 @@ struct VulkanSurface : Allocation
 
     // For UI read of this surface
     vk::DescriptorSet ImGuiDescriptorSet = nullptr;
-    
 };
 
 inline std::ostream& operator<<(std::ostream& os, const VulkanSurface& surf)
@@ -100,11 +99,16 @@ void vulkan_surface_create(VulkanContext& ctx, VulkanSurface& vulkanImage, const
 void vulkan_surface_create_depth(VulkanContext& ctx, VulkanSurface& vulkanImage, const glm::uvec2& size, vk::Format depthFormat);
 void vulkan_surface_destroy(VulkanContext& ctx, VulkanSurface& img);
 
-void surface_set_layout(VulkanContext& ctx, vk::CommandBuffer cmdbuffer, vk::Image image, vk::ImageLayout oldImageLayout, vk::ImageLayout newImageLayout, vk::ImageSubresourceRange subresourceRange);
-void surface_set_layout(VulkanContext& ctx, vk::CommandBuffer cmdbuffer, vk::Image image, vk::ImageLayout oldImageLayout, vk::ImageLayout newImageLayout);
-void surface_set_layout(VulkanContext& ctx, vk::CommandBuffer cmdbuffer, vk::Image image, vk::ImageAspectFlags aspectMask, vk::ImageLayout oldImageLayout, vk::ImageLayout newImageLayout);
-void surface_set_layout(VulkanContext& ctx, vk::Image image, vk::ImageLayout oldImageLayout, vk::ImageLayout newImageLayout, vk::ImageSubresourceRange subresourceRange);
-void surface_set_layout(VulkanContext& ctx, vk::Image image, vk::ImageAspectFlags aspectMask, vk::ImageLayout oldImageLayout, vk::ImageLayout newImageLayout);
+enum class VulkanSurfaceLayoutFlags
+{
+    Image,
+    UploadImage
+};
+void surface_set_layout(VulkanContext& ctx, vk::CommandBuffer cmdbuffer, VulkanSurface& vulkanSurface, vk::ImageAspectFlags aspectMask, vk::ImageLayout oldImageLayout, vk::ImageLayout newImageLayout, vk::ImageSubresourceRange subresourceRange, const VulkanSurfaceLayoutFlags& flags = VulkanSurfaceLayoutFlags::Image);
+void surface_set_layout(VulkanContext& ctx, vk::CommandBuffer cmdbuffer, VulkanSurface& vulkanSurface, vk::ImageAspectFlags aspectMask, vk::ImageLayout oldImageLayout, vk::ImageLayout newImageLayout, const VulkanSurfaceLayoutFlags& flags = VulkanSurfaceLayoutFlags::Image);
+
+//void surface_set_layout(VulkanContext& ctx, vk::Image image, vk::ImageAspectFlags aspectMask, vk::ImageLayout oldImageLayout, vk::ImageLayout newImageLayout, vk::ImageSubresourceRange subresourceRange);
+//void surface_set_layout(VulkanContext& ctx, vk::Image image, vk::ImageAspectFlags aspectMask, vk::ImageLayout oldImageLayout, vk::ImageLayout newImageLayout);
 
 // Aren't these the same thing?
 void surface_create_sampler(VulkanContext& ctx, VulkanSurface& surface);
