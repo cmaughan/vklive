@@ -59,12 +59,12 @@ void vulkan_pass_destroy(VulkanContext& ctx, VulkanPass& vulkanPass)
         passData.commandPool = nullptr;
 
         // Pass buffers
-        //for (auto& [id, target] : passData.passTargets)
+        // for (auto& [id, target] : passData.passTargets)
         {
-            //framebuffer_destroy(ctx, target.frameBuffer);
-            //target.frameBuffer = nullptr;
-            //ctx.device.destroyRenderPass(target.renderPass);
-            //target.renderPass = nullptr;
+            // framebuffer_destroy(ctx, target.frameBuffer);
+            // target.frameBuffer = nullptr;
+            // ctx.device.destroyRenderPass(target.renderPass);
+            // target.renderPass = nullptr;
         }
         vulkan_buffer_destroy(ctx, passData.vsUniform);
 
@@ -432,163 +432,37 @@ void vulkan_pass_check_samplers(VulkanContext& ctx, VulkanPassTargets& passTarge
     }
 }
 
-/*
-void vulkan_pass_prepare_renderpass(VulkanContext& ctx, VulkanPassTargets& passTargets)
+void vulkan_pass_prepare_attachments(VulkanContext& ctx, VulkanPass& vulkanPass, VulkanPassTargets& passTargets)
 {
-    if (!passTargets.renderPass)
+    std::vector<vk::Format> colorFormats;
+    vk::Format depthFormat = vk::Format::eUndefined;
+
+    passTargets.colorAttachments.clear();
+    passTargets.depthAttachment.reset();
+
+    for (auto& pTargetData : passTargets.orderedTargets)
     {
-        std::vector<vk::Format> colorFormats;
-        vk::Format depthFormat = vk::Format::eUndefined;
+        vk::RenderingAttachmentInfo attachment;
+        attachment.imageView = pTargetData->pVulkanSurface->view;
+        attachment.imageLayout = vk::ImageLayout::eColorAttachmentOptimal;
 
-        for (auto& pTargetData : passTargets.orderedTargets)
+        attachment.loadOp = passTargets.pFrameData->pVulkanPass->pass.hasClear ? vk::AttachmentLoadOp::eClear : vk::AttachmentLoadOp::eDontCare;
+        attachment.storeOp = vk::AttachmentStoreOp::eStore;
+
+        // Finally add the attachment
+        if (vulkan_format_is_depth(pTargetData->pVulkanSurface->format))
         {
-            if (vulkan_format_is_depth(pTargetData->pVulkanSurface->format))
-            {
-                depthFormat = pTargetData->pVulkanSurface->format;
-            }
-            else
-            {
-                colorFormats.push_back(pTargetData->pVulkanSurface->format);
-            }
+            attachment.clearValue = vk::ClearDepthStencilValue{ 1.0f, 0 };
+            passTargets.depthAttachment = attachment;
+
         }
-
-        vk::SubpassDescription subpass;
-        subpass.pipelineBindPoint = vk::PipelineBindPoint::eGraphics;
-
-        // Color
-        std::vector<vk::AttachmentDescription> attachments;
-        std::vector<vk::AttachmentReference> colorAttachmentReferences;
-        attachments.resize(colorFormats.size());
-        colorAttachmentReferences.resize(attachments.size());
-
-        // We can read the shader in the pixel shader
-        vk::ImageUsageFlags attachmentUsage{ vk::ImageUsageFlagBits::eSampled };
-        vk::ImageLayout colorFinalLayout{ vk::ImageLayout::eShaderReadOnlyOptimal };
-        for (uint32_t i = 0; i < attachments.size(); ++i)
+        else
         {
-            attachments[i].format = colorFormats[i];
-            attachments[i].loadOp = passTargets.pFrameData->pVulkanPass->pass.hasClear ? vk::AttachmentLoadOp::eClear : vk::AttachmentLoadOp::eDontCare;
-            attachments[i].storeOp = colorFinalLayout == vk::ImageLayout::eColorAttachmentOptimal ? vk::AttachmentStoreOp::eDontCare : vk::AttachmentStoreOp::eStore;
-            attachments[i].initialLayout = vk::ImageLayout::eUndefined;
-            attachments[i].finalLayout = colorFinalLayout; // We want a color buffer to read
-
-            vk::AttachmentReference& attachmentReference = colorAttachmentReferences[i];
-            attachmentReference.attachment = i;
-            attachmentReference.layout = vk::ImageLayout::eColorAttachmentOptimal;
-
-            subpass.colorAttachmentCount = (uint32_t)colorAttachmentReferences.size();
-            subpass.pColorAttachments = colorAttachmentReferences.data();
+            attachment.clearValue = clear_color(vulkanPass.pass.clearColor);
+            passTargets.colorAttachments.push_back(attachment);
         }
-
-        // Depth
-        vk::AttachmentReference depthAttachmentReference;
-        vk::ImageLayout depthFinalLayout{ vk::ImageLayout::eDepthStencilAttachmentOptimal };
-        if (depthFormat != vk::Format::eUndefined)
-        {
-            vk::AttachmentDescription depthAttachment;
-            depthAttachment.format = depthFormat;
-            depthAttachment.loadOp = vk::AttachmentLoadOp::eClear;
-            // We might be using the depth attacment for something, so preserve it if it's final layout is not undefined
-            depthAttachment.storeOp = depthFinalLayout == vk::ImageLayout::eDepthStencilAttachmentOptimal ? vk::AttachmentStoreOp::eDontCare : vk::AttachmentStoreOp::eStore;
-            depthAttachment.stencilLoadOp = vk::AttachmentLoadOp::eClear;
-            depthAttachment.stencilStoreOp = vk::AttachmentStoreOp::eDontCare;
-            depthAttachment.initialLayout = vk::ImageLayout::eUndefined;
-            depthAttachment.finalLayout = depthFinalLayout;
-            attachments.push_back(depthAttachment);
-            depthAttachmentReference.attachment = (uint32_t)attachments.size() - 1;
-            depthAttachmentReference.layout = vk::ImageLayout::eDepthStencilAttachmentOptimal;
-            subpass.pDepthStencilAttachment = &depthAttachmentReference;
-        }
-
-        std::vector<vk::SubpassDependency> subpassDependencies;
-        if ((colorFinalLayout != vk::ImageLayout::eColorAttachmentOptimal) && (colorFinalLayout != vk::ImageLayout::eUndefined))
-        {
-            // Implicit transition
-            vk::SubpassDependency dependency;
-            dependency.srcSubpass = 0;
-            dependency.srcAccessMask = vk::AccessFlagBits::eColorAttachmentWrite;
-            dependency.srcStageMask = vk::PipelineStageFlagBits::eColorAttachmentOutput;
-
-            dependency.dstSubpass = VK_SUBPASS_EXTERNAL;
-            dependency.dstAccessMask = utils_access_flags_for_layout(colorFinalLayout);
-            dependency.dstStageMask = vk::PipelineStageFlagBits::eFragmentShader;
-            subpassDependencies.push_back(dependency);
-        }
-
-        if ((depthFinalLayout != vk::ImageLayout::eDepthStencilAttachmentOptimal) && (depthFinalLayout != vk::ImageLayout::eUndefined))
-        {
-            // Implicit transition
-            // Write color...
-            vk::SubpassDependency dependency;
-            dependency.srcSubpass = 0;
-            dependency.srcAccessMask = vk::AccessFlagBits::eDepthStencilAttachmentWrite;
-            dependency.srcStageMask = vk::PipelineStageFlagBits::eLateFragmentTests;
-
-            // Read color after end render pass.
-            dependency.dstSubpass = VK_SUBPASS_EXTERNAL;
-            dependency.dstAccessMask = utils_access_flags_for_layout(depthFinalLayout);
-            dependency.dstStageMask = vk::PipelineStageFlagBits::eFragmentShader;
-            subpassDependencies.push_back(dependency);
-        }
-
-        // TODO:
-        // Performance improvement/fix the dependencies here based on the scene graph.
-        // We don't always need to read, for example.
-        // This code is almost certainly setting up the dependencies here badly; I just haven't looked into how to do it properly based on
-        // the targets and samplers of each pass...
-        vk::RenderPassCreateInfo renderPassInfo;
-        renderPassInfo.attachmentCount = (uint32_t)attachments.size();
-        renderPassInfo.pAttachments = attachments.data();
-        renderPassInfo.subpassCount = 1;
-        renderPassInfo.pSubpasses = &subpass;
-        renderPassInfo.dependencyCount = (uint32_t)subpassDependencies.size();
-        renderPassInfo.pDependencies = subpassDependencies.data();
-        passTargets.renderPass = ctx.device.createRenderPass(renderPassInfo);
-        debug_set_renderpass_name(ctx.device, passTargets.renderPass, fmt::format("RenderPass:{}", passTargets.debugName));
     }
-
-    if (!passTargets.frameBuffer)
-    {
-        /*
-        // Add the attachments with the colors first, then the depth?
-        // Target ordering is enforced
-        std::vector<vk::ImageView> attachments;
-        vk::ImageView depthView;
-        for (auto& pTargetData : passTargets.orderedTargets)
-        {
-            if (vulkan_format_is_depth(pTargetData->pVulkanSurface->format))
-            {
-                depthView = pTargetData->pVulkanSurface->view;
-            }
-            else
-            {
-                attachments.emplace_back(pTargetData->pVulkanSurface->view);
-            }
-        }
-
-        if (depthView)
-        {
-            attachments.push_back(depthView);
-        }
-
-        assert(!attachments.empty() && passTargets.targetSize.x != 0 && passTargets.targetSize.y != 0);
-        vk::FramebufferCreateInfo fbufCreateInfo;
-        fbufCreateInfo.renderPass = renderPass;
-        fbufCreateInfo.attachmentCount = (uint32_t)attachments.size();
-        fbufCreateInfo.pAttachments = attachments.data();
-        fbufCreateInfo.width = passTargets.targetSize.x;
-        fbufCreateInfo.height = passTargets.targetSize.y;
-        fbufCreateInfo.layers = 1;
-        frameBuffer = ctx.device.createFramebuffer(fbufCreateInfo);
-        vulkan_framebuffer_create(ctx, passTargets.frameBuffer, passTargets, passTargets.renderPass);
-
-        //debug_set_framebuffer_name(ctx.device, passTargets.frameBuffer, "FrameBuffer:" + passTargets.debugName);
-    }
-
-    // LOG(DBG, "  FrameBuffer: " << passTargets.frameBuffer);
-    // LOG(DBG, "  RenderPass: " << passTargets.renderPass);
 }
-*/
 
 void vulkan_pass_dump_targets(VulkanPassTargets& passTargets)
 {
@@ -1222,60 +1096,17 @@ void vulkan_pass_submit(VulkanContext& ctx, VulkanPass& vulkanPass)
 
     LOG_SCOPE(DBG, "Pass Submit: " << passFrameData.debugName);
 
-    // Clear
-    // Targets are sorted by name, with the depth pushed on the end.
-    std::vector<vk::ClearValue> clearValues;
-    vk::ClearValue depthClearValue;
-    bool haveDepth = false;
-    for (auto& pTargetData : passTargets.orderedTargets)
-    {
-        if (vulkan_format_is_depth(pTargetData->pVulkanSurface->format))
-        {
-            depthClearValue = vk::ClearDepthStencilValue{ 1.0f, 0 };
-            haveDepth = true;
-        }
-        else
-        {
-            clearValues.push_back(clear_color(vulkanPass.pass.clearColor));
-        }
-    }
-
-    if (haveDepth)
-    {
-        clearValues.push_back(depthClearValue);
-    }
-
     // Draw geometry
-    /*
-    vk::RenderPassBeginInfo renderPassBeginInfo;
-    renderPassBeginInfo.renderPass = passTargets.renderPass;
-    renderPassBeginInfo.framebuffer = passTargets.frameBuffer;
-    //   renderPassBeginInfo.renderArea.extent.width = passTargets.targetSize.x;
-    //   renderPassBeginInfo.renderArea.extent.height = passTargets.targetSize.y;
-    renderPassBeginInfo.clearValueCount = clearValues.size();
-    renderPassBeginInfo.pClearValues = clearValues.data();
-    */
-
-    /* auto renderingAttachmentInfo = vk::RenderingAttachmentInfo()
-                                       .loadOp(vk::AttachmentLoadOp::eClear)
-                                       .setAttachmentCount(static_cast<uint32_t>(clearValues.size()))
-                                       .setPAttachments(nullptr)
-                                       .setPColorClearValues(clearValues.data())
-                                       .setPDepthStencilClearValue(haveDepth ? &depthClearValue : nullptr);
-                                       */
-
-
     auto rect = rect2d(passTargets.targetSize.x, passTargets.targetSize.y);
     auto renderInfo = vk::RenderingInfo()
                           .setRenderArea(rect)
-                          .setColorAttachments()
-                          .setFlags()
-                          .setLayerCount(1)
-                          .setViewMask()
-                          .setPDepthAttachment()
-
-                    //      .setColorAttachments()
-        
+                          .setColorAttachments(passTargets.colorAttachments);
+                          
+    renderInfo.layerCount = 1;
+    if (passTargets.depthAttachment.has_value())
+    {
+        renderInfo.setPDepthAttachment(&passTargets.depthAttachment.value());
+    }
 
     vk::Viewport viewport;
     viewport.x = 0.0f;
@@ -1290,7 +1121,6 @@ void vulkan_pass_submit(VulkanContext& ctx, VulkanPass& vulkanPass)
 
     if (passFrameData.pVulkanPass->pass.passType == PassType::Standard)
     {
-        // cmd.beginRenderPass(renderPassBeginInfo, vk::SubpassContents::eInline);
         cmd.beginRendering(renderInfo);
         cmd.setViewport(0, viewport);
         cmd.setScissor(0, rect);
@@ -1317,7 +1147,6 @@ void vulkan_pass_submit(VulkanContext& ctx, VulkanPass& vulkanPass)
             }
         }
 
-        // cmd.endRenderPass();
         cmd.endRendering();
 
         vulkan_pass_make_targets_readable(ctx, passFrameData);
@@ -1325,7 +1154,6 @@ void vulkan_pass_submit(VulkanContext& ctx, VulkanPass& vulkanPass)
     else if (passFrameData.pVulkanPass->pass.passType == PassType::Scripted)
     {
         cmd.beginRendering(renderInfo);
-        // cmd.beginRenderPass(renderPassBeginInfo, vk::SubpassContents::eInline);
         cmd.setViewport(0, viewport);
         cmd.setScissor(0, rect);
         /* if (!passFrameData.descriptorSets.empty())
@@ -1358,7 +1186,6 @@ void vulkan_pass_submit(VulkanContext& ctx, VulkanPass& vulkanPass)
             vulkan_nanovg_end(ctx);
         }
 
-        // cmd.endRenderPass();
         cmd.endRendering();
 
         vulkan_pass_make_targets_readable(ctx, passFrameData);
@@ -1457,7 +1284,7 @@ bool vulkan_pass_draw(VulkanContext& ctx, VulkanPass& vulkanPass)
     vulkan_pass_prepare_surfaces(ctx, passFrameData);
 
     // Renderpasses
-    //vulkan_pass_prepare_renderpass(ctx, passTargets);
+    vulkan_pass_prepare_attachments(ctx, vulkanPass, passTargets);
 
     // Uniform buffers
     vulkan_pass_prepare_uniforms(ctx, vulkanPass);
