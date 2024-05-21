@@ -395,44 +395,6 @@ void vulkan_pass_check_samplers(VulkanContext& ctx, VulkanPassTargets& passTarge
     }
 }
 
-void vulkan_pass_prepare_attachments(VulkanContext& ctx, VulkanPass& vulkanPass, VulkanPassTargets& passTargets)
-{
-    std::vector<vk::Format> colorFormats;
-    vk::Format depthFormat = vk::Format::eUndefined;
-
-    passTargets.colorAttachments.clear();
-    passTargets.depthAttachment.reset();
-    passTargets.depthFormat = vk::Format::eUndefined;
-    passTargets.colorFormats.clear();
-
-    for (auto& pTargetData : passTargets.orderedTargets)
-    {
-        vk::RenderingAttachmentInfo attachment;
-        attachment.imageView = pTargetData->pVulkanSurface->view;
-
-        attachment.loadOp = passTargets.pFrameData->pVulkanPass->pass.hasClear ? vk::AttachmentLoadOp::eClear : vk::AttachmentLoadOp::eLoad;
-        attachment.storeOp = vk::AttachmentStoreOp::eStore;
-
-        // Finally add the attachment
-        if (vulkan_format_is_depth(pTargetData->pVulkanSurface->format))
-        {
-            attachment.loadOp = vk::AttachmentLoadOp::eClear;
-            attachment.clearValue = vk::ClearDepthStencilValue{ 1.0f, 0 };
-            attachment.imageLayout = vk::ImageLayout::eDepthAttachmentOptimal;
-            
-            passTargets.depthAttachment = attachment;
-            passTargets.depthFormat = pTargetData->pVulkanSurface->format;
-        }
-        else
-        {
-            attachment.clearValue = clear_color(vulkanPass.pass.clearColor);
-            attachment.imageLayout = vk::ImageLayout::eColorAttachmentOptimal;
-
-            passTargets.colorAttachments.push_back(attachment);
-            passTargets.colorFormats.push_back(pTargetData->pVulkanSurface->format);
-        }
-    }
-}
 
 void vulkan_pass_dump_targets(VulkanPassTargets& passTargets)
 {
@@ -482,20 +444,25 @@ void vulkan_pass_prepare_targets(VulkanContext& ctx, VulkanPassSwapFrameData& pa
     bool targetsChanged = false;
 
     // Flip-flop between 2 pages for this swap index; so we can read the target later
-    auto& pass = passFrameData.pVulkanPass->pass;
+    auto pVulkanPass = passFrameData.pVulkanPass;
+    auto& pass = pVulkanPass->pass;
     auto& vulkanScene = passFrameData.pVulkanPass->vulkanScene;
-    auto& vulkanPassTargets = passFrameData.passTargets[Scene::GlobalFrameCount % 2];
+    auto& passTargets = vulkan_pass_targets(ctx, passFrameData);
 
-    vulkanPassTargets.debugName = fmt::format("PassTargets:{}:{}", Scene::GlobalFrameCount % 2, passFrameData.debugName);
+    passTargets.debugName = fmt::format("PassTargets:{}:{}", Scene::GlobalFrameCount % 2, passFrameData.debugName);
 
-    LOG_SCOPE(DBG, "PrepareTargets: " << vulkanPassTargets.debugName);
+    LOG_SCOPE(DBG, "PrepareTargets: " << passTargets.debugName);
 
-    vulkanPassTargets.orderedTargets.clear();
+    passTargets.orderedTargets.clear();
+    passTargets.colorAttachments.clear();
+    passTargets.depthAttachment.reset();
+    passTargets.depthFormat = vk::Format::eUndefined;
+    passTargets.colorFormats.clear();
 
     // Make sure all targets are relevent
     for (auto& surfaceName : pass.targets)
     {
-        auto& targetData = vulkanPassTargets.mapNameToTargetData[surfaceName];
+        auto& targetData = passTargets.mapNameToTargetData[surfaceName];
         targetData.pVulkanSurface = get_vulkan_surface(ctx, *passFrameData.pVulkanPass, surfaceName);
 
         if (targetData.pVulkanSurface->pSurface->isRayTarget)
@@ -513,15 +480,41 @@ void vulkan_pass_prepare_targets(VulkanContext& ctx, VulkanPassSwapFrameData& pa
                 surface_set_layout(ctx, passFrameData.commandBuffer, *targetData.pVulkanSurface, vk::ImageAspectFlagBits::eColor, vk::ImageLayout::eUndefined, vk::ImageLayout::eColorAttachmentOptimal);
             }
         }
-        vulkanPassTargets.orderedTargets.push_back(&targetData);
+
+        vk::RenderingAttachmentInfo attachment;
+        
+        attachment.imageView = targetData.pVulkanSurface->view;
+        attachment.loadOp = pVulkanPass->pass.hasClear ? vk::AttachmentLoadOp::eClear : vk::AttachmentLoadOp::eLoad;
+        attachment.storeOp = vk::AttachmentStoreOp::eStore;
+
+        // Finally add the attachment
+        if (vulkan_format_is_depth(targetData.pVulkanSurface->format))
+        {
+            attachment.loadOp = vk::AttachmentLoadOp::eClear;
+            attachment.clearValue = vk::ClearDepthStencilValue{ 1.0f, 0 };
+            attachment.imageLayout = vk::ImageLayout::eDepthAttachmentOptimal;
+            
+            passTargets.depthAttachment = attachment;
+            passTargets.depthFormat = targetData.pVulkanSurface->format;
+        }
+        else
+        {
+            attachment.clearValue = clear_color(pass.clearColor);
+            attachment.imageLayout = vk::ImageLayout::eColorAttachmentOptimal;
+
+            passTargets.colorAttachments.push_back(attachment);
+            passTargets.colorFormats.push_back(targetData.pVulkanSurface->format);
+        }
+
+        passTargets.orderedTargets.push_back(&targetData);
     }
 
-    if (!vulkan_pass_check_targets(ctx, vulkanPassTargets))
+    if (!vulkan_pass_check_targets(ctx, passTargets))
     {
         scene_report_error(*vulkanScene.pScene, MessageSeverity::Error, "Targets not the same size", vulkanScene.pScene->sceneGraphPath);
     }
 
-    vulkan_pass_dump_targets(vulkanPassTargets);
+    vulkan_pass_dump_targets(passTargets);
 }
 
 // Surfaces that aren't targets
@@ -1263,9 +1256,6 @@ bool vulkan_pass_draw(VulkanContext& ctx, VulkanPass& vulkanPass)
 
     // Samplers/ Surfaces
     vulkan_pass_prepare_surfaces(ctx, passFrameData);
-
-    // Renderpasses
-    vulkan_pass_prepare_attachments(ctx, vulkanPass, passTargets);
 
     // Uniform buffers
     vulkan_pass_prepare_uniforms(ctx, vulkanPass);
