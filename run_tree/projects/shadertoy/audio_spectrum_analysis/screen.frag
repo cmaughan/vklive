@@ -31,7 +31,7 @@ void main()
    
     // distort
     float bass = texture( AudioAnalysis, vec2(0, 0) ).x * 12;
-    uv = distort(uv*2.0-1.0, 0.5+bass)*0.5+0.5;
+    //uv = distort(uv*2.0-1.0, 0.5+bass)*0.5+0.5;
 
     // quantize coordinates
     const float bands = 100;
@@ -41,8 +41,8 @@ void main()
     p.y = floor(uv.y*segs)/segs;
 
     // read frequency data from first row of texture
-    float fft1  = texture( AudioAnalysis, vec2(p.x * .25f, 0.26) ).x * 2.0;
-    float fft2  = texture( AudioAnalysis, vec2(p.x * .25f, 0.0) ).x * 2.0;
+    float fft1  = texture( AudioAnalysis, vec2(p.x, 0.26) ).x;
+    float fft2  = texture( AudioAnalysis, vec2(p.x, 0.0) ).x;
 
     // led color
     vec3 color1 = mix(vec3(0.0, 2.0, 0.0), vec3(2.0, 0.0, 0.0), sqrt(uv.y * 2));
@@ -64,10 +64,10 @@ void main()
     ledColor += led*color2*mask2;
 
     // second texture row is the sound wave
-    float wave = texture( AudioAnalysis, vec2(uv.x * .5, 0.75) ).x;
+    float wave = texture( AudioAnalysis, vec2(uv.x, 0.75) ).x;
     vec3 waveColor = vec3(0.001, 0.01, 0.04) / abs(wave - uv.y + 0.66);
 
-    float wave2 = texture( AudioAnalysis, vec2(uv.x * .5, 0.55) ).x;
+    float wave2 = texture( AudioAnalysis, vec2(uv.x, 0.55) ).x;
     vec3 waveColor2 = vec3(0.04, 0.01, 0.001) / abs(wave - uv.y + 0.366);
 
     ledColor += waveColor + waveColor2;
