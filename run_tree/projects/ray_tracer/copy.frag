@@ -14,7 +14,6 @@ layout (set = 1, binding = 0) uniform sampler2D RayTraceTarget;
 void main() 
 {
     vec2 texCoord = inUV ;
-    texCoord.y = 1 - texCoord.y; // RT target is origin bottom left
     //texCoord.x += (sin(ubo.iTime * texCoord.x) * .01) * 4.0;
     //texCoord.y += (cos(ubo.iTime * texCoord.y) * .01) * 4.0;
     outFragColor = texture(RayTraceTarget, texCoord);

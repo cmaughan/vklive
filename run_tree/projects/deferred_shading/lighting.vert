@@ -18,6 +18,6 @@ struct Light {
 void main() 
 {
     gl_Position = inPos;
-    outUV = vec2(inUV.x, 1 - inUV.y);
+    outUV = inUV;
     outEyePos = vec3(ubo.eye);
 }
