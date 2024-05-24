@@ -32,6 +32,7 @@ cmake-build-debug
 bld/
 [Bb]in/
 [Oo]bj/
+[Dd]eploy/
 
 Ninja
 run_tree/renders

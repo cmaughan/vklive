@@ -246,7 +246,7 @@ void surface_set_sampling(VulkanContext& ctx, VulkanSurface& surface)
 // See chapter 11.4 "vk::Image Layout" for details
 void surface_set_layout(VulkanContext& ctx, vk::CommandBuffer cmdbuffer, VulkanSurface& vulkanSurface, vk::ImageAspectFlags aspectMask, vk::ImageLayout oldImageLayout, vk::ImageLayout newImageLayout, vk::ImageSubresourceRange subresourceRange, const VulkanSurfaceLayoutFlags& flags)
 {
-    LOG(DBG, "SetLayout: " << vulkanSurface << ", to: " << to_string(newImageLayout));
+    LOG(DBG, "SetLayout: " << vulkanSurface << ", from: " << to_string(oldImageLayout) << ", to: " << to_string(newImageLayout));
 
     // Create an image barrier object
     vk::ImageMemoryBarrier imageMemoryBarrier;

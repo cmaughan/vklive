@@ -301,7 +301,7 @@ fs::path scene_get_scenegraph(const fs::path& root, const std::vector<fs::path>&
     // If there is no scenegraph, make an empty one
     if (!fs::exists(sceneGraphPath) && fs::is_directory(root))
     {
-        sceneGraphPath = root / "scene.scenegraph";
+        sceneGraphPath = root / "default.scenegraph";
         try
         {
             Zest::file_write(sceneGraphPath, "# Scenegraph");
