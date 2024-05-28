@@ -186,7 +186,7 @@ void imgui_viewport_swap_buffers(ImGuiViewport* viewport, void*)
     }
 
     wd->frameIndex = (wd->frameIndex + 1) % wd->imageCount; // This is for the next vkWaitForFences()
-    wd->semaphoreIndex = (wd->semaphoreIndex + 1) % wd->imageCount; // Now we can use the next set of semaphores
+    wd->semaphoreIndex = (wd->semaphoreIndex + 1) % wd->semaphoreCount; // Now we can use the next set of semaphores
 }
 
 void imgui_viewport_destroy_all(VulkanContext& ctx)

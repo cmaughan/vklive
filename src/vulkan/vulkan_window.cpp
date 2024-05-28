@@ -29,6 +29,9 @@ void CreateWindowSwapChain(VulkanContext& ctx, VulkanWindow* wd, int w, int h)
     for (uint32_t i = 0; i < wd->imageCount; i++)
     {
         window_destroy_frame(ctx, &wd->frames[i]);
+    }
+    for (uint32_t i = 0; i < wd->semaphoreCount; i++)
+    {
         window_destroy_frame_semaphores(ctx, &wd->frameSemaphores[i]);
     }
     free(wd->frames);
@@ -36,6 +39,7 @@ void CreateWindowSwapChain(VulkanContext& ctx, VulkanWindow* wd, int w, int h)
     wd->frames = NULL;
     wd->frameSemaphores = NULL;
     wd->imageCount = 0;
+    wd->semaphoreCount = 0;
     if (wd->renderPass)
     {
         ctx.device.destroyRenderPass(wd->renderPass);
@@ -94,10 +98,11 @@ void CreateWindowSwapChain(VulkanContext& ctx, VulkanWindow* wd, int w, int h)
         auto swapImages = ctx.device.getSwapchainImagesKHR(wd->swapchain);
 
         assert(wd->frames == NULL);
+        wd->semaphoreCount = wd->imageCount + 1;
         wd->frames = (VulkanSwapFrame*)malloc(sizeof(VulkanSwapFrame) * wd->imageCount);
-        wd->frameSemaphores = (VulkanFrameSemaphores*)malloc(sizeof(VulkanFrameSemaphores) * wd->imageCount);
+        wd->frameSemaphores = (VulkanFrameSemaphores*)malloc(sizeof(VulkanFrameSemaphores) * wd->semaphoreCount);
         memset(wd->frames, 0, sizeof(wd->frames[0]) * wd->imageCount);
-        memset(wd->frameSemaphores, 0, sizeof(wd->frameSemaphores[0]) * wd->imageCount);
+        memset(wd->frameSemaphores, 0, sizeof(wd->frameSemaphores[0]) * wd->semaphoreCount);
         for (uint32_t i = 0; i < wd->imageCount; i++)
         {
             VulkanSurface img(nullptr);
@@ -196,7 +201,6 @@ void CreateWindowCommandBuffers(VulkanContext& ctx, VulkanWindow* wd)
     for (uint32_t i = 0; i < wd->imageCount; i++)
     {
         VulkanSwapFrame* fd = &wd->frames[i];
-        VulkanFrameSemaphores* fsd = &wd->frameSemaphores[i];
         fd->commandPool = ctx.device.createCommandPool(vk::CommandPoolCreateInfo(vk::CommandPoolCreateFlagBits::eResetCommandBuffer));
         fd->commandBuffer = ctx.device.allocateCommandBuffers(vk::CommandBufferAllocateInfo(fd->commandPool, vk::CommandBufferLevel::ePrimary, 1))[0];
         
@@ -208,6 +212,11 @@ void CreateWindowCommandBuffers(VulkanContext& ctx, VulkanWindow* wd)
         
         debug_set_fence_name(ctx.device, fd->fence, std::string("VulkanWindow::Fence:") + std::to_string(i));
 
+    }
+        
+    for (uint32_t i = 0; i < wd->semaphoreCount; i++)
+    {
+        VulkanFrameSemaphores* fsd = &wd->frameSemaphores[i];
         fsd->imageAcquiredSemaphore = ctx.device.createSemaphore(vk::SemaphoreCreateInfo());
         fsd->renderCompleteSemaphore = ctx.device.createSemaphore(vk::SemaphoreCreateInfo());
         
@@ -326,7 +335,7 @@ void main_window_present(VulkanContext& ctx)
         ctx.swapChainRebuild = true;
         return;
     }
-    wnd->semaphoreIndex = (wnd->semaphoreIndex + 1) % wnd->imageCount; // Now we can use the next set of semaphores
+    wnd->semaphoreIndex = (wnd->semaphoreIndex + 1) % wnd->semaphoreCount; // Now we can use the next set of semaphores
 }
 
 void window_destroy(VulkanContext& ctx, VulkanWindow* wd)
@@ -336,6 +345,9 @@ void window_destroy(VulkanContext& ctx, VulkanWindow* wd)
     for (uint32_t i = 0; i < wd->imageCount; i++)
     {
         window_destroy_frame(ctx, &wd->frames[i]);
+    }
+    for (uint32_t i = 0; i < wd->semaphoreCount; i++)
+    {
         window_destroy_frame_semaphores(ctx, &wd->frameSemaphores[i]);
     }
     free(wd->frames);

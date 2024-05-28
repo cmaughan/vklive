@@ -56,6 +56,7 @@ struct VulkanWindow
     vk::ClearValue clearValue;
     uint32_t frameIndex = 0; // Current frame being rendered to (0 <= FrameIndex < FrameInFlightCount)
     uint32_t imageCount = 0; // Number of simultaneous in-flight frames (returned by vkGetSwapchainImagesKHR, usually derived from min_image_count)
+    uint32_t semaphoreCount = 0; // Number of simultaneous in-flight frames (returned by vkGetSwapchainImagesKHR, usually derived from min_image_count)
     uint32_t semaphoreIndex = 0; // Current set of swapchain wait semaphores we're using (needs to be distinct from per frame data)
     VulkanSwapFrame* frames = nullptr;
     VulkanFrameSemaphores* frameSemaphores = nullptr;
