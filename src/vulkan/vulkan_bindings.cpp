@@ -1,11 +1,7 @@
 #include <fmt/format.h>
 
 //#define SPIRV_REFLECT_USE_SYSTEM_SPIRV_H
-#ifdef WIN32
 #include <spirv-reflect/spirv_reflect.h> 
-#else
-#include <spirv_reflect.h> 
-#endif
 
 #include "config_app.h"
 
