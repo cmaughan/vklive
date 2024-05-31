@@ -271,7 +271,6 @@ target_link_libraries(Rezonality
         unofficial::concurrentqueue::concurrentqueue
         clipp::clipp
         unofficial::nativefiledialog::nfd
-        unofficial::spirv-reflect::spirv-reflect
         gli
         Zing::Zing
     )
@@ -282,6 +281,18 @@ target_compile_options(Rezonality PRIVATE "$<$<CONFIG:Release>:/Zi>")
 target_link_options(Rezonality PRIVATE "$<$<CONFIG:Release>:/DEBUG>")
 target_link_options(Rezonality PRIVATE "$<$<CONFIG:Release>:/OPT:REF>")
 target_link_options(Rezonality PRIVATE "$<$<CONFIG:Release>:/OPT:ICF>")
+endif()
+
+if (WIN32)
+    target_link_libraries(Rezonality
+    PRIVATE
+        unofficial::spirv-reflect
+    )
+else()
+    target_link_libraries(Rezonality
+    PRIVATE
+        unofficial::spirv-reflect::spirv-reflect
+    )
 endif()
 
 if("${CMAKE_SYSTEM_NAME}" STREQUAL "Linux")

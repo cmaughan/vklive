@@ -1957,7 +1957,12 @@ const uint32_t kLoRangeB[] = {170,186,443,451,660,1514,1522,1599,1610,1647,1747,
 
 static bool is_unicode_Lo_char(uint32_t c) {
     // open a hole for carrot
+    #ifdef WIN32
+    if(c == L'🥕') return true;
+    #else
     if(c == U'🥕') return true;
+    #endif
+
     auto index = std::lower_bound(kLoRangeA, kLoRangeA + 476, c) - kLoRangeA;
     if(c == kLoRangeA[index]) return true;
     index -= 1;

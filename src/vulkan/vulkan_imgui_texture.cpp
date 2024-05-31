@@ -210,6 +210,7 @@ int VulkanImGuiTexture::CreateTexture(int width, int height, const unsigned char
 
     // Sampler
     VkSamplerCreateInfo info;
+    memset(&info, 0, sizeof(VkSamplerCreateInfo));
     info.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
     info.magFilter = VK_FILTER_LINEAR;
     info.minFilter = VK_FILTER_LINEAR;
@@ -226,6 +227,8 @@ int VulkanImGuiTexture::CreateTexture(int width, int height, const unsigned char
     // Create the Image:
     {
         VkImageCreateInfo info;
+        memset(&info, 0, sizeof(VkImageCreateInfo));
+        info.flags = 0;
         info.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
         info.imageType = VK_IMAGE_TYPE_2D;
         info.format = VK_FORMAT_R8G8B8A8_UNORM;

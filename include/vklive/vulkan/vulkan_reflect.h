@@ -2,7 +2,11 @@
 #define SPIRV_REFLECT_OUTPUT_STREAM_H
 
 //#define SPIRV_REFLECT_USE_SYSTEM_SPIRV_H
-#include <spirv_reflect.h>
+#ifdef WIN32
+#include <spirv-reflect/spirv_reflect.h> 
+#else
+#include <spirv_reflect.h> 
+#endif
 #include <map>
 #include <ostream>
 #include <string>
