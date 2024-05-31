@@ -1,6 +1,7 @@
 #pragma once
 
 #include <memory>
+#include <optional>
 
 #include <vklive/vulkan/vulkan_shader.h>
 #include <vklive/vulkan/vulkan_framebuffer.h>
