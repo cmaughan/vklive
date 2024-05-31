@@ -209,7 +209,7 @@ int VulkanImGuiTexture::CreateTexture(int width, int height, const unsigned char
     spFontInfo->height = height;
 
     // Sampler
-    VkSamplerCreateInfo info = {0};
+    VkSamplerCreateInfo info;
     info.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
     info.magFilter = VK_FILTER_LINEAR;
     info.minFilter = VK_FILTER_LINEAR;
@@ -225,7 +225,7 @@ int VulkanImGuiTexture::CreateTexture(int width, int height, const unsigned char
 
     // Create the Image:
     {
-        VkImageCreateInfo info = {0};
+        VkImageCreateInfo info;
         info.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
         info.imageType = VK_IMAGE_TYPE_2D;
         info.format = VK_FORMAT_R8G8B8A8_UNORM;
