@@ -215,7 +215,7 @@ void vulkan_scene_target_set_imgui_descriptor(VulkanContext& ctx, VulkanScene& v
 
     debug_set_descriptorset_name(ctx.device, vulkanSurface.ImGuiDescriptorSet, fmt::format("{}:{}:{}", to_string(vulkanSurface), ctx.mainWindowData.frameIndex, "DescriptorSet(ImGui)"));
 
-    assert(vulkanSurface.sampler != 0);
+    assert(vulkanSurface.sampler);
     vk::DescriptorImageInfo desc_image;
     desc_image.sampler = vulkanSurface.sampler;
     desc_image.imageView = vulkanSurface.view;

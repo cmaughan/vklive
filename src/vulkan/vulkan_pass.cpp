@@ -735,7 +735,7 @@ void vulkan_pass_set_descriptors(VulkanContext& ctx, VulkanPass& vulkanPass)
         if (pVulkanSurface && pVulkanSurface->image && pVulkanSurface->view && pVulkanSurface->sampler)
         {
             vk::DescriptorImageInfo desc_image;
-            assert(pVulkanSurface->sampler != 0);
+            assert(pVulkanSurface->sampler);
             desc_image.sampler = pVulkanSurface->sampler;
             desc_image.imageView = pVulkanSurface->view;
             desc_image.imageLayout = vk::ImageLayout::eShaderReadOnlyOptimal;

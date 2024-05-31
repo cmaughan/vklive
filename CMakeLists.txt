@@ -31,7 +31,7 @@ set(COMPANY "Rezonality")
 set(COPYRIGHT "Copyright (c) 2022 Rezonality")
 set(IDENTIFIER "com.rezonality.vklive")
 
-find_package(unofficial-minizip CONFIG REQUIRED)
+find_package(minizip CONFIG REQUIRED)
 find_package(Vulkan REQUIRED) # Vulkan API
 find_package(assimp CONFIG REQUIRED) # Asset import for loading models
 find_package(clipp CONFIG REQUIRED) # Commandline parser for command line arguments
@@ -271,7 +271,7 @@ target_link_libraries(Rezonality
         unofficial::concurrentqueue::concurrentqueue
         clipp::clipp
         unofficial::nativefiledialog::nfd
-        unofficial::spirv-reflect
+        unofficial::spirv-reflect::spirv-reflect
         gli
         Zing::Zing
     )
