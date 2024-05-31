@@ -31,7 +31,7 @@ set(COMPANY "Rezonality")
 set(COPYRIGHT "Copyright (c) 2022 Rezonality")
 set(IDENTIFIER "com.rezonality.vklive")
 
-find_package(minizip CONFIG REQUIRED)
+find_package(unofficial-minizip CONFIG REQUIRED)
 find_package(Vulkan REQUIRED) # Vulkan API
 find_package(assimp CONFIG REQUIRED) # Asset import for loading models
 find_package(clipp CONFIG REQUIRED) # Commandline parser for command line arguments
@@ -283,15 +283,15 @@ target_link_options(Rezonality PRIVATE "$<$<CONFIG:Release>:/OPT:REF>")
 target_link_options(Rezonality PRIVATE "$<$<CONFIG:Release>:/OPT:ICF>")
 endif()
 
-if (WIN32)
+if (APPLE)
     target_link_libraries(Rezonality
     PRIVATE
-        unofficial::spirv-reflect
+        unofficial::spirv-reflect::spirv-reflect
     )
 else()
     target_link_libraries(Rezonality
     PRIVATE
-        unofficial::spirv-reflect::spirv-reflect
+        unofficial::spirv-reflect
     )
 endif()
 
