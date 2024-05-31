@@ -3,7 +3,7 @@
 [![Builds](https://github.com/cmaughan/vklive/actions/workflows/builds.yml/badge.svg)](https://github.com/cmaughan/vklive/actions/workflows/builds.yml)
 [![GitHub license](https://img.shields.io/badge/license-MIT-blue.svg)](https://github.com/cmaughan/vklive/blob/master/LICENSE) 
 
-This is a *work in progress* Vulkan/Shader editing project.  It runs on Windows and has recently been fixed to run on Mac.  Linux now builds but hasn't been tested yet!
+This is a *work in progress* Vulkan/Shader editing project.  It runs on Windows, builds on Mac and Linux but has not recently been tested on those platforms.
 I've been building live editing tools for years, but they always got too big and I never got to the point of shipping anything.  This project pulls in the best/working bits of the visual tools I've built and ships it ;)  I've paid attention to managing the basics, and making things work well. I'd love to know what you think.
 
 Currently, you can edit a simple description of your scene in terms of passes and geometry, then you can edit the shader files in your project folder.  The main selling point is the easy UI, and great error feedback when editing shaders.
