@@ -1,8 +1,11 @@
 #include <algorithm>
 #include <cstdint>
+#include <exception>
 #include <mutex>
 
 #include <fmt/format.h>
+
+#include <zest/time/timer.h>
 
 #include <vklive/metal/metal_context.h>
 #include <vklive/metal/metal_model.h>
@@ -24,15 +27,6 @@ void report_metal_scene_error(Scene& scene, const std::string& text, const fs::p
 {
     scene_report_error(scene, MessageSeverity::Error, text, path.empty() ? scene.sceneGraphPath : path);
     validation_error(text);
-}
-
-void report_metal_scene_warning(Scene& scene, const std::string& text, const fs::path& path = fs::path())
-{
-    Message msg;
-    msg.severity = MessageSeverity::Warning;
-    msg.text = text;
-    msg.path = path.empty() ? scene.sceneGraphPath : path;
-    scene.warnings.push_back(msg);
 }
 
 bool metal_shader_extension_supported(const fs::path& path)
@@ -325,37 +319,55 @@ RenderOutput metal_scene_render(MetalContext& ctx, MetalScene& metalScene, const
     auto renderSize = glm::uvec2(static_cast<uint32_t>(std::max(size.x, 0.0f)), static_cast<uint32_t>(std::max(size.y, 0.0f)));
     metalScene.defaultTarget = MetalSurfaceKey();
 
+    if (!metalScene.pScene || !metalScene.pScene->valid)
+    {
+        metalScene.viewableTargets.clear();
+        return {};
+    }
+
+    if (!metalScene.pScene->pause)
+    {
+        Scene::GlobalFrameCount++;
+        Scene::GlobalElapsedSeconds = metalScene.pScene->recording ? (Scene::GlobalFrameCount * (1.0 / 60.0)) : Zest::timer_get_elapsed_seconds(Zest::globalTimer);
+    }
+    else
+    {
+        Scene::GlobalElapsedSeconds = Scene::GlobalFrameCount * (1.0 / 60.0);
+    }
+
     if (renderSize.x == 0 || renderSize.y == 0)
     {
         metalScene.viewableTargets.clear();
         return {};
     }
 
-    if (metalScene.pScene && !metalScene.reportedRasterRenderUnsupported)
+    try
     {
-        metalScene.reportedRasterRenderUnsupported = true;
-        report_metal_scene_warning(*metalScene.pScene, "Metal raster pass rendering is not implemented yet.");
-    }
-
-    if (metalScene.pScene)
-    {
-        for (auto& [surfaceName, spSurface] : metalScene.pScene->surfaces)
+        for (auto& spPass : metalScene.passes)
         {
-            if (!spSurface || !spSurface->isTarget)
+            if (!spPass)
             {
                 continue;
             }
 
-            auto pMetalSurface = metal_scene_get_or_create_surface(ctx, metalScene, surfaceName);
-            if (pMetalSurface)
+            if (!metal_pass_draw(ctx, *spPass, renderSize))
             {
-                metal_surface_ensure_target(ctx, metalScene, *pMetalSurface, renderSize);
+                validation_clear_error_state();
+                return {};
             }
         }
+
+        metal_scene_prepare_output_targets(ctx, metalScene);
+        return metal_scene_get_output(ctx, metalScene);
+    }
+    catch (std::exception& ex)
+    {
+        validation_error(ex.what());
+        metal_scene_destroy(ctx, *metalScene.pScene);
+        ctx.deviceState = DeviceState::Lost;
     }
 
-    metal_scene_prepare_output_targets(ctx, metalScene);
-    return metal_scene_get_output(ctx, metalScene);
+    return {};
 }
 
 RenderOutput metal_scene_get_output(MetalContext& ctx, MetalScene& metalScene)

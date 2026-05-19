@@ -46,7 +46,6 @@ struct MetalScene
     std::set<MetalSurfaceKey> viewableTargets;
     MetalSurfaceKey defaultTarget;
 
-    bool reportedRasterRenderUnsupported = false;
     bool reportedCaptureUnsupported = false;
 };
 
