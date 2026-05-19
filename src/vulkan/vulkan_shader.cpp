@@ -1,10 +1,6 @@
-#include <cstring>
 #include <fmt/format.h>
 #include <fstream>
 #include <sstream>
-
-// #define SPIRV_REFLECT_USE_SYSTEM_SPIRV_H
-#include <spirv-reflect/spirv_reflect.h>
 
 #include <zest/file/file.h>
 #include <zest/file/runtree.h>
@@ -19,73 +15,8 @@
 namespace vulkan
 {
 
-ShaderBindingType spv_reflect_descriptor_type_to_shader_binding_type(SpvReflectDescriptorType type)
-{
-    switch (type)
-    {
-    case SPV_REFLECT_DESCRIPTOR_TYPE_SAMPLER:
-        return ShaderBindingType::Sampler;
-    case SPV_REFLECT_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER:
-        return ShaderBindingType::CombinedImageSampler;
-    case SPV_REFLECT_DESCRIPTOR_TYPE_SAMPLED_IMAGE:
-        return ShaderBindingType::SampledImage;
-    case SPV_REFLECT_DESCRIPTOR_TYPE_STORAGE_IMAGE:
-        return ShaderBindingType::StorageImage;
-    case SPV_REFLECT_DESCRIPTOR_TYPE_UNIFORM_TEXEL_BUFFER:
-        return ShaderBindingType::UniformTexelBuffer;
-    case SPV_REFLECT_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER:
-        return ShaderBindingType::StorageTexelBuffer;
-    case SPV_REFLECT_DESCRIPTOR_TYPE_UNIFORM_BUFFER:
-        return ShaderBindingType::UniformBuffer;
-    case SPV_REFLECT_DESCRIPTOR_TYPE_STORAGE_BUFFER:
-        return ShaderBindingType::StorageBuffer;
-    case SPV_REFLECT_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC:
-        return ShaderBindingType::UniformBufferDynamic;
-    case SPV_REFLECT_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC:
-        return ShaderBindingType::StorageBufferDynamic;
-    case SPV_REFLECT_DESCRIPTOR_TYPE_INPUT_ATTACHMENT:
-        return ShaderBindingType::InputAttachment;
-    case SPV_REFLECT_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR:
-        return ShaderBindingType::AccelerationStructure;
-    default:
-        return ShaderBindingType::Unknown;
-    }
-}
-
-ShaderStageFlags spv_reflect_shader_stage_to_shader_stage_flags(SpvReflectShaderStageFlagBits stage)
-{
-    switch (stage)
-    {
-    case SPV_REFLECT_SHADER_STAGE_VERTEX_BIT:
-        return static_cast<ShaderStageFlags>(ShaderStageBits::Vertex);
-    case SPV_REFLECT_SHADER_STAGE_FRAGMENT_BIT:
-        return static_cast<ShaderStageFlags>(ShaderStageBits::Fragment);
-    case SPV_REFLECT_SHADER_STAGE_GEOMETRY_BIT:
-        return static_cast<ShaderStageFlags>(ShaderStageBits::Geometry);
-    case SPV_REFLECT_SHADER_STAGE_COMPUTE_BIT:
-        return static_cast<ShaderStageFlags>(ShaderStageBits::Compute);
-    case SPV_REFLECT_SHADER_STAGE_RAYGEN_BIT_KHR:
-        return static_cast<ShaderStageFlags>(ShaderStageBits::RayGen);
-    case SPV_REFLECT_SHADER_STAGE_CLOSEST_HIT_BIT_KHR:
-        return static_cast<ShaderStageFlags>(ShaderStageBits::ClosestHit);
-    case SPV_REFLECT_SHADER_STAGE_MISS_BIT_KHR:
-        return static_cast<ShaderStageFlags>(ShaderStageBits::Miss);
-    case SPV_REFLECT_SHADER_STAGE_ANY_HIT_BIT_KHR:
-        return static_cast<ShaderStageFlags>(ShaderStageBits::AnyHit);
-    default:
-        return 0;
-    }
-}
-
 bool shader_reflect(const std::string& spirv, VulkanShader& vulkanShader)
 {
-    SpvReflectShaderModule module = {};
-    SpvReflectResult result = spvReflectCreateShaderModule(spirv.size(), spirv.c_str(), &module);
-    if (result != SPV_REFLECT_RESULT_SUCCESS)
-    {
-        return false;
-    }
-
 #ifdef _DEBUG
     std::ostringstream str;
     const spv_reflect::ShaderModule mod(spirv.size(), spirv.c_str());
@@ -93,49 +24,13 @@ bool shader_reflect(const std::string& spirv, VulkanShader& vulkanShader)
     LOG_SCOPE(DBG, str.str());
 #endif
 
-    uint32_t count = 0;
-    result = spvReflectEnumerateDescriptorSets(&module, &count, NULL);
-    if (result != SPV_REFLECT_RESULT_SUCCESS)
+    if (!shader_reflect_binding_sets(spirv.c_str(), spirv.size(), vulkanShader.pShader->path, vulkanShader.bindingSets))
     {
         return false;
     }
 
-    std::vector<SpvReflectDescriptorSet*> sets(count);
-    result = spvReflectEnumerateDescriptorSets(&module, &count, sets.data());
-    if (result != SPV_REFLECT_RESULT_SUCCESS)
-    {
-        return false;
-    }
-
-    for (auto& set : sets)
-    {
-        for (uint32_t index = 0; index < set->binding_count; ++index)
-        {
-            auto& bindingReflect = *set->bindings[index];
-
-            ShaderBinding shaderBinding;
-            shaderBinding.binding = bindingReflect.binding;
-            shaderBinding.type = spv_reflect_descriptor_type_to_shader_binding_type(bindingReflect.descriptor_type);
-            shaderBinding.count = 1;
-            for (uint32_t dim = 0; dim < bindingReflect.array.dims_count; dim++)
-            {
-                shaderBinding.count *= bindingReflect.array.dims[dim];
-            }
-            shaderBinding.stageFlags = spv_reflect_shader_stage_to_shader_stage_flags(module.shader_stage);
-            vulkanShader.bindingSets[set->set].bindings[shaderBinding.binding] = shaderBinding;
-
-            ShaderBindingMeta meta;
-            meta.name = bindingReflect.name;
-            meta.shaderPath = vulkanShader.pShader->path;
-            // TODO: Can we provide the range here?
-            // The reflection doesn't give us file offsets, so we would have to scan the file and find the declarations
-            meta.line = 0;
-            vulkanShader.bindingSets[set->set].bindingMeta[shaderBinding.binding] = meta;
-        }
-    }
     LOG_SCOPE(DBG, "Shader: " << vulkanShader.pShader->path.filename() << ", Bindings:");
     bindings_dump(vulkanShader.bindingSets);
-    spvReflectDestroyShaderModule(&module);
     return true;
 }
 

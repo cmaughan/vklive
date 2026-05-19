@@ -203,6 +203,7 @@ set(METAL_OBJCXX_SOURCES
     src/metal/metal_model.mm
     src/metal/metal_pass.mm
     src/metal/metal_scene.mm
+    src/metal/metal_shader.mm
     src/metal/metal_surface.mm
 )
 
@@ -218,6 +219,7 @@ set(METAL_SOURCES
     include/vklive/metal/metal_model.h
     include/vklive/metal/metal_pass.h
     include/vklive/metal/metal_scene.h
+    include/vklive/metal/metal_shader.h
     include/vklive/metal/metal_surface.h
 )
 
@@ -323,6 +325,7 @@ target_link_libraries(vklive
         range-v3::meta
         range-v3-concepts
         Zing::Zing
+        unofficial::spirv-reflect
         lodepng
     )
 

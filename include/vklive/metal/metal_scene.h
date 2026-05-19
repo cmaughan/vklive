@@ -18,6 +18,7 @@ namespace metal
 struct MetalContext;
 struct MetalModel;
 struct MetalPass;
+struct MetalShader;
 struct MetalSurface;
 
 struct PathHash
@@ -38,6 +39,7 @@ struct MetalScene
     Scene* pScene = nullptr;
     std::unordered_map<MetalSurfaceKey, std::shared_ptr<MetalSurface>, MetalSurfaceKey::HashFunction> surfaces;
     std::unordered_map<fs::path, std::shared_ptr<MetalModel>, PathHash> models;
+    std::unordered_map<fs::path, std::shared_ptr<MetalShader>, PathHash> shaderStages;
     std::vector<std::shared_ptr<MetalPass>> passes;
 
     bool reportedRasterRenderUnsupported = false;

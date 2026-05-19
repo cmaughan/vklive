@@ -5,6 +5,7 @@
 #include <vklive/metal/metal_model.h>
 #include <vklive/metal/metal_pass.h>
 #include <vklive/metal/metal_scene.h>
+#include <vklive/metal/metal_shader.h>
 #include <vklive/scene.h>
 #include <vklive/validation.h>
 
@@ -148,6 +149,22 @@ std::shared_ptr<MetalScene> metal_scene_create(MetalContext& ctx, Scene& scene)
 
     auto spMetalScene = std::make_shared<MetalScene>(&scene);
 
+    for (auto& [_, pShader] : scene.shaders)
+    {
+        if (pShader && !metal_shader_create(ctx, *spMetalScene, *pShader))
+        {
+            for (auto& [_, spShader] : spMetalScene->shaderStages)
+            {
+                if (spShader)
+                {
+                    metal_shader_destroy(ctx, *spShader);
+                }
+            }
+            spMetalScene->shaderStages.clear();
+            return nullptr;
+        }
+    }
+
     for (auto& [path, pGeom] : scene.models)
     {
         if (pGeom)
@@ -204,6 +221,15 @@ void metal_scene_destroy(MetalContext& ctx, Scene& scene)
         }
     }
     spMetalScene->surfaces.clear();
+
+    for (auto& [_, spShader] : spMetalScene->shaderStages)
+    {
+        if (spShader)
+        {
+            metal_shader_destroy(ctx, *spShader);
+        }
+    }
+    spMetalScene->shaderStages.clear();
 
     for (auto& [_, spModel] : spMetalScene->models)
     {

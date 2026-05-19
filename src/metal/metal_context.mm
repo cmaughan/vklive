@@ -3,6 +3,7 @@
 #import <QuartzCore/CAMetalLayer.h>
 
 #include <stdexcept>
+#include <vector>
 
 #include <SDL2/SDL.h>
 #include <SDL2/SDL_metal.h>
@@ -165,9 +166,20 @@ void context_present(MetalContext& ctx)
 void context_destroy(MetalContext& ctx)
 {
     context_wait_idle(ctx);
+    std::vector<Scene*> scenes;
     {
         std::lock_guard<std::mutex> lock(ctx.metalSceneMutex);
-        ctx.mapMetalScene.clear();
+        for (auto& sceneEntry : ctx.mapMetalScene)
+        {
+            scenes.push_back(sceneEntry.first);
+        }
+    }
+    for (auto& scene : scenes)
+    {
+        if (scene)
+        {
+            metal_scene_destroy(ctx, *scene);
+        }
     }
     release_obj(ctx.currentDrawable);
     release_obj(ctx.frameCommandBuffer);
