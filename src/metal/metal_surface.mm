@@ -76,6 +76,11 @@ bool metal_surface_format_is_depth(metal::MetalSurfaceFormat format)
     return format == metal::MetalSurfaceFormat::Depth32Float;
 }
 
+bool metal_surface_size_valid(const glm::uvec2& size)
+{
+    return size.x != 0 && size.y != 0;
+}
+
 NSString* ns_string(const std::string& string)
 {
     return [NSString stringWithUTF8String:string.c_str()];
@@ -156,7 +161,7 @@ void metal_surface_create_target(MetalContext& ctx, MetalSurface& surface, const
 {
     metal_surface_destroy(ctx, surface);
 
-    if (size == glm::uvec2(0) || format == MetalSurfaceFormat::Unknown)
+    if (!metal_surface_size_valid(size) || format == MetalSurfaceFormat::Unknown)
     {
         return;
     }
@@ -246,7 +251,7 @@ bool metal_surface_ensure_target(MetalContext& ctx, MetalScene& scene, MetalSurf
     metal_surface_destroy(ctx, surface);
 
     surface.pSurface->currentSize = size;
-    if (size != glm::uvec2(0))
+    if (metal_surface_size_valid(size))
     {
         metal_surface_create_target(ctx, surface, size, format);
     }

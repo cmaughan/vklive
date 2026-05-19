@@ -322,6 +322,12 @@ RenderOutput metal_scene_render(MetalContext& ctx, MetalScene& metalScene, const
     auto renderSize = glm::uvec2(static_cast<uint32_t>(std::max(size.x, 0.0f)), static_cast<uint32_t>(std::max(size.y, 0.0f)));
     metalScene.defaultTarget = MetalSurfaceKey();
 
+    if (renderSize.x == 0 || renderSize.y == 0)
+    {
+        metalScene.viewableTargets.clear();
+        return {};
+    }
+
     if (metalScene.pScene && !metalScene.reportedRasterRenderUnsupported)
     {
         metalScene.reportedRasterRenderUnsupported = true;
