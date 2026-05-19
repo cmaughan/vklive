@@ -125,6 +125,45 @@ bool metal_validate_scene(Scene& scene)
     return valid;
 }
 
+void metal_scene_destroy_resources(metal::MetalContext& ctx, metal::MetalScene& metalScene)
+{
+    for (auto& spPass : metalScene.passes)
+    {
+        if (spPass)
+        {
+            metal::metal_pass_destroy(ctx, *spPass);
+        }
+    }
+    metalScene.passes.clear();
+
+    for (auto& [_, spSurface] : metalScene.surfaces)
+    {
+        if (spSurface)
+        {
+            metal::metal_surface_destroy(ctx, *spSurface);
+        }
+    }
+    metalScene.surfaces.clear();
+
+    for (auto& [_, spShader] : metalScene.shaderStages)
+    {
+        if (spShader)
+        {
+            metal::metal_shader_destroy(ctx, *spShader);
+        }
+    }
+    metalScene.shaderStages.clear();
+
+    for (auto& [_, spModel] : metalScene.models)
+    {
+        if (spModel)
+        {
+            metal::metal_model_destroy(ctx, *spModel);
+        }
+    }
+    metalScene.models.clear();
+}
+
 } // namespace
 
 namespace metal
@@ -161,14 +200,7 @@ std::shared_ptr<MetalScene> metal_scene_create(MetalContext& ctx, Scene& scene)
     {
         if (pShader && !metal_shader_create(ctx, *spMetalScene, *pShader))
         {
-            for (auto& [_, spShader] : spMetalScene->shaderStages)
-            {
-                if (spShader)
-                {
-                    metal_shader_destroy(ctx, *spShader);
-                }
-            }
-            spMetalScene->shaderStages.clear();
+            metal_scene_destroy_resources(ctx, *spMetalScene);
             return nullptr;
         }
     }
@@ -177,7 +209,13 @@ std::shared_ptr<MetalScene> metal_scene_create(MetalContext& ctx, Scene& scene)
     {
         if (pGeom)
         {
-            spMetalScene->models[path] = metal_model_create(ctx, *spMetalScene, *pGeom);
+            auto spModel = metal_model_create(ctx, *spMetalScene, *pGeom);
+            if (!spModel)
+            {
+                metal_scene_destroy_resources(ctx, *spMetalScene);
+                return nullptr;
+            }
+            spMetalScene->models[path] = spModel;
         }
     }
 
@@ -212,42 +250,7 @@ void metal_scene_destroy(MetalContext& ctx, Scene& scene)
         ctx.mapMetalScene.erase(itr);
     }
 
-    for (auto& spPass : spMetalScene->passes)
-    {
-        if (spPass)
-        {
-            metal_pass_destroy(ctx, *spPass);
-        }
-    }
-    spMetalScene->passes.clear();
-
-    for (auto& [_, spSurface] : spMetalScene->surfaces)
-    {
-        if (spSurface)
-        {
-            metal_surface_destroy(ctx, *spSurface);
-        }
-    }
-    spMetalScene->surfaces.clear();
-
-    for (auto& [_, spShader] : spMetalScene->shaderStages)
-    {
-        if (spShader)
-        {
-            metal_shader_destroy(ctx, *spShader);
-        }
-    }
-    spMetalScene->shaderStages.clear();
-
-    for (auto& [_, spModel] : spMetalScene->models)
-    {
-        if (spModel)
-        {
-            metal_model_destroy(ctx, *spModel);
-        }
-    }
-    spMetalScene->models.clear();
-
+    metal_scene_destroy_resources(ctx, *spMetalScene);
 }
 
 MetalSurface* metal_scene_get_or_create_surface(MetalContext& ctx, MetalScene& metalScene, const std::string& surfaceName, uint64_t frameCount, bool sampling)
