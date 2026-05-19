@@ -112,11 +112,12 @@ namespace metal
 
 MetalSurfaceKey::MetalSurfaceKey(const std::string& name, uint64_t frameCount, bool sampling)
     : targetName(name)
-    , pingPongIndex(frame_to_pingpong(frameCount))
+    , pingPongIndex(0)
 {
+    // Render target writes stay on a stable key until Metal sampler ping-pong is implemented.
     if (sampling)
     {
-        pingPongIndex = 1 - pingPongIndex;
+        pingPongIndex = 1 - frame_to_pingpong(frameCount);
     }
 }
 
