@@ -29,14 +29,19 @@ extern "C" {
 #define T_FORMAT "format"
 #define T_FS "fs"
 #define T_GEOMETRY "geometry"
+#define T_ENVIRONMENT "environment"
 #define T_POST_2D "post_2d"
 #define T_GS "gs"
 #define T_IDENT "ident"
 #define T_IDENT_ARRAY "ident_array"
+#define T_MODEL "model"
+#define T_MODEL_REF "model_ref"
 #define T_PASS "pass"
 #define T_PATH "path"
 #define T_PATH_NAME "path_name"
 #define T_BUILD_AS "build_as"
+#define T_FLIP_UV_Y "flip_uv_y"
+#define T_UV_ORIGIN "uv_origin"
 #define T_SAMPLERS "samplers"
 #define T_SCALE "scale"
 #define T_SCENEGRAPH "scenegraph"
@@ -164,6 +169,9 @@ void scene_init_parser()
     ADD_PARSER(script, T_SCRIPT);
     ADD_PARSER(entry, T_ENTRY);
     ADD_PARSER(geometry, T_GEOMETRY);
+    ADD_PARSER(environment, T_ENVIRONMENT);
+    ADD_PARSER(model, T_MODEL);
+    ADD_PARSER(model_ref, T_MODEL_REF);
     ADD_PARSER(post_2d, T_POST_2D);
 
     // RT
@@ -179,6 +187,8 @@ void scene_init_parser()
 
     ADD_PARSER(path_id, T_PATH);
     ADD_PARSER(build_as, T_BUILD_AS);
+    ADD_PARSER(flip_uv_y, T_FLIP_UV_Y);
+    ADD_PARSER(uv_origin, T_UV_ORIGIN);
     ADD_PARSER(path_name, T_PATH_NAME);
     ADD_PARSER(scale, T_SCALE);
     ADD_PARSER(size, T_SIZE);
@@ -208,6 +218,8 @@ bool             : "true" | "false" ;
 vector           : ('(' <float> (','? <float>)? (','? <float>)? (','? <float>)? ')') | <float> ;
 ident_array      : ('(' <ident> (','? <ident>)? (','? <ident>)? (','? <ident>)? (','? <ident>)? ')') | <ident> ;
 build_as         : "build_as" ":" <bool> ;
+flip_uv_y        : "flip_uv_y" ":" <bool> ;
+uv_origin        : "uv_origin" ":" <ident> ;
 scale            : "scale" ':' <vector> ;
 size             : "size" ':' <vector> ;
 clear            : "clear" ':' <vector> ;
@@ -232,17 +244,20 @@ any_hit          : "any_hit" ':' <path_name> ;
 intersection     : "intersection" ':' <path_name> ;
 post_2d          : "post_2d" ':' <path_name> ;
 surface          : "surface" ':' <ident> '{' (<comment> | <path> | <clear> | <format> | <scale> | <size>)* '}';
+environment      : "environment" ':' <ident> '{' (<comment> | <path> | <format> | <scale> | <size>)* '}';
+model_ref        : "model" ':' <ident> ;
+model            : "model" ':' <ident> '{' (<comment> | <path> | <scale> | <build_as> | <uv_origin> | <flip_uv_y>)* '}';
 camera           : "camera" ':' <ident> '{' (<comment> | <position> | <look_at> | <field_of_view> | <near_far>)* '}';
 ray_group_general : "ray_group_general" ':' <ident> '{' (<ray_gen> | <miss> | <callable>) '}';
 ray_group_triangles : "ray_group_triangles" ':' <ident> '{' (<closest_hit> | <any_hit>)* '}';
 ray_group_procedural : "ray_group_procedural" ':' <ident> '{' <intersection> (<closest_hit> | <any_hit>)* '}';
-geometry         : "geometry" ':' <ident> '{' (<path> | <scale> | <build_as> | <ray_group_general> | <ray_group_triangles> | <ray_group_procedural> | <vs> | <fs> | <gs> | <comment>)* '}';
+geometry         : "geometry" ':' <ident> '{' (<path> | <model_ref> | <scale> | <build_as> | <uv_origin> | <flip_uv_y> | <ray_group_general> | <ray_group_triangles> | <ray_group_procedural> | <vs> | <fs> | <gs> | <comment>)* '}';
 disable          : '!' ;
 pass             : <disable>? "pass" ':' <ident> '{' (<script> | <entry> | <geometry> | <targets> | <samplers> | <camera_id> | <comment> | <clear>)* '}'; 
-scenegraph       : /^/ (<comment> | <surface> | <camera>)* (<comment> | <pass> )* <post_2d>? /$/ ;
+scenegraph       : /^/ (<comment> | <surface> | <environment> | <model> | <camera>)* (<comment> | <pass> )* <post_2d>? /$/ ;
     )",
-        path_name, path_id, comment, ident, bool_id, flt, vector, ident_array, build_as, scale, size, clear, format,
-        samplers, targets, vs, gs, fs, script, entry, surface, camera, camera_id, position, look_at, field_of_view, near_far, post_2d, geometry, disable, pass, ray_group_general, ray_group_triangles, ray_group_procedural, ray_gen, miss, any_hit, closest_hit, intersection, callable, parser.pSceneGraph, nullptr);
+        path_name, path_id, comment, ident, bool_id, flt, vector, ident_array, build_as, flip_uv_y, uv_origin, scale, size, clear, format,
+        samplers, targets, vs, gs, fs, script, entry, surface, environment, model_ref, model, camera, camera_id, position, look_at, field_of_view, near_far, post_2d, geometry, disable, pass, ray_group_general, ray_group_triangles, ray_group_procedural, ray_gen, miss, any_hit, closest_hit, intersection, callable, parser.pSceneGraph, nullptr);
 }
 
 void scene_destroy_parser()
@@ -262,8 +277,24 @@ void scene_destroy_parser()
 }
 
 // Find the scene graph path
-fs::path scene_get_scenegraph(const fs::path& root, const std::vector<fs::path>& files)
+fs::path scene_get_scenegraph(const fs::path& root, const std::vector<fs::path>& files, const fs::path& sceneGraphOverride = fs::path())
 {
+    if (!sceneGraphOverride.empty())
+    {
+        fs::path overridePath = sceneGraphOverride;
+        if (overridePath.is_relative())
+        {
+            overridePath = root / overridePath;
+        }
+
+        if (fs::exists(overridePath) && fs::is_regular_file(overridePath))
+        {
+            return fs::canonical(overridePath);
+        }
+
+        return overridePath;
+    }
+
     if (fs::is_directory(root))
     {
         auto projectFile = fs::path(root / "project.toml");
@@ -398,7 +429,7 @@ void validate_samplers(Scene& scene)
     }
 }
 
-std::shared_ptr<Scene> scene_build(const fs::path& root)
+std::shared_ptr<Scene> scene_build(const fs::path& root, const fs::path& sceneGraphOverride)
 {
     LOG(DBG, "scene_build: " << root.string());
 
@@ -406,9 +437,15 @@ std::shared_ptr<Scene> scene_build(const fs::path& root)
 
     auto files = Zest::file_gather_files(root);
 
-    spScene->sceneGraphPath = scene_get_scenegraph(root, files);
+    spScene->sceneGraphPath = scene_get_scenegraph(root, files, sceneGraphOverride);
     spScene->headers = scene_get_headers(files);
     spScene->valid = true;
+
+    if (spScene->sceneGraphPath.empty() || !fs::exists(spScene->sceneGraphPath) || !fs::is_regular_file(spScene->sceneGraphPath))
+    {
+        AddMessage(*spScene, fmt::format("Scenegraph missing: {}", spScene->sceneGraphPath.string()), MessageSeverity::Error);
+        return spScene;
+    }
 
     scene_init_parser();
 
@@ -500,6 +537,27 @@ std::shared_ptr<Scene> scene_build(const fs::path& root)
                 return std::string(pChild->contents) == "true";
             };
 
+            auto getUvOrigin = [&](auto entry, ModelUvOrigin defaultValue) {
+                if (!entry)
+                {
+                    return defaultValue;
+                }
+
+                auto pChild = getChild(entry, T_IDENT);
+                const auto value = Zest::string_tolower(std::string(pChild->contents));
+                if (value == "upper_left")
+                {
+                    return ModelUvOrigin::UpperLeft;
+                }
+                if (value == "lower_left")
+                {
+                    return ModelUvOrigin::LowerLeft;
+                }
+
+                AddMessage(*spScene, fmt::format("Unknown uv_origin: {}", pChild->contents), MessageSeverity::Error, entry->state.row, entry->state.col);
+                return defaultValue;
+            };
+
             auto getVector = [&](auto entry, auto& ret, int min, int max) {
                 auto pChild = getChild(entry, T_VECTOR);
                 auto vals = childrenOf(pChild, T_FLOAT);
@@ -531,15 +589,20 @@ std::shared_ptr<Scene> scene_build(const fs::path& root)
                 auto pChild = getChild(entry, T_IDENT_ARRAY);
                 auto vals = childrenOf(pChild, T_IDENT);
 
-                if (vals.size() < min || vals.size() > max)
-                {
-                    AddMessage(*spScene, fmt::format("Wrong size vector: {}", entry->tag), MessageSeverity::Error, entry->state.row);
-                }
-
                 std::vector<std::string> ret;
                 for (auto& v : vals)
                 {
                     ret.push_back(v->contents);
+                }
+
+                if (ret.empty() && pChild && !std::string(pChild->contents).empty())
+                {
+                    ret.push_back(pChild->contents);
+                }
+
+                if (ret.size() < min || ret.size() > max)
+                {
+                    AddMessage(*spScene, fmt::format("Wrong size vector: {}", entry->tag), MessageSeverity::Error, entry->state.row);
                 }
                 return ret;
             };
@@ -594,12 +657,14 @@ std::shared_ptr<Scene> scene_build(const fs::path& root)
                 spScene->cameras[spCamera->name] = spCamera;
             }
 
-            auto surfaces = childrenOf(ast_current, T_SURFACE);
-            for (auto& pSurfaceNode : surfaces)
-            {
+            auto parseSurface = [&](auto pSurfaceNode, bool isEnvironment) {
                 auto pSurfaceNameNode = getChild(pSurfaceNode, T_IDENT);
 
                 auto spSurface = std::make_shared<Surface>(pSurfaceNameNode->contents);
+                if (isEnvironment)
+                {
+                    spSurface->format = Format::r32g32b32a32_sfloat;
+                }
 
                 if (hasChild(pSurfaceNode, T_PATH))
                 {
@@ -634,6 +699,66 @@ std::shared_ptr<Scene> scene_build(const fs::path& root)
                     spSurface->isDefaultColorTarget = true;
                 }
                 spScene->surfaces[spSurface->name] = spSurface;
+            };
+
+            auto surfaces = childrenOf(ast_current, T_SURFACE);
+            for (auto& pSurfaceNode : surfaces)
+            {
+                parseSurface(pSurfaceNode, false);
+            }
+
+            auto environments = childrenOf(ast_current, T_ENVIRONMENT);
+            for (auto& pEnvironmentNode : environments)
+            {
+                parseSurface(pEnvironmentNode, true);
+            }
+
+            auto modelAssets = childrenOf(ast_current, T_MODEL);
+            for (auto& pModelNode : modelAssets)
+            {
+                auto pModelNameNode = getChild(pModelNode, T_IDENT);
+                auto spModelAsset = std::make_shared<ModelAsset>();
+                spModelAsset->name = pModelNameNode->contents;
+
+                if (!hasChild(pModelNode, T_PATH))
+                {
+                    AddMessage(*spScene, fmt::format("Model missing path: {}", spModelAsset->name), MessageSeverity::Error, pModelNode->state.row);
+                    continue;
+                }
+
+                auto modelPath = fs::path(getPath(pModelNode));
+                auto foundPath = scene_find_asset(*spScene, modelPath, AssetType::Model);
+                if (foundPath.empty() || !fs::exists(foundPath))
+                {
+                    AddMessage(*spScene, std::string("Model missing: " + modelPath.filename().string()), MessageSeverity::Error, pModelNode->state.row);
+                    continue;
+                }
+
+                spModelAsset->path = foundPath;
+
+                auto scaleEntries = childrenOf(pModelNode, T_SCALE);
+                for (auto& pScaleNode : scaleEntries)
+                {
+                    getVector(pScaleNode, spModelAsset->loadScale, 1, 3);
+                }
+
+                if (hasChild(pModelNode, T_BUILD_AS))
+                {
+                    spModelAsset->buildAS = getBool(getChild(pModelNode, T_BUILD_AS));
+                }
+
+                if (hasChild(pModelNode, T_UV_ORIGIN))
+                {
+                    spModelAsset->uvOrigin = getUvOrigin(getChild(pModelNode, T_UV_ORIGIN), spModelAsset->uvOrigin);
+                }
+
+                if (hasChild(pModelNode, T_FLIP_UV_Y))
+                {
+                    spModelAsset->uvOrigin = getBool(getChild(pModelNode, T_FLIP_UV_Y)) ? ModelUvOrigin::LowerLeft : ModelUvOrigin::UpperLeft;
+                    AddMessage(*spScene, "flip_uv_y is deprecated; use uv_origin: lower_left or uv_origin: upper_left", MessageSeverity::Warning, pModelNode->state.row);
+                }
+
+                spScene->modelAssets[spModelAsset->name] = spModelAsset;
             }
 
             auto passes = childrenOf(ast_current, T_PASS);
@@ -685,28 +810,69 @@ std::shared_ptr<Scene> scene_build(const fs::path& root)
                 for (auto& pGeometryNode : models)
                 {
                     auto pGeomNameNode = getChild(pGeometryNode, T_IDENT);
-                    auto pPathNameNode = getChild(getChild(pGeometryNode, T_PATH), T_PATH_NAME);
 
                     std::shared_ptr<Geometry> spGeom;
-                    auto geomPath = fs::path(pPathNameNode->contents);
-                    if (geomPath.filename() == "screen_rect")
+                    if (hasChild(pGeometryNode, T_PATH) && hasChild(pGeometryNode, T_MODEL_REF))
                     {
-                        spGeom = std::make_shared<Geometry>(geomPath, GeometryType::Rect);
+                        AddMessage(*spScene, fmt::format("Geometry has both path and model; using path: {}", pGeomNameNode->contents), MessageSeverity::Warning, pGeometryNode->state.row);
+                    }
+
+                    if (hasChild(pGeometryNode, T_PATH))
+                    {
+                        auto pPathNameNode = getChild(getChild(pGeometryNode, T_PATH), T_PATH_NAME);
+                        auto geomPath = fs::path(pPathNameNode->contents);
+                        if (geomPath.filename() == "screen_rect")
+                        {
+                            spGeom = std::make_shared<Geometry>(geomPath, GeometryType::Rect);
+                        }
+                        else
+                        {
+                            auto foundPath = scene_find_asset(*spScene, geomPath, AssetType::Model);
+                            if (foundPath.empty() || !fs::exists(foundPath))
+                            {
+                                AddMessage(*spScene, std::string("Geometry missing: " + geomPath.filename().string()), MessageSeverity::Error, pGeometryNode->state.row);
+                                continue;
+                            }
+                            spGeom = std::make_shared<Geometry>(foundPath);
+                        }
+                    }
+                    else if (hasChild(pGeometryNode, T_MODEL_REF))
+                    {
+                        auto pModelRefNode = getChild(pGeometryNode, T_MODEL_REF);
+                        auto pModelNameNode = getChild(pModelRefNode, T_IDENT);
+                        auto itrModel = spScene->modelAssets.find(pModelNameNode->contents);
+                        if (itrModel == spScene->modelAssets.end())
+                        {
+                            AddMessage(*spScene, fmt::format("Model not found in geometry: {}", pModelNameNode->contents), MessageSeverity::Error, pModelRefNode->state.row, pModelRefNode->state.col);
+                            continue;
+                        }
+
+                        spGeom = std::make_shared<Geometry>(itrModel->second->path);
+                        spGeom->modelName = itrModel->second->name;
+                        spGeom->loadScale = itrModel->second->loadScale;
+                        spGeom->buildAS = itrModel->second->buildAS;
+                        spGeom->uvOrigin = itrModel->second->uvOrigin;
                     }
                     else
                     {
-                        auto foundPath = scene_find_asset(*spScene, geomPath, AssetType::Model);
-                        if (foundPath.empty() || !fs::exists(foundPath))
-                        {
-                            AddMessage(*spScene, std::string("Geometry missing: " + geomPath.filename().string()), MessageSeverity::Error, pGeometryNode->state.row);
-                            continue;
-                        }
-                        spGeom = std::make_shared<Geometry>(foundPath);
+                        AddMessage(*spScene, fmt::format("Geometry missing path or model: {}", pGeomNameNode->contents), MessageSeverity::Error, pGeometryNode->state.row);
+                        continue;
                     }
 
                     if (hasChild(pGeometryNode, T_BUILD_AS))
                     {
                         spGeom->buildAS = getBool(getChild(pGeometryNode, T_BUILD_AS));
+                    }
+
+                    if (hasChild(pGeometryNode, T_UV_ORIGIN))
+                    {
+                        spGeom->uvOrigin = getUvOrigin(getChild(pGeometryNode, T_UV_ORIGIN), spGeom->uvOrigin);
+                    }
+
+                    if (hasChild(pGeometryNode, T_FLIP_UV_Y))
+                    {
+                        spGeom->uvOrigin = getBool(getChild(pGeometryNode, T_FLIP_UV_Y)) ? ModelUvOrigin::LowerLeft : ModelUvOrigin::UpperLeft;
+                        AddMessage(*spScene, "flip_uv_y is deprecated; use uv_origin: lower_left or uv_origin: upper_left", MessageSeverity::Warning, pGeometryNode->state.row);
                     }
 
                     auto addShader = [&](auto pEntry) -> std::shared_ptr<Shader> {

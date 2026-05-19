@@ -37,6 +37,8 @@ VertexLayout g_vertexLayout{ {
     Component::VERTEX_COMPONENT_UV,
     Component::VERTEX_COMPONENT_COLOR,
     Component::VERTEX_COMPONENT_NORMAL,
+    Component::VERTEX_COMPONENT_TANGENT,
+    Component::VERTEX_COMPONENT_BITANGENT,
 } };
 
 } // namespace

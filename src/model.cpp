@@ -19,6 +19,8 @@ VertexLayout g_vertexLayout{ {
     Component::VERTEX_COMPONENT_UV,
     Component::VERTEX_COMPONENT_COLOR,
     Component::VERTEX_COMPONENT_NORMAL,
+    Component::VERTEX_COMPONENT_TANGENT,
+    Component::VERTEX_COMPONENT_BITANGENT,
 } };
 
 std::set<std::string> model_file_extensions()
@@ -31,6 +33,45 @@ std::set<std::string> model_file_extensions()
     return std::set<std::string>(v.begin(), v.end());
 }
 
+ModelTextureSlot model_resolve_texture_slot(Model& model, const fs::path& modelPath, aiMaterial* pMaterial, aiTextureType textureType, bool srgb)
+{
+    ModelTextureSlot slot;
+    if (pMaterial->GetTextureCount(textureType) == 0)
+    {
+        return slot;
+    }
+
+    aiString str;
+    if (pMaterial->GetTexture(textureType, 0, &str) != aiReturn_SUCCESS)
+    {
+        return slot;
+    }
+
+    slot.pathName = str.C_Str();
+    slot.srgb = srgb;
+    slot.flipY = model.createInfo.uvOrigin == ModelUvOrigin::LowerLeft;
+
+    auto itrEmbedded = model.embeddedTextures.find(slot.pathName);
+    if (itrEmbedded != model.embeddedTextures.end())
+    {
+        slot.embeddedTexture = &itrEmbedded->second;
+        return slot;
+    }
+
+    fs::path texturePath = fs::path(slot.pathName);
+    if (texturePath.is_relative())
+    {
+        texturePath = modelPath.parent_path() / texturePath;
+    }
+
+    if (fs::exists(texturePath))
+    {
+        slot.resolvedPath = fs::canonical(texturePath);
+    }
+
+    return slot;
+}
+
 void model_load(Model& model, const ModelCreateInfo& createInfo, int flags)
 {
     if (!fs::exists(createInfo.filename))
@@ -38,12 +79,14 @@ void model_load(Model& model, const ModelCreateInfo& createInfo, int flags)
         return;
     }
 
-    if (model.loaded && (fs::last_write_time(createInfo.filename) == model.lastWrite))
+    if (model.loaded && (model.createInfo == createInfo) && (fs::last_write_time(createInfo.filename) == model.lastWrite))
     {
         return;
     }
 
     model.createInfo = createInfo;
+    model.errors.clear();
+    model.dim = {};
 
     Assimp::Importer importer;
     const aiScene* pScene;
@@ -90,52 +133,57 @@ void model_load(Model& model, const ModelCreateInfo& createInfo, int flags)
         std::string name = pMaterial->GetName().C_Str();
         if (name.empty())
         {
-            continue;
+            name = fmt::format("material_{}", i);
         }
-        std::vector<std::pair<aiTextureType, ModelTextureType>> mapTypes{
-            { aiTextureType_AMBIENT, ModelTextureType::Ambient },
-
-            { aiTextureType_DIFFUSE, ModelTextureType::Diffuse },
-            { aiTextureType_BASE_COLOR, ModelTextureType::BaseColor },
-
-            { aiTextureType_LIGHTMAP, ModelTextureType::LightMap },
-
-            { aiTextureType_NORMAL_CAMERA, ModelTextureType::NormalCamera },
-            
-            { aiTextureType_NORMALS, ModelTextureType::Normal },
-            { aiTextureType_HEIGHT, ModelTextureType::Normal },
-            { aiTextureType_DISPLACEMENT, ModelTextureType::Normal },
-
-            { aiTextureType_EMISSION_COLOR, ModelTextureType::EmissionColor },
-            { aiTextureType_EMISSIVE, ModelTextureType::EmissionColor },
-
-            { aiTextureType_METALNESS, ModelTextureType::Metalness },
-            { aiTextureType_SHININESS, ModelTextureType::Metalness },
-            { aiTextureType_SPECULAR, ModelTextureType::Metalness },
-            { aiTextureType_REFLECTION, ModelTextureType::Metalness },
-            { aiTextureType_OPACITY, ModelTextureType::Metalness },
-
-            { aiTextureType_DIFFUSE_ROUGHNESS, ModelTextureType::DiffuseRoughness },
-            { aiTextureType_AMBIENT_OCCLUSION, ModelTextureType::AmbientOcclusion },
-        };
 
         ModelMaterial mat;
-        for (auto& mapType : mapTypes)
-        {
-            for (uint32_t texNum = 0; texNum < pMaterial->GetTextureCount(mapType.first); texNum++)
-            {
-                aiString str;
-                pMaterial->GetTexture(mapType.first, texNum, &str);
-                LOG(DBG, "MapType: " << (int)mapType.first << ", Index: " << texNum << ", Path: " << str.C_Str());
 
-                auto itrTex = model.embeddedTextures.find(str.C_Str());
-                if (itrTex != model.embeddedTextures.end())
-                {
-                    mat.mapTextures[std::make_pair(mapType.second, texNum)] = &itrTex->second;
-                }
+        aiColor4D baseColor(1.0f, 1.0f, 1.0f, 1.0f);
+        if (AI_SUCCESS == aiGetMaterialColor(pMaterial, AI_MATKEY_BASE_COLOR, &baseColor))
+        {
+            mat.baseColorFactor = glm::vec4(baseColor.r, baseColor.g, baseColor.b, baseColor.a);
+        }
+        else
+        {
+            aiColor3D diffuseColor(1.0f, 1.0f, 1.0f);
+            if (AI_SUCCESS == pMaterial->Get(AI_MATKEY_COLOR_DIFFUSE, diffuseColor))
+            {
+                mat.baseColorFactor = glm::vec4(diffuseColor.r, diffuseColor.g, diffuseColor.b, 1.0f);
             }
         }
-        mat.name = pMaterial->GetName().C_Str();
+
+        aiColor3D emissiveColor(0.0f, 0.0f, 0.0f);
+        if (AI_SUCCESS == pMaterial->Get(AI_MATKEY_COLOR_EMISSIVE, emissiveColor))
+        {
+            mat.emissiveFactor = glm::vec4(emissiveColor.r, emissiveColor.g, emissiveColor.b, 1.0f);
+        }
+
+        pMaterial->Get(AI_MATKEY_METALLIC_FACTOR, mat.metallicFactor);
+        pMaterial->Get(AI_MATKEY_ROUGHNESS_FACTOR, mat.roughnessFactor);
+
+        mat.textures.baseColor = model_resolve_texture_slot(model, createInfo.filename, pMaterial, aiTextureType_BASE_COLOR, true);
+        if (!mat.textures.baseColor.valid())
+        {
+            mat.textures.baseColor = model_resolve_texture_slot(model, createInfo.filename, pMaterial, aiTextureType_DIFFUSE, true);
+        }
+        mat.textures.normal = model_resolve_texture_slot(model, createInfo.filename, pMaterial, aiTextureType_NORMALS, false);
+        if (!mat.textures.normal.valid())
+        {
+            mat.textures.normal = model_resolve_texture_slot(model, createInfo.filename, pMaterial, aiTextureType_NORMAL_CAMERA, false);
+        }
+        mat.textures.metallicRoughness = model_resolve_texture_slot(model, createInfo.filename, pMaterial, aiTextureType_METALNESS, false);
+        if (!mat.textures.metallicRoughness.valid())
+        {
+            mat.textures.metallicRoughness = model_resolve_texture_slot(model, createInfo.filename, pMaterial, aiTextureType_DIFFUSE_ROUGHNESS, false);
+        }
+        mat.textures.emissive = model_resolve_texture_slot(model, createInfo.filename, pMaterial, aiTextureType_EMISSIVE, true);
+        if (!mat.textures.emissive.valid())
+        {
+            mat.textures.emissive = model_resolve_texture_slot(model, createInfo.filename, pMaterial, aiTextureType_EMISSION_COLOR, true);
+        }
+        mat.textures.occlusion = model_resolve_texture_slot(model, createInfo.filename, pMaterial, aiTextureType_AMBIENT_OCCLUSION, false);
+
+        mat.name = name;
         model.materials.push_back(mat);
     }
 
@@ -148,6 +196,7 @@ void model_load(Model& model, const ModelCreateInfo& createInfo, int flags)
         model.parts[i].name = paiMesh->mName.C_Str();
         model.parts[i].vertexBase = model.vertexCount;
         model.parts[i].vertexCount = paiMesh->mNumVertices;
+        model.parts[i].materialIndex = paiMesh->mMaterialIndex;
         model.vertexCount += paiMesh->mNumVertices;
     }
 
@@ -177,9 +226,9 @@ void model_load(Model& model, const ModelCreateInfo& createInfo, int flags)
             const aiFace& Face = paiMesh->mFaces[j];
             if (Face.mNumIndices != 3)
                 continue;
-            model.indexData.push_back(part.indexBase + Face.mIndices[0]);
-            model.indexData.push_back(part.indexBase + Face.mIndices[1]);
-            model.indexData.push_back(part.indexBase + Face.mIndices[2]);
+            model.indexData.push_back(part.vertexBase + Face.mIndices[0]);
+            model.indexData.push_back(part.vertexBase + Face.mIndices[1]);
+            model.indexData.push_back(part.vertexBase + Face.mIndices[2]);
             part.indexCount += 3;
         }
         model.indexCount += part.indexCount;
@@ -234,12 +283,12 @@ void model_append_vertex(Model& model, std::vector<uint8_t>& outputBuffer, const
             break;
         case VERTEX_COMPONENT_TANGENT:
             vertexBuffer.push_back(pTangent->x);
-            vertexBuffer.push_back(pTangent->y);
+            vertexBuffer.push_back(-pTangent->y);
             vertexBuffer.push_back(pTangent->z);
             break;
         case VERTEX_COMPONENT_BITANGENT:
             vertexBuffer.push_back(pBiTangent->x);
-            vertexBuffer.push_back(pBiTangent->y);
+            vertexBuffer.push_back(-pBiTangent->y);
             vertexBuffer.push_back(pBiTangent->z);
             break;
         // Dummy components for padding

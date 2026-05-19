@@ -25,6 +25,8 @@ Examples:
   dr run          Configure, build, and run Debug
   dr run debug    Configure, build, and run Debug
   dr run release  Configure, build, and run Release
+  dr run release -- --project run_tree/projects/pbr_robot --scenegraph uv_debug.scenegraph
+  dr run release --project run_tree/projects/pbr_robot --scenegraph uv_debug.scenegraph
 """
 
 
@@ -48,13 +50,19 @@ def parse_args(args: list[str]) -> SimpleNamespace:
             config = CONFIGS[mode]
             rest = rest[1:]
         elif rest[0] != "--":
-            print(f"Unknown build mode: {rest[0]}\n")
-            print(help_text())
-            raise SystemExit(2)
+            if rest[0].startswith("--"):
+                app_args = rest
+                rest = []
+            else:
+                print(f"Unknown build mode: {rest[0]}\n")
+                print(help_text())
+                raise SystemExit(2)
 
     if rest:
         if rest[0] == "--":
             app_args = rest[1:]
+        elif rest[0].startswith("--"):
+            app_args = rest
         else:
             print(f"Unexpected argument: {rest[0]}\n")
             print(help_text())

@@ -12,6 +12,7 @@ struct Scene;
 struct Project
 {
     fs::path rootPath;
+    fs::path sceneGraphOverride;
     std::shared_ptr<Scene> spScene;
     std::vector<Message> projectMessages;
     bool temporary = false;
@@ -19,8 +20,8 @@ struct Project
 };
 
 void project_startup();
-std::shared_ptr<Project> project_load(const fs::path& path);
-std::shared_ptr<Project> project_load_to_temp(const fs::path& path);
+std::shared_ptr<Project> project_load(const fs::path& path, const fs::path& sceneGraphOverride = fs::path());
+std::shared_ptr<Project> project_load_to_temp(const fs::path& path, const fs::path& sceneGraphOverride = fs::path());
 bool project_scene_valid(Project* pProject);
 bool project_has_scene(Project* pProject);
 std::set<std::string> project_file_extensions();

@@ -5,12 +5,11 @@
 #include <string>
 #include <vector>
 
-#include <glm/gtx/hash.hpp>
-
 #include <zest/file/file.h>
 
 #include <vklive/camera.h>
 #include <vklive/message.h>
+#include <vklive/model.h>
 
 #include <tsl/ordered_map.h>
 
@@ -72,6 +71,15 @@ enum class GeometryType
     Rect
 };
 
+struct ModelAsset
+{
+    std::string name;
+    fs::path path;
+    glm::vec3 loadScale = glm::vec3(1.0f);
+    ModelUvOrigin uvOrigin = ModelUvOrigin::LowerLeft;
+    bool buildAS = false;
+};
+
 struct Geometry
 {
     Geometry(const fs::path& p)
@@ -90,6 +98,7 @@ struct Geometry
     {
         return (other.path == path) &&
             (other.buildAS == buildAS) &&
+            (other.uvOrigin == uvOrigin) &&
             (other.transform == transform) &&
             (other.type == type) && 
             (other.loadScale == loadScale);
@@ -97,9 +106,11 @@ struct Geometry
     }
 
     fs::path path;
+    std::string modelName;
     glm::mat4 transform = glm::mat4(1.0f);
     glm::vec3 loadScale = glm::vec3(1.0f);
     GeometryType type = GeometryType::Model;
+    ModelUvOrigin uvOrigin = ModelUvOrigin::LowerLeft;
     bool buildAS = false;
 };
 
@@ -208,6 +219,7 @@ struct Scene
     // Global objects
     std::map<std::string, std::shared_ptr<Surface>> surfaces;
     std::map<std::string, std::shared_ptr<Camera>> cameras;
+    std::map<std::string, std::shared_ptr<ModelAsset>> modelAssets;
     std::map<fs::path, std::shared_ptr<Geometry>> models;
     std::map<fs::path, std::shared_ptr<Shader>> shaders;
     std::vector<std::shared_ptr<Pass>> passes;
@@ -247,7 +259,7 @@ enum class AssetType
     Model
 };
 
-std::shared_ptr<Scene> scene_build(const fs::path& root);
+std::shared_ptr<Scene> scene_build(const fs::path& root, const fs::path& sceneGraphOverride = fs::path());
 void scene_destroy_parser();
 bool format_is_depth(const Format& fmt);
 void scene_report_error(Scene& scene, MessageSeverity severity, const std::string& txt, const fs::path& path = fs::path(), int32_t line = -1, const std::pair<int32_t, int32_t>& range = std::make_pair(-1, -1));
