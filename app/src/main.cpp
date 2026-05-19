@@ -7,7 +7,6 @@
 #include <tinyfiledialogs/tinyfiledialogs.h>
 
 #include <SDL2/SDL.h>
-#include <SDL2/SDL_vulkan.h>
 
 #include <zest/imgui/imgui.h>
 #include <zest/imgui/imgui_impl_sdl2.h>
@@ -45,6 +44,8 @@
 #include <range/v3/algorithm/for_each.hpp>
 #include <range/v3/view.hpp>
 
+#include <vklive/device_factory.h>
+
 #ifdef _WIN32
 // For console
 #include <windows.h>
@@ -64,11 +65,6 @@ std::shared_ptr<IDevice> g_pDevice = nullptr;
 IDevice* GetDevice()
 {
     return g_pDevice.get();
-}
-
-namespace vulkan
-{
-extern std::shared_ptr<IDevice> create_vulkan_device(SDL_Window* pWindow, const std::string& settingsPath, bool viewports = false);
 }
 
 namespace
@@ -96,23 +92,17 @@ bool read_command_line(int argc, char** argv, int& exitCode)
     return true;
 }
 
-SDL_Window* init_sdl_window()
+SDL_Window* init_sdl_window(RenderBackend backend)
 {
     int xPos = (appConfig.main_window_pos.x == 0.0) ? SDL_WINDOWPOS_CENTERED : appConfig.main_window_pos.x;
     int yPos = (appConfig.main_window_pos.y == 0.0) ? SDL_WINDOWPOS_CENTERED : appConfig.main_window_pos.y;
     int xSize = (appConfig.main_window_size.x == 0.0) ? 1024 : appConfig.main_window_size.x;
     int ySize = (appConfig.main_window_size.y == 0.0) ? 768 : appConfig.main_window_size.y;
 
-    // Setup window
-    auto windowFlags = (SDL_WINDOW_VULKAN | SDL_WINDOW_RESIZABLE | SDL_WINDOW_ALLOW_HIGHDPI);
+    auto windowFlags = device_sdl_window_flags(backend);
     if (appConfig.main_window_state == WindowState::Maximized)
     {
         windowFlags |= SDL_WINDOW_MAXIMIZED;
-    }
-    else if (appConfig.main_window_state == WindowState::Minimized)
-    {
-        // TODO: For now, we don't allow starting minimized; it breaks the device setup
-        // windowFlags |= SDL_WINDOW_MINIMIZED;
     }
 
     return SDL_CreateWindow("Rezonality", xPos, yPos, xSize, ySize, windowFlags);
@@ -150,7 +140,7 @@ void save_state()
             appConfig.main_window_state = WindowState::Normal;
         }
     }
-    
+
     Zest::layout_manager_save();
 }
 
@@ -229,6 +219,7 @@ int main(int argc, char** argv)
     {
         appConfig.renderer = commandLineOptions.renderer;
     }
+    const auto activeBackend = device_resolve_backend(appConfig.renderer);
     if (commandLineOptions.smokeTest)
     {
         return 0;
@@ -256,7 +247,7 @@ int main(int argc, char** argv)
     Zest::timer_restart(Zest::globalTimer);
 
     // Main device
-    g_pDevice = vulkan::create_vulkan_device(init_sdl_window(), imSettingsPath, appConfig.viewports);
+    g_pDevice = device_create(activeBackend, init_sdl_window(activeBackend), imSettingsPath, appConfig.viewports);
 
     Zing::audio_init(nullptr);
 
@@ -351,7 +342,7 @@ int main(int argc, char** argv)
             {
                 g_pDevice->DestroyScene(*g_Controller.spCurrentProject->spScene.get());
             }
-            g_pDevice = vulkan::create_vulkan_device(init_sdl_window(), imSettingsPath, appConfig.viewports);
+            g_pDevice = device_create(activeBackend, init_sdl_window(activeBackend), imSettingsPath, appConfig.viewports);
 
             // Remember we were lost
             g_pDevice->Context().deviceState = DeviceState::WasLost;
@@ -567,7 +558,7 @@ int main(int argc, char** argv)
             }
             ImGui::End();
         }
-        
+
         if (g_WindowEnables.demoWindow)
         {
             ImGui::ShowDemoWindow(&g_WindowEnables.demoWindow);

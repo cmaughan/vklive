@@ -153,6 +153,7 @@ endif() # UNIX
 
 set(VK_SOURCES
     src/camera.cpp
+    src/device_factory.cpp
     #src/imgui/imgui_utils.cpp
     src/model.cpp
     src/process/process.cpp
@@ -164,6 +165,7 @@ set(VK_SOURCES
 
     include/vklive/IDevice.h
     include/vklive/camera.h
+    include/vklive/device_factory.h
     include/vklive/model.h
     include/vklive/process/process.h
     include/vklive/scene.h
@@ -206,6 +208,7 @@ set_source_files_properties (src/python_scripting.cpp PROPERTIES SKIP_PRECOMPILE
 
 
 add_library(vklive ${LIB_SOURCES})
+target_compile_definitions(vklive PUBLIC VKLIVE_ENABLE_VULKAN=1)
 target_link_libraries(vklive
     PUBLIC
         Vulkan::Vulkan
