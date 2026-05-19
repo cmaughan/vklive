@@ -8,6 +8,7 @@
 #include <SDL2/SDL_metal.h>
 
 #include <vklive/metal/metal_context.h>
+#include <vklive/metal/metal_scene.h>
 
 namespace
 {
@@ -164,6 +165,7 @@ void context_present(MetalContext& ctx)
 void context_destroy(MetalContext& ctx)
 {
     context_wait_idle(ctx);
+    ctx.mapMetalScene.clear();
     release_obj(ctx.currentDrawable);
     release_obj(ctx.frameCommandBuffer);
     release_obj(ctx.lastCommandBuffer);

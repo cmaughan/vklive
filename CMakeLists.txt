@@ -200,6 +200,10 @@ set(METAL_OBJCXX_SOURCES
     src/metal/metal_device.mm
     src/metal/metal_imgui.mm
     src/metal/metal_imgui_texture.mm
+    src/metal/metal_model.mm
+    src/metal/metal_pass.mm
+    src/metal/metal_scene.mm
+    src/metal/metal_surface.mm
 )
 
 set(METAL_SOURCES
@@ -211,6 +215,10 @@ set(METAL_SOURCES
     include/vklive/metal/metal_device.h
     include/vklive/metal/metal_imgui.h
     include/vklive/metal/metal_imgui_texture.h
+    include/vklive/metal/metal_model.h
+    include/vklive/metal/metal_pass.h
+    include/vklive/metal/metal_scene.h
+    include/vklive/metal/metal_surface.h
 )
 
 set(EXTERNAL_DIR libs)

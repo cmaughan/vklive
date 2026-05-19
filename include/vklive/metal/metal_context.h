@@ -1,13 +1,17 @@
 #pragma once
 
 #include <memory>
+#include <unordered_map>
 
 #include <vklive/IDevice.h>
+
+struct Scene;
 
 namespace metal
 {
 
 struct MetalImGuiTexture;
+struct MetalScene;
 
 struct MetalContext : DeviceContext
 {
@@ -20,6 +24,7 @@ struct MetalContext : DeviceContext
     void* lastCommandBuffer = nullptr;
 
     std::shared_ptr<MetalImGuiTexture> spFontTexture;
+    std::unordered_map<Scene*, std::shared_ptr<MetalScene>> mapMetalScene;
 };
 
 void context_init(MetalContext& ctx);

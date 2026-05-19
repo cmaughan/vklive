@@ -11,8 +11,8 @@
 #include <vklive/metal/metal_context.h>
 #include <vklive/metal/metal_device.h>
 #include <vklive/metal/metal_imgui.h>
+#include <vklive/metal/metal_scene.h>
 #include <vklive/scene.h>
-#include <vklive/validation.h>
 
 namespace
 {
@@ -21,12 +21,6 @@ template <typename T>
 T bridge(void* object)
 {
     return (__bridge T)object;
-}
-
-void report_scene_error(Scene& scene, const std::string& text)
-{
-    scene_report_error(scene, MessageSeverity::Error, text, scene.sceneGraphPath);
-    validation_error(text);
 }
 
 } // namespace
@@ -77,12 +71,13 @@ MetalDevice::~MetalDevice()
 
 void MetalDevice::InitScene(Scene& scene)
 {
-    report_scene_error(scene, "Metal scene rendering is not implemented yet. The Metal backend currently supports the editor and ImGui shell only.");
+    metal_scene_create(ctx, scene);
 }
 
 void MetalDevice::DestroyScene(Scene& scene)
 {
-    (void)scene;
+    context_wait_idle(ctx);
+    metal_scene_destroy(ctx, scene);
 }
 
 void MetalDevice::ImGui_Render(ImDrawData* pDrawData)
@@ -97,19 +92,40 @@ void MetalDevice::ValidateSwapChain()
 
 RenderOutput MetalDevice::Render_3D(Scene& scene, const glm::vec2& size)
 {
-    (void)size;
-    report_scene_error(scene, "Metal pass rendering is not implemented yet.");
-    return {};
+    auto spMetalScene = metal_scene_get(ctx, scene);
+    if (!spMetalScene)
+    {
+        spMetalScene = metal_scene_create(ctx, scene);
+    }
+    if (!spMetalScene)
+    {
+        return {};
+    }
+    return metal_scene_render(ctx, *spMetalScene, size);
 }
 
 void MetalDevice::WriteToFile(Scene& scene, const fs::path& path)
 {
-    (void)path;
     if ((scene.GlobalFrameCount < scene.maxRecordFrame) && scene.recording)
     {
-        report_scene_error(scene, "Metal render capture is not implemented yet.");
+        auto spMetalScene = metal_scene_get(ctx, scene);
+        if (!spMetalScene)
+        {
+            spMetalScene = metal_scene_create(ctx, scene);
+        }
+        if (spMetalScene)
+        {
+            metal_scene_write_to_file(ctx, *spMetalScene, path);
+        }
+        else
+        {
+            scene.recording = false;
+        }
     }
-    scene.recording = false;
+    else
+    {
+        scene.recording = false;
+    }
 }
 
 void MetalDevice::WaitIdle()
@@ -129,8 +145,12 @@ RenderBackend MetalDevice::Backend() const
 
 std::vector<RenderTargetView> MetalDevice::TargetViews(Scene& scene)
 {
-    (void)scene;
-    return {};
+    auto spMetalScene = metal_scene_get(ctx, scene);
+    if (!spMetalScene)
+    {
+        return {};
+    }
+    return metal_scene_target_views(ctx, *spMetalScene);
 }
 
 DeviceContext& MetalDevice::Context()
