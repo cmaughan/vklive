@@ -1,5 +1,8 @@
-#include <fmt/format.h>
+#include <algorithm>
+#include <cstdint>
 #include <mutex>
+
+#include <fmt/format.h>
 
 #include <vklive/metal/metal_context.h>
 #include <vklive/metal/metal_model.h>
@@ -11,6 +14,11 @@
 
 namespace
 {
+
+ImTextureID metal_imgui_texture_id(void* texture)
+{
+    return (ImTextureID)(intptr_t)texture;
+}
 
 void report_metal_scene_error(Scene& scene, const std::string& text, const fs::path& path = fs::path())
 {
@@ -242,10 +250,77 @@ void metal_scene_destroy(MetalContext& ctx, Scene& scene)
 
 }
 
-RenderOutput metal_scene_render(MetalContext& ctx, MetalScene& metalScene, const glm::vec2& size)
+MetalSurface* metal_scene_get_or_create_surface(MetalContext& ctx, MetalScene& metalScene, const std::string& surfaceName, uint64_t frameCount, bool sampling)
 {
     (void)ctx;
-    (void)size;
+    if (!metalScene.pScene)
+    {
+        return nullptr;
+    }
+
+    auto pSurface = scene_get_surface(*metalScene.pScene, surfaceName.c_str());
+    if (!pSurface)
+    {
+        scene_report_error(*metalScene.pScene, MessageSeverity::Error, fmt::format("Could not find surface: {}", surfaceName));
+        return nullptr;
+    }
+
+    MetalSurfaceKey key(surfaceName, frameCount, sampling);
+    auto itr = metalScene.surfaces.find(key);
+    if (itr != metalScene.surfaces.end())
+    {
+        return itr->second.get();
+    }
+
+    auto spSurface = metal_surface_create(ctx, metalScene, *pSurface);
+    if (!spSurface)
+    {
+        return nullptr;
+    }
+
+    spSurface->key = key;
+    spSurface->debugName = key.DebugName();
+    metalScene.surfaces[key] = spSurface;
+    return spSurface.get();
+}
+
+void metal_scene_prepare_output_targets(MetalContext& ctx, MetalScene& metalScene)
+{
+    metalScene.viewableTargets.clear();
+
+    for (auto& [_, spMetalSurface] : metalScene.surfaces)
+    {
+        if (!spMetalSurface || !spMetalSurface->pSurface || !spMetalSurface->pSurface->rendered)
+        {
+            continue;
+        }
+
+        spMetalSurface->pSurface->rendered = false;
+        if (format_is_depth(spMetalSurface->pSurface->format) || spMetalSurface->format == MetalSurfaceFormat::Depth32Float || !spMetalSurface->texture)
+        {
+            continue;
+        }
+
+        if (!spMetalSurface->sampler)
+        {
+            metal_surface_create_sampler(ctx, *spMetalSurface);
+        }
+
+        if (spMetalSurface->pSurface->name == "default_color")
+        {
+            metalScene.defaultTarget = spMetalSurface->key;
+        }
+        else
+        {
+            metalScene.viewableTargets.insert(spMetalSurface->key);
+        }
+    }
+}
+
+RenderOutput metal_scene_render(MetalContext& ctx, MetalScene& metalScene, const glm::vec2& size)
+{
+    auto renderSize = glm::uvec2(static_cast<uint32_t>(std::max(size.x, 0.0f)), static_cast<uint32_t>(std::max(size.y, 0.0f)));
+    metalScene.defaultTarget = MetalSurfaceKey();
 
     if (metalScene.pScene && !metalScene.reportedRasterRenderUnsupported)
     {
@@ -253,7 +328,50 @@ RenderOutput metal_scene_render(MetalContext& ctx, MetalScene& metalScene, const
         report_metal_scene_warning(*metalScene.pScene, "Metal raster pass rendering is not implemented yet.");
     }
 
-    return {};
+    if (metalScene.pScene)
+    {
+        for (auto& [surfaceName, spSurface] : metalScene.pScene->surfaces)
+        {
+            if (!spSurface || !spSurface->isTarget)
+            {
+                continue;
+            }
+
+            auto pMetalSurface = metal_scene_get_or_create_surface(ctx, metalScene, surfaceName);
+            if (pMetalSurface)
+            {
+                metal_surface_ensure_target(ctx, metalScene, *pMetalSurface, renderSize);
+            }
+        }
+    }
+
+    metal_scene_prepare_output_targets(ctx, metalScene);
+    return metal_scene_get_output(ctx, metalScene);
+}
+
+RenderOutput metal_scene_get_output(MetalContext& ctx, MetalScene& metalScene)
+{
+    RenderOutput out;
+    if (ctx.deviceState != DeviceState::Normal || !metalScene.defaultTarget)
+    {
+        return out;
+    }
+
+    auto itrTarget = metalScene.surfaces.find(metalScene.defaultTarget);
+    if (itrTarget == metalScene.surfaces.end() || !itrTarget->second)
+    {
+        return out;
+    }
+
+    auto& surface = *itrTarget->second;
+    if (!surface.texture)
+    {
+        return out;
+    }
+
+    out.pSurface = surface.pSurface;
+    out.textureId = metal_imgui_texture_id(surface.texture);
+    return out;
 }
 
 void metal_scene_write_to_file(MetalContext& ctx, MetalScene& metalScene, const fs::path& path)
@@ -272,8 +390,27 @@ void metal_scene_write_to_file(MetalContext& ctx, MetalScene& metalScene, const 
 std::vector<RenderTargetView> metal_scene_target_views(MetalContext& ctx, MetalScene& scene)
 {
     (void)ctx;
-    (void)scene;
-    return {};
+    std::vector<RenderTargetView> views;
+    for (const auto& target : scene.viewableTargets)
+    {
+        auto itrTarget = scene.surfaces.find(target);
+        if (itrTarget == scene.surfaces.end() || !itrTarget->second)
+        {
+            continue;
+        }
+
+        const auto& surface = *itrTarget->second;
+        if (!surface.texture)
+        {
+            continue;
+        }
+
+        views.push_back(RenderTargetView{
+            surface.debugName,
+            metal_imgui_texture_id(surface.texture),
+            surface.size });
+    }
+    return views;
 }
 
 } // namespace metal

@@ -3,6 +3,8 @@
 #include <cstddef>
 #include <filesystem>
 #include <memory>
+#include <set>
+#include <string>
 #include <unordered_map>
 #include <vector>
 
@@ -41,6 +43,8 @@ struct MetalScene
     std::unordered_map<fs::path, std::shared_ptr<MetalModel>, PathHash> models;
     std::unordered_map<fs::path, std::shared_ptr<MetalShader>, PathHash> shaderStages;
     std::vector<std::shared_ptr<MetalPass>> passes;
+    std::set<MetalSurfaceKey> viewableTargets;
+    MetalSurfaceKey defaultTarget;
 
     bool reportedRasterRenderUnsupported = false;
     bool reportedCaptureUnsupported = false;
@@ -51,7 +55,10 @@ void metal_scene_destroy(MetalContext& ctx, Scene& scene);
 std::shared_ptr<MetalScene> metal_scene_get(MetalContext& ctx, Scene& scene);
 
 RenderOutput metal_scene_render(MetalContext& ctx, MetalScene& scene, const glm::vec2& size);
+RenderOutput metal_scene_get_output(MetalContext& ctx, MetalScene& scene);
 void metal_scene_write_to_file(MetalContext& ctx, MetalScene& scene, const fs::path& path);
 std::vector<RenderTargetView> metal_scene_target_views(MetalContext& ctx, MetalScene& scene);
+MetalSurface* metal_scene_get_or_create_surface(MetalContext& ctx, MetalScene& scene, const std::string& surfaceName, uint64_t frameCount = 0, bool sampling = false);
+void metal_scene_prepare_output_targets(MetalContext& ctx, MetalScene& scene);
 
 } // namespace metal
