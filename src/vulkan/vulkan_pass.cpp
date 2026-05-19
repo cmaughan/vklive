@@ -483,7 +483,7 @@ void vulkan_pass_prepare_targets(VulkanContext& ctx, VulkanPassSwapFrameData& pa
         }
 
         vk::RenderingAttachmentInfo attachment;
-        
+
         attachment.imageView = targetData.pVulkanSurface->view;
         attachment.loadOp = pVulkanPass->pass.hasClear ? vk::AttachmentLoadOp::eClear : vk::AttachmentLoadOp::eLoad;
         attachment.storeOp = vk::AttachmentStoreOp::eStore;
@@ -494,7 +494,7 @@ void vulkan_pass_prepare_targets(VulkanContext& ctx, VulkanPassSwapFrameData& pa
             attachment.loadOp = vk::AttachmentLoadOp::eClear;
             attachment.clearValue = vk::ClearDepthStencilValue{ 1.0f, 0 };
             attachment.imageLayout = vk::ImageLayout::eDepthAttachmentOptimal;
-            
+
             passTargets.depthAttachment = attachment;
             passTargets.depthFormat = targetData.pVulkanSurface->format;
         }
@@ -696,7 +696,7 @@ bool vulkan_pass_build_descriptors(VulkanContext& ctx, VulkanPass& vulkanPass)
                 return false;
             }
 
-            bindings.push_back(binding);
+            bindings.push_back(shader_binding_to_vulkan_layout(binding));
         }
 
         if (!bindings.empty())
@@ -1127,7 +1127,7 @@ void vulkan_pass_submit(VulkanContext& ctx, VulkanPass& vulkanPass)
     auto renderInfo = vk::RenderingInfo()
                           .setRenderArea(rect)
                           .setColorAttachments(passTargets.colorAttachments);
-                          
+
     renderInfo.layerCount = 1;
     if (passTargets.depthAttachment.has_value())
     {

@@ -242,6 +242,7 @@ set(VK_SOURCES
     src/model.cpp
     src/process/process.cpp
     src/scene.cpp
+    src/shader_compiler.cpp
     src/validation.cpp
     src/python_scripting.cpp
 
@@ -253,6 +254,8 @@ set(VK_SOURCES
     include/vklive/model.h
     include/vklive/process/process.h
     include/vklive/scene.h
+    include/vklive/shader_bindings.h
+    include/vklive/shader_compiler.h
     include/vklive/validation.h
     include/vklive/python_scripting.h
 )

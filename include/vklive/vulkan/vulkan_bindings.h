@@ -1,29 +1,22 @@
 #pragma once
 
-#include <zest/file/file.h>
+#include <vector>
 
-#include <vklive/scene.h>
+#include <vklive/shader_bindings.h>
 #include <vklive/vulkan/vulkan_context.h>
 
 namespace vulkan
 {
 
-struct VulkanBindingMeta
-{
-    std::string name;
-    fs::path shaderPath;
-    int32_t line = -1;
-    std::pair<int32_t, int32_t> range = std::make_pair(-1, -1);
-};
+struct VulkanPass;
 
-struct VulkanBindingSet
-{
-    // [Index, Binding]
-    std::map<uint32_t, vk::DescriptorSetLayoutBinding> bindings;
-    std::map<uint32_t, VulkanBindingMeta> bindingMeta;
-};
+using VulkanBindingMeta = ShaderBindingMeta;
+using VulkanBindingSet = ShaderBindingSet;
+using BindingSets = ShaderBindingSets;
 
-using BindingSets = std::map<uint32_t, VulkanBindingSet>;
+vk::DescriptorType shader_binding_type_to_vulkan(ShaderBindingType type);
+vk::ShaderStageFlags shader_stage_flags_to_vulkan(ShaderStageFlags flags);
+vk::DescriptorSetLayoutBinding shader_binding_to_vulkan_layout(const ShaderBinding& binding);
 
 bool bindings_merge(VulkanPass& pass, const std::vector<BindingSets*>& sets, BindingSets& bindingSets);
 void bindings_dump(const BindingSets& bindingSets);

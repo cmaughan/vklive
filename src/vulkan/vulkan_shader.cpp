@@ -1,140 +1,80 @@
-#include <regex>
-#include <set>
-
 #include <cstring>
 #include <fmt/format.h>
 #include <fstream>
 #include <sstream>
 
-//#define SPIRV_REFLECT_USE_SYSTEM_SPIRV_H
-#include <spirv-reflect/spirv_reflect.h> 
+// #define SPIRV_REFLECT_USE_SYSTEM_SPIRV_H
+#include <spirv-reflect/spirv_reflect.h>
 
 #include <zest/file/file.h>
 #include <zest/file/runtree.h>
 #include <zest/logger/logger.h>
-#include <zest/string/string_utils.h>
 
 #include "config_app.h"
 #include <vklive/process/process.h>
+#include <vklive/shader_compiler.h>
 #include <vklive/vulkan/vulkan_reflect.h>
 #include <vklive/vulkan/vulkan_shader.h>
 
 namespace vulkan
 {
 
-// Vulkan errors are not very consistent!
-// EX1, HLSL "(9): error at column 2, HLSL parsing failed."
-// Here I use several regex to pull out the bits I need.
-// But sometimes Vulkan isn't really pointing at the right column; and the text output varies depending on the error.
-bool shader_parse_output(const std::string& strOutput, const fs::path& shaderPath, Scene& scene)
+ShaderBindingType spv_reflect_descriptor_type_to_shader_binding_type(SpvReflectDescriptorType type)
 {
-    bool errors = false;
-    if (strOutput.empty())
+    switch (type)
     {
-        return errors;
+    case SPV_REFLECT_DESCRIPTOR_TYPE_SAMPLER:
+        return ShaderBindingType::Sampler;
+    case SPV_REFLECT_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER:
+        return ShaderBindingType::CombinedImageSampler;
+    case SPV_REFLECT_DESCRIPTOR_TYPE_SAMPLED_IMAGE:
+        return ShaderBindingType::SampledImage;
+    case SPV_REFLECT_DESCRIPTOR_TYPE_STORAGE_IMAGE:
+        return ShaderBindingType::StorageImage;
+    case SPV_REFLECT_DESCRIPTOR_TYPE_UNIFORM_TEXEL_BUFFER:
+        return ShaderBindingType::UniformTexelBuffer;
+    case SPV_REFLECT_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER:
+        return ShaderBindingType::StorageTexelBuffer;
+    case SPV_REFLECT_DESCRIPTOR_TYPE_UNIFORM_BUFFER:
+        return ShaderBindingType::UniformBuffer;
+    case SPV_REFLECT_DESCRIPTOR_TYPE_STORAGE_BUFFER:
+        return ShaderBindingType::StorageBuffer;
+    case SPV_REFLECT_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC:
+        return ShaderBindingType::UniformBufferDynamic;
+    case SPV_REFLECT_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC:
+        return ShaderBindingType::StorageBufferDynamic;
+    case SPV_REFLECT_DESCRIPTOR_TYPE_INPUT_ATTACHMENT:
+        return ShaderBindingType::InputAttachment;
+    case SPV_REFLECT_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR:
+        return ShaderBindingType::AccelerationStructure;
+    default:
+        return ShaderBindingType::Unknown;
     }
+}
 
-    auto p = fs::canonical(shaderPath);
-
-    std::map<int32_t, std::vector<Message>> messageLines;
-
-    std::vector<Message> noLineMessages;
-    auto error_lines = Zest::string_split(strOutput, "\r\n");
-    for (auto& error_line : error_lines)
+ShaderStageFlags spv_reflect_shader_stage_to_shader_stage_flags(SpvReflectShaderStageFlagBits stage)
+{
+    switch (stage)
     {
-        Message msg;
-        msg.severity = MessageSeverity::Message;
-
-        // TODO: Includes, etc.
-        msg.path = p;
-
-        try
-        {
-            std::regex errorRegex(".*(error:)", std::regex::icase);
-            std::regex warningRegex(".*(warning:)", std::regex::icase);
-            std::regex lineRegex(":([0-9]+):", std::regex::icase);
-            std::regex messageRegex(".*:[0-9]+:(.*)", std::regex::icase);
-
-            std::regex pathRegex(".*(WARNING|ERROR): (.*):[0-9]+:");
-
-            std::smatch match;
-            if (std::regex_search(error_line, match, pathRegex) && match.size() > 1)
-            {
-                msg.path = Zest::string_trim(match[2].str());
-            }
-
-            if (std::regex_search(error_line, match, errorRegex) && match.size() > 1)
-            {
-                msg.severity = MessageSeverity::Error;
-                errors = true;
-            }
-            else if (std::regex_search(error_line, match, warningRegex) && match.size() > 1)
-            {
-                msg.severity = MessageSeverity::Message;
-            }
-
-            if (std::regex_search(error_line, match, messageRegex) && match.size() > 1)
-            {
-                msg.text = Zest::string_trim(match[1].str());
-            }
-            else
-            {
-                msg.text = error_line;
-            }
-
-            if (std::regex_search(error_line, match, lineRegex) && match.size() > 1)
-            {
-                msg.line = std::stoi(match[1].str()) - 1;
-            }
-            else
-            {
-                // Don't ignore errors on non line messages
-                if (msg.severity == MessageSeverity::Error)
-                {
-                    msg.line = 0;
-                    noLineMessages.push_back(msg);
-                }
-                // Ignore no line
-                else
-                {
-                    continue;
-                }
-            }
-        }
-        catch (...)
-        {
-            msg.text = "Failed to parse compiler error:\n" + error_line;
-            msg.line = -1;
-            msg.severity = MessageSeverity::Error;
-        }
-
-        messageLines[msg.line].push_back(msg);
+    case SPV_REFLECT_SHADER_STAGE_VERTEX_BIT:
+        return static_cast<ShaderStageFlags>(ShaderStageBits::Vertex);
+    case SPV_REFLECT_SHADER_STAGE_FRAGMENT_BIT:
+        return static_cast<ShaderStageFlags>(ShaderStageBits::Fragment);
+    case SPV_REFLECT_SHADER_STAGE_GEOMETRY_BIT:
+        return static_cast<ShaderStageFlags>(ShaderStageBits::Geometry);
+    case SPV_REFLECT_SHADER_STAGE_COMPUTE_BIT:
+        return static_cast<ShaderStageFlags>(ShaderStageBits::Compute);
+    case SPV_REFLECT_SHADER_STAGE_RAYGEN_BIT_KHR:
+        return static_cast<ShaderStageFlags>(ShaderStageBits::RayGen);
+    case SPV_REFLECT_SHADER_STAGE_CLOSEST_HIT_BIT_KHR:
+        return static_cast<ShaderStageFlags>(ShaderStageBits::ClosestHit);
+    case SPV_REFLECT_SHADER_STAGE_MISS_BIT_KHR:
+        return static_cast<ShaderStageFlags>(ShaderStageBits::Miss);
+    case SPV_REFLECT_SHADER_STAGE_ANY_HIT_BIT_KHR:
+        return static_cast<ShaderStageFlags>(ShaderStageBits::AnyHit);
+    default:
+        return 0;
     }
-
-    // Combine
-    for (auto& [line, msg] : messageLines)
-    {
-        Message addMessage = msg[0];
-        if (msg.size() > 1)
-        {
-            for (int i = 1; i < msg.size(); i++)
-            {
-                if (msg[i].severity > addMessage.severity)
-                {
-                    addMessage.severity = msg[i].severity;
-                }
-                // Ignore this useless/stupid error continuation
-                if (msg[i].text.find("compilation terminated") != std::string::npos)
-                {
-                    continue;
-                }
-                addMessage.text.append("\n");
-                addMessage.text.append(msg[i].text);
-            }
-        }
-        scene_report_error(scene, addMessage.severity, addMessage.text, addMessage.path, addMessage.line);
-    }
-    return errors;
 }
 
 bool shader_reflect(const std::string& spirv, VulkanShader& vulkanShader)
@@ -169,29 +109,28 @@ bool shader_reflect(const std::string& spirv, VulkanShader& vulkanShader)
 
     for (auto& set : sets)
     {
-        std::vector<vk::DescriptorSetLayoutBinding> bindings;
         for (uint32_t index = 0; index < set->binding_count; ++index)
         {
             auto& bindingReflect = *set->bindings[index];
 
-            vk::DescriptorSetLayoutBinding layout_binding;
-            layout_binding.binding = bindingReflect.binding;
-            layout_binding.descriptorType = static_cast<vk::DescriptorType>(bindingReflect.descriptor_type);
-            layout_binding.descriptorCount = 1;
+            ShaderBinding shaderBinding;
+            shaderBinding.binding = bindingReflect.binding;
+            shaderBinding.type = spv_reflect_descriptor_type_to_shader_binding_type(bindingReflect.descriptor_type);
+            shaderBinding.count = 1;
             for (uint32_t dim = 0; dim < bindingReflect.array.dims_count; dim++)
             {
-                layout_binding.descriptorCount *= bindingReflect.array.dims[dim];
+                shaderBinding.count *= bindingReflect.array.dims[dim];
             }
-            layout_binding.stageFlags = static_cast<vk::ShaderStageFlagBits>(module.shader_stage);
-            vulkanShader.bindingSets[set->set].bindings[layout_binding.binding] = layout_binding;
+            shaderBinding.stageFlags = spv_reflect_shader_stage_to_shader_stage_flags(module.shader_stage);
+            vulkanShader.bindingSets[set->set].bindings[shaderBinding.binding] = shaderBinding;
 
-            VulkanBindingMeta meta;
+            ShaderBindingMeta meta;
             meta.name = bindingReflect.name;
             meta.shaderPath = vulkanShader.pShader->path;
             // TODO: Can we provide the range here?
             // The reflection doesn't give us file offsets, so we would have to scan the file and find the declarations
             meta.line = 0;
-            vulkanShader.bindingSets[set->set].bindingMeta[layout_binding.binding] = meta;
+            vulkanShader.bindingSets[set->set].bindingMeta[shaderBinding.binding] = meta;
         }
     }
     LOG_SCOPE(DBG, "Shader: " << vulkanShader.pShader->path.filename() << ", Bindings:");
