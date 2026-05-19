@@ -64,7 +64,7 @@ void window_targets(Scene& scene)
                         {
                             auto ySize = height_per_tile;
                             LOG(DBG, "Showing RT:Target with Descriptor: " << pSurf->ImGuiDescriptorSet);
-                            pDrawList->AddImage((ImTextureID)pSurf->ImGuiDescriptorSet,
+                            pDrawList->AddImage(imgui_texture_id(pSurf->ImGuiDescriptorSet),
                                 ImVec2(canvas_pos.x, canvas_pos.y),
                                 ImVec2(canvas_pos.x + canvas_size.x, canvas_pos.y + ySize - fontSize));
                             pDrawList->AddText(ImVec2(canvas_pos.x, canvas_pos.y + ySize - fontSize), 0xFFFFFFFF, pSurf->debugName.c_str());

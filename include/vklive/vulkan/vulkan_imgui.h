@@ -9,6 +9,11 @@ struct ImDrawData;
 namespace vulkan
 {
 
+inline ImTextureID imgui_texture_id(vk::DescriptorSet descriptorSet)
+{
+    return (ImTextureID)(VkDescriptorSet)descriptorSet;
+}
+
 // For multi-viewport support:
 // Helper structure we store in the void* RenderUserData field of each ImGuiViewport to easily retrieve our backend data.
 struct ImGuiViewportData

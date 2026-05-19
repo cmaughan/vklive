@@ -21,6 +21,14 @@ struct VulkanShader;
 struct VulkanModel;
 struct VulkanSurface;
 
+struct PathHash
+{
+    size_t operator()(const fs::path& path) const noexcept
+    {
+        return fs::hash_value(path);
+    }
+};
+
 inline uint64_t frame_to_pingpong(uint64_t frame)
 {
     return frame % 2;
@@ -96,8 +104,8 @@ struct VulkanScene
     // Mappings from names to real vulkan objects
     Scene* pScene = nullptr;
     std::unordered_map<SurfaceKey, std::shared_ptr<VulkanSurface>, SurfaceKey::HashFunction> surfaces;
-    std::unordered_map<fs::path, std::shared_ptr<VulkanModel>> models;
-    std::unordered_map<fs::path, std::shared_ptr<VulkanShader>> shaderStages;
+    std::unordered_map<fs::path, std::shared_ptr<VulkanModel>, PathHash> models;
+    std::unordered_map<fs::path, std::shared_ptr<VulkanShader>, PathHash> shaderStages;
     std::vector<std::shared_ptr<VulkanPass>> passes;
 
     uint64_t audioSurfaceFrameGeneration = 0;

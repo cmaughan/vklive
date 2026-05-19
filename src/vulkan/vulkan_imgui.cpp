@@ -385,7 +385,7 @@ void imgui_upload_font(VulkanContext& ctx)
         }
 
         // Store our identifier
-        io.Fonts->SetTexID((ImTextureID)imgui->fontDescriptorSet);
+        io.Fonts->SetTexID(imgui_texture_id(imgui->fontDescriptorSet));
 
         debug_end_region(command_buffer);
         command_buffer.end();
@@ -603,7 +603,7 @@ void imgui_render_drawdata(VulkanContext& ctx, ImDrawData* draw_data, vk::Comman
                 if (sizeof(ImTextureID) < sizeof(ImU64))
                 {
                     // We don't support texture switches if ImTextureID hasn't been redefined to be 64-bit. Do a flaky check that other textures haven't been used.
-                    IM_ASSERT(pcmd->TextureId == (ImTextureID)imgui->fontDescriptorSet);
+                    IM_ASSERT(pcmd->TextureId == imgui_texture_id(imgui->fontDescriptorSet));
                     desc_set[0] = imgui->fontDescriptorSet;
                     LOG(DBG, "Extra set...");
                 }
@@ -782,7 +782,7 @@ void imgui_render_3d(VulkanContext& ctx, Scene& scene, bool background)
                         {
                             LOG(DBG, "Showing RT with DescriptorSet: " << pSurf->ImGuiDescriptorSet);
                             LOG(DBG, "Surface: " << pVulkanScene->defaultTarget);
-                            pDrawList->AddImage((ImTextureID)pSurf->ImGuiDescriptorSet,
+                            pDrawList->AddImage(imgui_texture_id(pSurf->ImGuiDescriptorSet),
                                 ImVec2(canvas_pos.x, canvas_pos.y),
                                 ImVec2(canvas_pos.x + outputSize.x, canvas_pos.y + outputSize.y));
                         }

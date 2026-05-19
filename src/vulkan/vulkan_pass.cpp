@@ -21,8 +21,6 @@
 #include "vklive/vulkan/vulkan_utils.h"
 #include <vklive/python_scripting.h>
 
-using namespace ranges;
-
 namespace vulkan
 {
 
@@ -664,7 +662,7 @@ bool vulkan_pass_build_descriptors(VulkanContext& ctx, VulkanPass& vulkanPass)
 
     auto f = [&](auto& p) { return stages.find(p) != stages.end(); };
     auto t = [&](auto& p) { return &stages.find(p)->second->bindingSets; };
-    auto bindings = vulkanPass.pass.shaders | views::filter(f) | views::transform(t) | to<std::vector>();
+    auto bindings = vulkanPass.pass.shaders | ranges::views::filter(f) | ranges::views::transform(t) | ranges::to<std::vector>();
     if (!bindings_merge(vulkanPass, bindings, passFrameData.mergedBindingSets))
     {
         return false;
@@ -973,7 +971,7 @@ bool vulkan_pass_prepare_pipeline(VulkanContext& ctx, VulkanPassSwapFrameData& f
     if (!shaderStages.empty())
     {
         PROFILE_SCOPE(create_pipeline_layout);
-        auto layouts = frameData.descriptorSetLayouts | views::transform([](auto& p) { return p.second; }) | to<std::vector>();
+        auto layouts = frameData.descriptorSetLayouts | ranges::views::transform([](auto& p) { return p.second; }) | ranges::to<std::vector>();
         frameData.geometryPipelineLayout = ctx.device.createPipelineLayout({ {}, layouts });
         debug_set_pipelinelayout_name(ctx.device, frameData.geometryPipelineLayout, fmt::format("GeomPipeLayout: {}", frameData.debugName));
     }

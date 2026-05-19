@@ -11,6 +11,7 @@
 #include "config_app.h"
 #include "vklive/vulkan/vulkan_command.h"
 #include "vklive/vulkan/vulkan_framebuffer.h"
+#include "vklive/vulkan/vulkan_imgui.h"
 #include "vklive/vulkan/vulkan_model.h"
 #include "vklive/vulkan/vulkan_pipeline.h"
 #include "vklive/vulkan/vulkan_render.h"
@@ -104,7 +105,7 @@ RenderOutput render_get_output(VulkanContext& ctx, Scene& scene)
         out.pSurface = pVulkanSurface->pSurface;
         if (pVulkanSurface->ImGuiDescriptorSet)
         {
-            out.textureId = (ImTextureID)pVulkanSurface->ImGuiDescriptorSet;
+            out.textureId = imgui_texture_id(pVulkanSurface->ImGuiDescriptorSet);
         }
     }
 

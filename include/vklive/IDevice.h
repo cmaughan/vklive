@@ -8,6 +8,8 @@
 
 #include <glm/glm.hpp>
 
+#include <zest/imgui/imgui.h>
+
 struct SDL_Window;
 struct ImDrawData;
 
@@ -33,7 +35,7 @@ struct Surface;
 
 struct RenderOutput
 {
-    void* textureId = nullptr;
+    ImTextureID textureId = 0;
     Surface* pSurface = nullptr;
 };
 

@@ -2,11 +2,6 @@
 #include <fmt/format.h>
 #include <unordered_set>
 
-#include <range/v3/algorithm/for_each.hpp>
-#include <range/v3/range/conversion.hpp>
-#include <range/v3/view/filter.hpp>
-#include <range/v3/view/transform.hpp>
-
 #include <zest/file/runtree.h>
 #include <zest/logger/logger.h>
 #include <zest/time/timer.h>
@@ -28,8 +23,6 @@
 #include <vklive/vulkan/vulkan_utils.h>
 
 #include <zing/audio/audio.h>
-
-using namespace ranges;
 
 namespace vulkan
 {

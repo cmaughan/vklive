@@ -337,7 +337,7 @@ int main(int argc, char** argv)
         Zest::layout_manager_update();
 
         // Start the Dear ImGui frame
-        ImGui_ImplSDL2_NewFrame(g_pDevice->Context().window);
+        ImGui_ImplSDL2_NewFrame();
         ImGui::NewFrame();
 
         Zest::fonts_begin_frame(*g_pDevice->Context().spFontContext);
