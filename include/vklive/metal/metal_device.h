@@ -36,11 +36,6 @@ struct MetalDevice : public IDevice
     DeviceContext& Context() override;
 
     MetalContext ctx;
-
-private:
-    bool m_reportedSceneUnsupported = false;
-    bool m_reportedRenderUnsupported = false;
-    bool m_reportedWriteUnsupported = false;
 };
 
 std::shared_ptr<IDevice> create_metal_device(SDL_Window* pWindow, const std::string& iniPath, bool viewports);

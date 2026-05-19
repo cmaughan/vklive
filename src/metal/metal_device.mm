@@ -23,16 +23,10 @@ T bridge(void* object)
     return (__bridge T)object;
 }
 
-void report_scene_error_once(Scene& scene, bool& reported, const std::string& text)
+void report_scene_error(Scene& scene, const std::string& text)
 {
-    if (reported)
-    {
-        return;
-    }
-
     scene_report_error(scene, MessageSeverity::Error, text, scene.sceneGraphPath);
     validation_error(text);
-    reported = true;
 }
 
 } // namespace
@@ -83,7 +77,7 @@ MetalDevice::~MetalDevice()
 
 void MetalDevice::InitScene(Scene& scene)
 {
-    report_scene_error_once(scene, m_reportedSceneUnsupported, "Metal scene rendering is not implemented yet. The Metal backend currently supports the editor and ImGui shell only.");
+    report_scene_error(scene, "Metal scene rendering is not implemented yet. The Metal backend currently supports the editor and ImGui shell only.");
 }
 
 void MetalDevice::DestroyScene(Scene& scene)
@@ -104,7 +98,7 @@ void MetalDevice::ValidateSwapChain()
 RenderOutput MetalDevice::Render_3D(Scene& scene, const glm::vec2& size)
 {
     (void)size;
-    report_scene_error_once(scene, m_reportedRenderUnsupported, "Metal pass rendering is not implemented yet.");
+    report_scene_error(scene, "Metal pass rendering is not implemented yet.");
     return {};
 }
 
@@ -113,7 +107,7 @@ void MetalDevice::WriteToFile(Scene& scene, const fs::path& path)
     (void)path;
     if ((scene.GlobalFrameCount < scene.maxRecordFrame) && scene.recording)
     {
-        report_scene_error_once(scene, m_reportedWriteUnsupported, "Metal render capture is not implemented yet.");
+        report_scene_error(scene, "Metal render capture is not implemented yet.");
     }
     scene.recording = false;
 }
