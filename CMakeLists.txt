@@ -26,13 +26,31 @@ set(REZONALITY_ROOT ${CMAKE_CURRENT_LIST_DIR})
 
 project(Rezonality VERSION 0.1.0.0)
 
+if(APPLE)
+    option(VKLIVE_ENABLE_METAL "Build the Metal renderer" ON)
+    option(VKLIVE_ENABLE_VULKAN "Build the Vulkan renderer" OFF)
+else()
+    option(VKLIVE_ENABLE_METAL "Build the Metal renderer" OFF)
+    option(VKLIVE_ENABLE_VULKAN "Build the Vulkan renderer" ON)
+endif()
+
+if(VKLIVE_ENABLE_METAL AND NOT APPLE)
+    message(FATAL_ERROR "VKLIVE_ENABLE_METAL is only supported on Apple platforms")
+endif()
+
+if(NOT VKLIVE_ENABLE_METAL AND NOT VKLIVE_ENABLE_VULKAN)
+    message(FATAL_ERROR "At least one renderer backend must be enabled")
+endif()
+
 # Set additional project information
 set(COMPANY "Rezonality")
 set(COPYRIGHT "Copyright (c) 2022 Rezonality")
 set(IDENTIFIER "com.rezonality.vklive")
 
 find_package(unofficial-minizip CONFIG REQUIRED)
-find_package(Vulkan REQUIRED) # Vulkan API
+if(VKLIVE_ENABLE_VULKAN)
+    find_package(Vulkan REQUIRED) # Vulkan API
+endif()
 find_package(assimp CONFIG REQUIRED) # Asset import for loading models
 find_package(clipp CONFIG REQUIRED) # Commandline parser for command line arguments
 find_package(fmt CONFIG REQUIRED) # String formatting library
@@ -49,11 +67,27 @@ find_package(range-v3 CONFIG REQUIRED)
 find_path(TSL_ORDERED_MAP_INCLUDE_DIRS "tsl/ordered_hash.h")
 find_package(lodepng CONFIG REQUIRED)
 
+if(VKLIVE_ENABLE_METAL)
+    enable_language(OBJCXX)
+    set(CMAKE_OBJCXX_STANDARD 20)
+    set(CMAKE_OBJCXX_STANDARD_REQUIRED ON)
+    find_package(spirv_cross_core CONFIG REQUIRED)
+    find_package(spirv_cross_msl CONFIG REQUIRED)
+    find_package(spirv_cross_cpp CONFIG REQUIRED)
+    find_library(METAL_FRAMEWORK Metal REQUIRED)
+    find_library(METALKIT_FRAMEWORK MetalKit REQUIRED)
+    find_library(QUARTZCORE_FRAMEWORK QuartzCore REQUIRED)
+    find_library(FOUNDATION_FRAMEWORK Foundation REQUIRED)
+    find_library(COCOA_FRAMEWORK Cocoa REQUIRED)
+endif()
+
 # Set this if we are sitting on SDL
 add_definitions(-DZEP_USE_SDL -DGLM_ENABLE_EXPERIMENTAL)
 
 # Vulkan can use dynamic dispatch extensions
-add_definitions(-DVULKAN_HPP_DISPATCH_LOADER_DYNAMIC=1)
+if(VKLIVE_ENABLE_VULKAN)
+    add_definitions(-DVULKAN_HPP_DISPATCH_LOADER_DYNAMIC=1)
+endif()
 
 # Set this to get the default file system
 add_definitions(-DZEP_FEATURE_CPP_FILE_SYSTEM)
@@ -129,6 +163,25 @@ set(VULKAN_SOURCES
     include/vklive/vulkan/nanovg_vk.h
 )
 
+set(METAL_OBJCXX_SOURCES
+    src/metal/imgui_impl_metal_1917.mm
+    src/metal/metal_context.mm
+    src/metal/metal_device.mm
+    src/metal/metal_imgui.mm
+    src/metal/metal_imgui_texture.mm
+)
+
+set(METAL_SOURCES
+    ${METAL_OBJCXX_SOURCES}
+
+    src/metal/imgui_impl_metal_1917.h
+
+    include/vklive/metal/metal_context.h
+    include/vklive/metal/metal_device.h
+    include/vklive/metal/metal_imgui.h
+    include/vklive/metal/metal_imgui_texture.h
+)
+
 set(EXTERNAL_DIR libs)
 
 set(CLIP_SOURCE
@@ -174,9 +227,16 @@ set(VK_SOURCES
 )
 
 set(LIB_SOURCES
-    ${VULKAN_SOURCES}
     ${VK_SOURCES}
-    )
+)
+
+if(VKLIVE_ENABLE_VULKAN)
+    list(APPEND LIB_SOURCES ${VULKAN_SOURCES})
+endif()
+
+if(VKLIVE_ENABLE_METAL)
+    list(APPEND LIB_SOURCES ${METAL_SOURCES})
+endif()
 
 set(APP_SOURCES
     TODO.md
@@ -205,13 +265,14 @@ set(APP_SOURCES
 
 set_source_files_properties (libs/mpc/mpc.c PROPERTIES SKIP_PRECOMPILE_HEADERS 1)
 set_source_files_properties (src/python_scripting.cpp PROPERTIES SKIP_PRECOMPILE_HEADERS 1)
+if(VKLIVE_ENABLE_METAL)
+    set_source_files_properties(${METAL_OBJCXX_SOURCES} PROPERTIES COMPILE_FLAGS "-fobjc-arc")
+endif()
 
 
 add_library(vklive ${LIB_SOURCES})
-target_compile_definitions(vklive PUBLIC VKLIVE_ENABLE_VULKAN=1)
 target_link_libraries(vklive
     PUBLIC
-        Vulkan::Vulkan
         reproc++
         assimp::assimp
         fmt::fmt-header-only
@@ -222,10 +283,30 @@ target_link_libraries(vklive
         Zing::Zing
         lodepng
     )
-target_precompile_headers(vklive
-  PRIVATE
-    include/vklive/vulkan/vulkan_context.h
-)
+
+if(VKLIVE_ENABLE_VULKAN)
+    target_compile_definitions(vklive PUBLIC VKLIVE_ENABLE_VULKAN=1)
+    target_link_libraries(vklive PUBLIC Vulkan::Vulkan)
+    target_precompile_headers(vklive
+      PRIVATE
+        include/vklive/vulkan/vulkan_context.h
+    )
+endif()
+
+if(VKLIVE_ENABLE_METAL)
+    target_compile_definitions(vklive PUBLIC VKLIVE_ENABLE_METAL=1)
+    target_link_libraries(vklive
+        PRIVATE
+            spirv-cross-core
+            spirv-cross-msl
+            spirv-cross-cpp
+            ${METAL_FRAMEWORK}
+            ${METALKIT_FRAMEWORK}
+            ${QUARTZCORE_FRAMEWORK}
+            ${FOUNDATION_FRAMEWORK}
+            ${COCOA_FRAMEWORK}
+    )
+endif()
 
 if("${CMAKE_SYSTEM_NAME}" STREQUAL "Linux")
     target_link_libraries(vklive PUBLIC atomic)
@@ -383,5 +464,6 @@ else()
 endif()
 
 source_group (vklive//vulkan FILES ${VULKAN_SOURCES})
+source_group (vklive//metal FILES ${METAL_SOURCES})
 source_group (vklive FILES ${VK_SOURCES})
 source_group (app FILES ${APP_SOURCES})

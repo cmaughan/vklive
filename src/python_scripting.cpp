@@ -25,7 +25,6 @@
 
 // using namespace pkpy;
 using namespace Zest;
-using namespace vulkan;
 
 namespace
 {
