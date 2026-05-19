@@ -15,8 +15,6 @@
 #include <vklive/IDevice.h>
 #include <vklive/scene.h>
 
-#include <vklive/vulkan/vulkan_context.h>
-
 #include <config_app.h>
 
 #include <app/config.h>
@@ -204,13 +202,12 @@ bool menu_show()
                     zep_get_editor().GetActiveTabWindow()->CloseActiveWindow();
                 }
             }
-            
+
             if (ImGui::MenuItem("Exit"))
             {
                 SDL_Event ev;
                 ev.type = SDL_QUIT;
                 SDL_PushEvent(&ev);
-
             }
 
             ImGui::EndMenu();
@@ -344,7 +341,7 @@ bool menu_show()
 
             ImGui::EndMenu();
         }
-        
+
         if (ImGui::BeginMenu("Help"))
         {
             if (ImGui::MenuItem("Getting Started"))
@@ -359,7 +356,6 @@ bool menu_show()
                 popupType = PopupType::About;
             }
             ImGui::EndMenu();
-            
         }
 
         float time = Scene::GlobalElapsedSeconds;
@@ -377,7 +373,6 @@ bool menu_show()
         {
             ImGui::EndMenu();
         }
-        
 
         ImGui::EndMainMenuBar();
 
@@ -404,7 +399,7 @@ bool menu_show()
     };
 
     show_audio_popup();
-        
+
     if (Zest::layout_manager_do_menu_popups())
     {
         return true;

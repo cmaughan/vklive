@@ -5,9 +5,9 @@
 #include <vklive/vulkan/vulkan_context.h>
 #include <vklive/vulkan/vulkan_device.h>
 #include <vklive/vulkan/vulkan_imgui.h>
+#include <vklive/vulkan/vulkan_nanovg.h>
 #include <vklive/vulkan/vulkan_render.h>
 #include <vklive/vulkan/vulkan_scene.h>
-#include <vklive/vulkan/vulkan_nanovg.h>
 
 #include <imgui_impl_sdl2.h>
 
@@ -127,6 +127,40 @@ void VulkanDevice::WaitIdle()
 void VulkanDevice::Present()
 {
     vulkan::main_window_present(ctx);
+}
+
+RenderBackend VulkanDevice::Backend() const
+{
+    return RenderBackend::Vulkan;
+}
+
+std::vector<RenderTargetView> VulkanDevice::TargetViews(Scene& scene)
+{
+    std::vector<RenderTargetView> views;
+    auto pVulkanScene = vulkan_scene_get(ctx, scene);
+    if (!pVulkanScene)
+    {
+        return views;
+    }
+
+    for (auto& target : pVulkanScene->viewableTargets)
+    {
+        auto itrTargetData = pVulkanScene->surfaces.find(target);
+        if (itrTargetData == pVulkanScene->surfaces.end())
+        {
+            continue;
+        }
+        auto pSurf = itrTargetData->second;
+        if (!pSurf->ImGuiDescriptorSet)
+        {
+            continue;
+        }
+        views.push_back(RenderTargetView{
+            pSurf->debugName,
+            imgui_texture_id(pSurf->ImGuiDescriptorSet),
+            glm::uvec2(pSurf->extent.width, pSurf->extent.height) });
+    }
+    return views;
 }
 
 DeviceContext& VulkanDevice::Context()

@@ -1,14 +1,17 @@
 #pragma once
 
-#include <set>
-#include <map>
-#include <vector>
-#include <mutex>
 #include <filesystem>
+#include <map>
+#include <mutex>
+#include <set>
+#include <string>
+#include <vector>
 
 #include <glm/glm.hpp>
 
 #include <zest/imgui/imgui.h>
+
+#include <vklive/render_backend.h>
 
 struct SDL_Window;
 struct ImDrawData;
@@ -39,6 +42,13 @@ struct RenderOutput
     Surface* pSurface = nullptr;
 };
 
+struct RenderTargetView
+{
+    std::string name;
+    ImTextureID textureId = 0;
+    glm::uvec2 size = glm::uvec2(0);
+};
+
 struct DeviceContext
 {
     SDL_Window* window = nullptr;
@@ -58,11 +68,11 @@ struct DeviceContext
 
 struct IDevice
 {
-    IDevice(){};
-    virtual ~IDevice(){};
+    IDevice() {};
+    virtual ~IDevice() {};
     IDevice& operator=(const IDevice&) = delete;
     IDevice(const IDevice&) = delete;
-   
+
     // Device Methods
     virtual void InitScene(Scene& scene) = 0;
     virtual void DestroyScene(Scene& scene) = 0;
@@ -72,13 +82,15 @@ struct IDevice
     virtual void WriteToFile(Scene& scene, const fs::path& path) = 0;
 
     virtual void WaitIdle() = 0;
-    
+
     virtual void ValidateSwapChain() = 0;
     virtual void Present() = 0;
 
     virtual std::string GetDeviceString() const = 0;
     virtual std::set<std::string> ShaderFileExtensions() = 0;
 
+    virtual RenderBackend Backend() const = 0;
+    virtual std::vector<RenderTargetView> TargetViews(Scene& scene) = 0;
+
     virtual DeviceContext& Context() = 0;
 };
-
