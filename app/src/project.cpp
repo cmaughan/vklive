@@ -65,7 +65,7 @@ fs::path find_temp_path()
     return pathTemp / tempDir;
 }
 
-std::shared_ptr<Project> project_load_to_temp(const fs::path& projectPath)
+std::shared_ptr<Project> project_load_to_temp(const fs::path& projectPath, const fs::path& sceneGraphOverride)
 {
     std::shared_ptr<Project> spProject = std::make_shared<Project>();
 
@@ -81,11 +81,12 @@ std::shared_ptr<Project> project_load_to_temp(const fs::path& projectPath)
         LOG(ERR, "Failed project copy: " << ex.what());
     }
     spProject->rootPath = fs::canonical(pathTemp);
+    spProject->sceneGraphOverride = sceneGraphOverride;
     spProject->temporary = true;
     return spProject;
 }
 
-std::shared_ptr<Project> project_load(const fs::path& projectPath)
+std::shared_ptr<Project> project_load(const fs::path& projectPath, const fs::path& sceneGraphOverride)
 {
     std::shared_ptr<Project> spProject = std::make_shared<Project>();
     if (fs::exists(projectPath) && fs::is_directory(projectPath))
@@ -93,12 +94,13 @@ std::shared_ptr<Project> project_load(const fs::path& projectPath)
         LOG(DBG, "Loading project: " << projectPath.string());
         // Found a non-temp project
         spProject->rootPath = fs::canonical(projectPath);
+        spProject->sceneGraphOverride = sceneGraphOverride;
         spProject->temporary = false;         
         return spProject;
     }
   
     LOG(DBG, "Loading temp project, since not found: " << projectPath.string());
-    return project_load_to_temp(Zest::runtree_find_path("projects/default"));
+    return project_load_to_temp(Zest::runtree_find_path("projects/default"), sceneGraphOverride);
 }
 
 std::set<std::string> project_file_extensions()

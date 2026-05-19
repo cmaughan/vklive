@@ -1,9 +1,17 @@
 #pragma once
 
+#include <cfloat>
+#include <cstdint>
+#include <functional>
+#include <map>
+#include <utility>
+
 #include <glm/glm.hpp>
 #include <vector>
 #include <set>
 #include <string>
+
+#include <zest/file/file.h>
 
 struct aiScene;
 namespace Assimp
@@ -38,6 +46,12 @@ struct VertexLayout
 
 extern VertexLayout g_vertexLayout;
 
+enum class ModelUvOrigin
+{
+    UpperLeft,
+    LowerLeft
+};
+
 // Create info
 struct ModelCreateInfo
 {
@@ -46,17 +60,31 @@ struct ModelCreateInfo
     glm::vec3 center{ 0 };
     glm::vec3 scale{ 1 };
     glm::vec2 uvscale{ 1 };
+    ModelUvOrigin uvOrigin = ModelUvOrigin::LowerLeft;
     bool buildAS = false;
     
     size_t hash() const
     {
-        using namespace std;
-        
-        size_t result = std::hash<std::string>()(filename);
-        result ^= std::hash<glm::vec3>()(center);
-        result ^= std::hash<glm::vec3>()(scale);
-        result ^= std::hash<glm::vec2>()(uvscale);
-        result ^= buildAS ? 1 : 0;
+        auto hashCombine = [](size_t& seed, size_t value) {
+            seed ^= value + 0x9e3779b9 + (seed << 6) + (seed >> 2);
+        };
+
+        size_t result = 0;
+        hashCombine(result, std::hash<std::string>()(filename));
+        for (const auto& component : vertexLayout.components)
+        {
+            hashCombine(result, std::hash<int>()(static_cast<int>(component)));
+        }
+        hashCombine(result, std::hash<float>()(center.x));
+        hashCombine(result, std::hash<float>()(center.y));
+        hashCombine(result, std::hash<float>()(center.z));
+        hashCombine(result, std::hash<float>()(scale.x));
+        hashCombine(result, std::hash<float>()(scale.y));
+        hashCombine(result, std::hash<float>()(scale.z));
+        hashCombine(result, std::hash<float>()(uvscale.x));
+        hashCombine(result, std::hash<float>()(uvscale.y));
+        hashCombine(result, std::hash<int>()(static_cast<int>(uvOrigin)));
+        hashCombine(result, std::hash<bool>()(buildAS));
         return result;
     }
     
@@ -68,6 +96,7 @@ struct ModelCreateInfo
             (createInfo.center == center) && 
             (createInfo.scale == scale) &&
             (createInfo.uvscale == uvscale) &&
+            (createInfo.uvOrigin == uvOrigin) &&
             (createInfo.buildAS == buildAS);
     }
 };
@@ -105,15 +134,38 @@ struct ModelTexture
     std::vector<uint8_t> data;
 };
 
+struct ModelTextureSlot
+{
+    std::string pathName;
+    fs::path resolvedPath;
+    ModelTexture* embeddedTexture = nullptr;
+    bool srgb = false;
+    bool flipY = false;
+
+    bool valid() const
+    {
+        return embeddedTexture || !resolvedPath.empty();
+    }
+};
+
+struct ModelMaterialTextures
+{
+    ModelTextureSlot baseColor;
+    ModelTextureSlot normal;
+    ModelTextureSlot metallicRoughness;
+    ModelTextureSlot emissive;
+    ModelTextureSlot occlusion;
+};
+
 struct ModelMaterial
 {
     std::string name;
-    glm::vec4 diffuse;
-    glm::vec4 ambient;
-    glm::vec4 specular;
-    glm::vec4 emissive;
-    glm::vec4 reflective;
-    std::map<std::pair<ModelTextureType, int>, ModelTexture*> mapTextures;
+    glm::vec4 baseColorFactor = glm::vec4(1.0f);
+    glm::vec4 emissiveFactor = glm::vec4(0.0f);
+    float metallicFactor = 1.0f;
+    float roughnessFactor = 1.0f;
+    float occlusionStrength = 1.0f;
+    ModelMaterialTextures textures;
 };
 
 // Model
@@ -126,6 +178,7 @@ struct Model
         uint32_t vertexCount;
         uint32_t indexBase;
         uint32_t indexCount;
+        uint32_t materialIndex = 0;
     };
     std::vector<ModelPart> parts;
 

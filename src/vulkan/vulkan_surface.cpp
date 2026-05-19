@@ -1,5 +1,10 @@
 #include <gli/gli.hpp>
 
+#include <cstdint>
+#include <cstring>
+#include <limits>
+#include <vector>
+
 #define STB_IMAGE_IMPLEMENTATION
 #include <stb_image.h>
 
@@ -16,6 +21,29 @@
 
 namespace vulkan
 {
+
+namespace
+{
+void flip_image_rows(void* data, int width, int height, size_t bytesPerPixel)
+{
+    if (!data || width <= 0 || height <= 1 || bytesPerPixel == 0)
+    {
+        return;
+    }
+
+    const auto rowSize = static_cast<size_t>(width) * bytesPerPixel;
+    auto* bytes = static_cast<uint8_t*>(data);
+    std::vector<uint8_t> temp(rowSize);
+    for (int y = 0; y < height / 2; ++y)
+    {
+        auto* top = bytes + (static_cast<size_t>(y) * rowSize);
+        auto* bottom = bytes + (static_cast<size_t>(height - 1 - y) * rowSize);
+        std::memcpy(temp.data(), top, rowSize);
+        std::memcpy(top, bottom, rowSize);
+        std::memcpy(bottom, temp.data(), rowSize);
+    }
+}
+} // namespace
 
 std::string to_string(const VulkanSurface& surf)
 {
@@ -219,9 +247,9 @@ void surface_create_sampler(VulkanContext& ctx, VulkanSurface& surface)
     // TODO: Obey user options
     samplerCreateInfo.magFilter = vk::Filter::eLinear;
     samplerCreateInfo.minFilter = vk::Filter::eLinear;
-    samplerCreateInfo.addressModeU = vk::SamplerAddressMode::eMirroredRepeat;
-    samplerCreateInfo.addressModeV = vk::SamplerAddressMode::eMirroredRepeat;
-    samplerCreateInfo.addressModeW = vk::SamplerAddressMode::eMirroredRepeat;
+    samplerCreateInfo.addressModeU = vk::SamplerAddressMode::eRepeat;
+    samplerCreateInfo.addressModeV = vk::SamplerAddressMode::eRepeat;
+    samplerCreateInfo.addressModeW = vk::SamplerAddressMode::eRepeat;
 
     samplerCreateInfo.mipmapMode = vk::SamplerMipmapMode::eLinear;
     // Max level-of-detail should match mip level count
@@ -353,7 +381,7 @@ void surface_stage_to_device(VulkanContext& ctx, VulkanSurface& surface, const v
     surface_stage_to_device(ctx, surface, imageCreateInfo, memoryPropertyFlags, (vk::DeviceSize)tex2D.size(), tex2D.data(), mips, layout);
 }
 
-bool surface_create_from_memory(VulkanContext& ctx, VulkanSurface& vulkanSurface, const fs::path& filename, const char* pData, size_t data_size, vk::Format format, vk::ImageUsageFlags imageUsageFlags, vk::ImageLayout imageLayout, bool forceLinear)
+bool surface_create_from_memory(VulkanContext& ctx, VulkanSurface& vulkanSurface, const fs::path& filename, const char* pData, size_t data_size, vk::Format format, vk::ImageUsageFlags imageUsageFlags, vk::ImageLayout imageLayout, bool forceLinear, bool flipY)
 {
     vulkan_surface_destroy(ctx, vulkanSurface);
 
@@ -391,7 +419,54 @@ bool surface_create_from_memory(VulkanContext& ctx, VulkanSurface& vulkanSurface
     else
     {
         int x, y, n;
-        auto loaded = stbi_load_from_memory((const stbi_uc*)pData, data_size, &x, &y, &n, 0);
+        if (data_size > static_cast<size_t>(std::numeric_limits<int>::max()))
+        {
+            vulkanSurface.allocationState = VulkanAllocationState::Failed;
+            return false;
+        }
+
+        const auto* pImageData = reinterpret_cast<const stbi_uc*>(pData);
+        const auto imageDataSize = static_cast<int>(data_size);
+        const auto isHdr = stbi_is_hdr_from_memory(pImageData, imageDataSize) != 0;
+        void* loaded = nullptr;
+        vk::DeviceSize uploadSize = 0;
+        vk::Format imageFormat = format;
+
+        if (isHdr)
+        {
+            auto loadedHdr = stbi_loadf_from_memory(pImageData, imageDataSize, &x, &y, &n, STBI_rgb_alpha);
+            if (!loadedHdr || x <= 0 || y <= 0)
+            {
+                stbi_image_free(loadedHdr);
+                vulkanSurface.allocationState = VulkanAllocationState::Failed;
+                return false;
+            }
+
+            loaded = loadedHdr;
+            uploadSize = static_cast<vk::DeviceSize>(x) * static_cast<vk::DeviceSize>(y) * 4 * sizeof(float);
+            imageFormat = vk::Format::eR32G32B32A32Sfloat;
+            if (flipY)
+            {
+                flip_image_rows(loaded, x, y, 4 * sizeof(float));
+            }
+        }
+        else
+        {
+            auto loadedLdr = stbi_load_from_memory(pImageData, imageDataSize, &x, &y, &n, STBI_rgb_alpha);
+            if (!loadedLdr || x <= 0 || y <= 0)
+            {
+                stbi_image_free(loadedLdr);
+                vulkanSurface.allocationState = VulkanAllocationState::Failed;
+                return false;
+            }
+
+            loaded = loadedLdr;
+            uploadSize = static_cast<vk::DeviceSize>(x) * static_cast<vk::DeviceSize>(y) * 4;
+            if (flipY)
+            {
+                flip_image_rows(loaded, x, y, 4);
+            }
+        }
 
         vulkanSurface.extent.width = static_cast<uint32_t>(x);
         vulkanSurface.extent.height = static_cast<uint32_t>(y);
@@ -402,7 +477,7 @@ bool surface_create_from_memory(VulkanContext& ctx, VulkanSurface& vulkanSurface
         // Create optimal tiled target image
         vk::ImageCreateInfo imageCreateInfo;
         imageCreateInfo.imageType = vk::ImageType::e2D;
-        imageCreateInfo.format = format;
+        imageCreateInfo.format = imageFormat;
         imageCreateInfo.mipLevels = vulkanSurface.mipLevels;
         imageCreateInfo.arrayLayers = 1;
         imageCreateInfo.extent = vulkanSurface.extent;
@@ -410,7 +485,9 @@ bool surface_create_from_memory(VulkanContext& ctx, VulkanSurface& vulkanSurface
         imageCreateInfo.pNext = nullptr;
 
         // Will create the surface image
-        surface_stage_to_device(ctx, vulkanSurface, imageCreateInfo, vk::MemoryPropertyFlagBits::eDeviceLocal, x * y * n, static_cast<const void*>(loaded));
+        surface_stage_to_device(ctx, vulkanSurface, imageCreateInfo, vk::MemoryPropertyFlagBits::eDeviceLocal, uploadSize, loaded, {}, imageLayout);
+        stbi_image_free(loaded);
+        format = imageFormat;
     }
 
     // Add sampler
@@ -436,7 +513,7 @@ bool surface_create_from_memory(VulkanContext& ctx, VulkanSurface& vulkanSurface
     return true;
 }
 
-bool surface_create_from_file(VulkanContext& ctx, VulkanSurface& vulkanSurface, const fs::path& filename, vk::Format format, vk::ImageUsageFlags imageUsageFlags, vk::ImageLayout imageLayout, bool forceLinear)
+bool surface_create_from_file(VulkanContext& ctx, VulkanSurface& vulkanSurface, const fs::path& filename, vk::Format format, vk::ImageUsageFlags imageUsageFlags, vk::ImageLayout imageLayout, bool forceLinear, bool flipY)
 {
     if (!fs::exists(filename))
     {
@@ -453,7 +530,7 @@ bool surface_create_from_file(VulkanContext& ctx, VulkanSurface& vulkanSurface, 
         return false;
     }
 
-    return surface_create_from_memory(ctx, vulkanSurface, filename, data.c_str(), data.size(), format, imageUsageFlags, imageLayout, forceLinear);
+    return surface_create_from_memory(ctx, vulkanSurface, filename, data.c_str(), data.size(), format, imageUsageFlags, imageLayout, forceLinear, flipY);
 }
 
 void surface_update_from_audio(VulkanContext& ctx, VulkanSurface& surface, bool& surfaceChanged, vk::CommandBuffer& commandBuffer)

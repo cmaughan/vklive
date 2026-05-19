@@ -1,4 +1,5 @@
 #include <atomic>
+#include <iostream>
 #include <mutex>
 #include <thread>
 
@@ -31,6 +32,7 @@
 
 #include <config_app.h>
 
+#include <app/command_line.h>
 #include <app/config.h>
 #include <app/controller.h>
 #include <app/editor.h>
@@ -72,15 +74,25 @@ extern std::shared_ptr<IDevice> create_vulkan_device(SDL_Window* pWindow, const 
 namespace
 {
 
+AppCommandLineOptions commandLineOptions;
+
 bool read_command_line(int argc, char** argv, int& exitCode)
 {
-    /*
-    auto cli = group(opt_value("viewports", appConfig.viewports));
-    if (argc != 0)
+    std::string error;
+    if (!app_parse_command_line(argc, argv, commandLineOptions, error))
     {
-        parse(argc, argv, cli);
+        std::cerr << error << "\n\n" << app_command_line_help();
+        exitCode = 2;
+        return false;
     }
-    */
+
+    if (commandLineOptions.help)
+    {
+        std::cout << app_command_line_help();
+        exitCode = 0;
+        return false;
+    }
+
     return true;
 }
 
@@ -209,6 +221,14 @@ int main(int argc, char** argv)
         Zest::runtree_find_path("settings.toml"),
         fs::path("settings") / "settings.toml");
     config_load(settings_path);
+    if (!commandLineOptions.projectRoot.empty())
+    {
+        appConfig.project_root = fs::absolute(commandLineOptions.projectRoot);
+    }
+    if (commandLineOptions.smokeTest)
+    {
+        return 0;
+    }
 
     auto imSettingsPath = Zest::file_init_settings("VkLive",
         Zest::runtree_find_path("imgui.ini"),
@@ -264,7 +284,7 @@ int main(int argc, char** argv)
                 continue;
             }
 
-            spProject->spScene = scene_build(spProject->rootPath);
+            spProject->spScene = scene_build(spProject->rootPath, spProject->sceneGraphOverride);
 
             // May not be valid, but sent anyway
             g_pDevice->InitScene(*spProject->spScene);
@@ -275,7 +295,7 @@ int main(int argc, char** argv)
     });
 
     // Startup, load the default project
-    auto project = project_load(appConfig.project_root);
+    auto project = project_load(appConfig.project_root, commandLineOptions.sceneGraph);
     g_Controller.spProjectQueue->enqueue(project);
 
     // Main loop

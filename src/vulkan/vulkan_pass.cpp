@@ -1,5 +1,7 @@
 #include <fmt/format.h>
 
+#include <array>
+
 #include <range/v3/algorithm/for_each.hpp>
 #include <range/v3/range/conversion.hpp>
 #include <range/v3/view/filter.hpp>
@@ -17,6 +19,7 @@
 #include "vklive/vulkan/vulkan_pass.h"
 #include "vklive/vulkan/vulkan_pipeline.h"
 #include "vklive/vulkan/vulkan_render.h"
+#include "vklive/vulkan/vulkan_model.h"
 #include "vklive/vulkan/vulkan_uniform.h"
 #include "vklive/vulkan/vulkan_utils.h"
 #include <vklive/python_scripting.h>
@@ -762,6 +765,11 @@ void vulkan_pass_set_descriptors(VulkanContext& ctx, VulkanPass& vulkanPass)
 
     for (auto& [set, bindings] : passFrameData.descriptorSetBindings)
     {
+        if (set == 2)
+        {
+            continue;
+        }
+
         auto& layout = passFrameData.descriptorSetLayouts[set];
         auto& bindingSet = passFrameData.mergedBindingSets[set];
         if (!layout)
@@ -805,7 +813,7 @@ void vulkan_pass_set_descriptors(VulkanContext& ctx, VulkanPass& vulkanPass)
             // TODO: Binding count.  When is there more than 1 specified? An array in the shader?
             vk::WriteDescriptorSet newWrite{};
             newWrite.pNext = nullptr;
-            newWrite.descriptorCount = 1;
+            newWrite.descriptorCount = binding.descriptorCount;
             newWrite.descriptorType = binding.descriptorType;
             newWrite.dstBinding = index;
             newWrite.dstSet = descriptorSet;
@@ -883,6 +891,25 @@ void vulkan_pass_set_descriptors(VulkanContext& ctx, VulkanPass& vulkanPass)
         if (!writes.empty())
         {
             ctx.device.updateDescriptorSets(static_cast<uint32_t>(writes.size()), writes.data(), 0, nullptr);
+        }
+    }
+
+    auto itrMaterialSetLayout = passFrameData.descriptorSetLayouts.find(2);
+    if (itrMaterialSetLayout != passFrameData.descriptorSetLayouts.end() && itrMaterialSetLayout->second)
+    {
+        for (auto& geom : vulkanPass.pass.models)
+        {
+            auto itrGeom = vulkanPass.vulkanScene.models.find(geom);
+            if (itrGeom == vulkanPass.vulkanScene.models.end())
+            {
+                continue;
+            }
+
+            if (!vulkan_model_prepare_material_descriptors(ctx, *itrGeom->second, itrMaterialSetLayout->second))
+            {
+                scene_report_error(*vulkanScene.pScene, MessageSeverity::Error, fmt::format("Could not allocate material descriptors for model: {}", geom.string()), vulkanScene.pScene->sceneGraphPath);
+                return;
+            }
         }
     }
 }
@@ -971,8 +998,35 @@ bool vulkan_pass_prepare_pipeline(VulkanContext& ctx, VulkanPassSwapFrameData& f
     if (!shaderStages.empty())
     {
         PROFILE_SCOPE(create_pipeline_layout);
-        auto layouts = frameData.descriptorSetLayouts | ranges::views::transform([](auto& p) { return p.second; }) | ranges::to<std::vector>();
-        frameData.geometryPipelineLayout = ctx.device.createPipelineLayout({ {}, layouts });
+        std::vector<vk::DescriptorSetLayout> layouts;
+        if (!frameData.descriptorSetLayouts.empty())
+        {
+            auto maxSet = frameData.descriptorSetLayouts.rbegin()->first;
+            layouts.resize(maxSet + 1);
+            for (uint32_t set = 0; set <= maxSet; ++set)
+            {
+                auto itrLayout = frameData.descriptorSetLayouts.find(set);
+                if (itrLayout != frameData.descriptorSetLayouts.end() && itrLayout->second)
+                {
+                    layouts[set] = itrLayout->second;
+                }
+                else
+                {
+                    vk::DescriptorSetLayoutCreateInfo layoutInfo{};
+                    layouts[set] = descriptor_create_layout(ctx, descriptor_get_cache(ctx), layoutInfo);
+                }
+            }
+        }
+
+        vk::PushConstantRange drawPushConstants(
+            vk::ShaderStageFlagBits::eVertex | vk::ShaderStageFlagBits::eFragment,
+            0,
+            sizeof(VklDrawPushConstants));
+
+        vk::PipelineLayoutCreateInfo layoutInfo;
+        layoutInfo.setSetLayouts(layouts);
+        layoutInfo.setPushConstantRanges(drawPushConstants);
+        frameData.geometryPipelineLayout = ctx.device.createPipelineLayout(layoutInfo);
         debug_set_pipelinelayout_name(ctx.device, frameData.geometryPipelineLayout, fmt::format("GeomPipeLayout: {}", frameData.debugName));
     }
 
@@ -1105,6 +1159,8 @@ void vulkan_pass_submit(VulkanContext& ctx, VulkanPass& vulkanPass)
         {
             // Graphics Pipe
             cmd.bindPipeline(vk::PipelineBindPoint::eGraphics, passFrameData.pipeline);
+            const auto itrMaterialSet = passFrameData.descriptorSetLayouts.find(2);
+            const bool hasMaterialSet = itrMaterialSet != passFrameData.descriptorSetLayouts.end() && itrMaterialSet->second;
 
             for (auto& geom : vulkanPass.pass.models)
             {
@@ -1114,7 +1170,22 @@ void vulkan_pass_submit(VulkanContext& ctx, VulkanPass& vulkanPass)
                     auto pVulkanGeom = itrGeom->second;
                     cmd.bindVertexBuffers(0, pVulkanGeom->vertices.buffer, { 0 });
                     cmd.bindIndexBuffer(pVulkanGeom->indices.buffer, 0, vk::IndexType::eUint32);
-                    cmd.drawIndexed(pVulkanGeom->indexCount, 1, 0, 0, 0);
+                    if (hasMaterialSet && pVulkanGeom->materialDescriptorSet)
+                    {
+                        cmd.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, passFrameData.geometryPipelineLayout, 2, pVulkanGeom->materialDescriptorSet, {});
+                    }
+
+                    for (const auto& part : pVulkanGeom->parts)
+                    {
+                        VklDrawPushConstants constants;
+                        constants.materialIndex = part.materialIndex;
+                        cmd.pushConstants(passFrameData.geometryPipelineLayout,
+                            vk::ShaderStageFlagBits::eVertex | vk::ShaderStageFlagBits::eFragment,
+                            0,
+                            sizeof(constants),
+                            &constants);
+                        cmd.drawIndexed(part.indexCount, 1, part.indexBase, 0, 0);
+                    }
                 }
             }
         }

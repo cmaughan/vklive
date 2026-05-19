@@ -60,6 +60,31 @@ class DoScriptTests(unittest.TestCase):
         self.assertEqual(calls[1], ["cmd", "/c", str(ROOT / "build.bat"), "Release"])
         self.assertEqual(calls[2], [str(ROOT / "build" / "Release" / "Rezonality.exe"), "--smoke-test"])
 
+    def test_run_forwards_project_and_scenegraph_args(self):
+        do = load_do_module()
+
+        parsed = do.parse_args(["run", "release", "--", "--project", "run_tree/projects/pbr_robot", "--scenegraph", "uv_debug.scenegraph"])
+
+        self.assertEqual(parsed.config, "Release")
+        self.assertEqual(parsed.app_args, ["--project", "run_tree/projects/pbr_robot", "--scenegraph", "uv_debug.scenegraph"])
+        self.assertIn("--scenegraph", do.help_text())
+
+    def test_run_forwards_app_args_when_wrapper_strips_separator(self):
+        do = load_do_module()
+
+        parsed = do.parse_args(["run", "release", "--project", "run_tree/projects/pbr_robot", "--scenegraph", "uv_debug.scenegraph"])
+
+        self.assertEqual(parsed.config, "Release")
+        self.assertEqual(parsed.app_args, ["--project", "run_tree/projects/pbr_robot", "--scenegraph", "uv_debug.scenegraph"])
+
+    def test_run_defaults_to_debug_when_app_args_follow_command(self):
+        do = load_do_module()
+
+        parsed = do.parse_args(["run", "--project", "run_tree/projects/pbr_robot", "--scenegraph", "uv_debug.scenegraph"])
+
+        self.assertEqual(parsed.config, "Debug")
+        self.assertEqual(parsed.app_args, ["--project", "run_tree/projects/pbr_robot", "--scenegraph", "uv_debug.scenegraph"])
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -179,6 +179,7 @@ set(LIB_SOURCES
 set(APP_SOURCES
     TODO.md
     README.md
+    app/src/command_line.cpp
     app/src/config.cpp
     app/src/controller.cpp
     app/src/editor.cpp
@@ -189,6 +190,7 @@ set(APP_SOURCES
     app/src/menu.cpp
     app/src/project.cpp
 
+    app/include/app/command_line.h
     app/include/app/config.h
     app/include/app/controller.h
     app/include/app/editor.h
@@ -242,6 +244,53 @@ target_include_directories(vklive
         ${CMAKE_CURRENT_SOURCE_DIR}/libs
         ${TSL_ORDERED_MAP_INCLUDE_DIRS}
     )
+
+enable_testing()
+
+add_executable(vklive_model_tests tests/model_inspect.cpp)
+target_link_libraries(vklive_model_tests PRIVATE vklive)
+target_include_directories(vklive_model_tests PRIVATE ${CMAKE_BINARY_DIR})
+
+add_executable(vklive_scene_tests tests/scene_inspect.cpp)
+target_link_libraries(vklive_scene_tests PRIVATE vklive unofficial::spirv-reflect)
+target_include_directories(vklive_scene_tests PRIVATE ${CMAKE_BINARY_DIR})
+
+add_executable(vklive_app_command_line_tests tests/app_command_line_tests.cpp app/src/command_line.cpp)
+target_link_libraries(vklive_app_command_line_tests PRIVATE vklive)
+target_include_directories(vklive_app_command_line_tests PRIVATE
+    ${CMAKE_BINARY_DIR}
+    ${CMAKE_CURRENT_LIST_DIR}/app/include)
+
+add_executable(vklive_zep_imgui_input_tests tests/zep_imgui_input_tests.cpp)
+target_link_libraries(vklive_zep_imgui_input_tests PRIVATE Zep::Zep Zing::Zing)
+target_include_directories(vklive_zep_imgui_input_tests PRIVATE
+    ${CMAKE_BINARY_DIR}
+    ${CMAKE_CURRENT_SOURCE_DIR}/zep/include)
+
+add_test(
+    NAME vklive_model_tests_robot
+    COMMAND vklive_model_tests ${CMAKE_CURRENT_LIST_DIR}/run_tree/projects/pbr_robot/models/robot/scene.gltf
+)
+
+add_test(
+    NAME vklive_scene_tests_override
+    COMMAND vklive_scene_tests ${CMAKE_CURRENT_LIST_DIR}/run_tree/projects/pbr_robot uv_debug.scenegraph valid
+)
+
+add_test(
+    NAME vklive_scene_tests_missing_override
+    COMMAND vklive_scene_tests ${CMAKE_CURRENT_LIST_DIR}/run_tree/projects/pbr_robot missing.scenegraph invalid
+)
+
+add_test(
+    NAME vklive_app_command_line_tests
+    COMMAND vklive_app_command_line_tests
+)
+
+add_test(
+    NAME vklive_zep_imgui_input_tests
+    COMMAND vklive_zep_imgui_input_tests
+)
 
 # App
 set(APP_ROOT ${CMAKE_CURRENT_LIST_DIR}/app)
