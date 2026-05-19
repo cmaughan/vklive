@@ -102,7 +102,38 @@ endif()
 set(ZING_LIBRARY_ONLY ON)
 set(ZEST_BUILD_TESTS OFF)
 add_definitions(-DIMGUI_DISABLE_INCLUDE_IMCONFIG_H)
+
+if(NOT VKLIVE_ENABLE_VULKAN)
+    set(_vklive_saved_cmake_module_path "${CMAKE_MODULE_PATH}")
+    list(PREPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_LIST_DIR}/cmake/no-vulkan")
+endif()
+
 add_subdirectory(libs/zing)
+
+if(NOT VKLIVE_ENABLE_VULKAN)
+    set(CMAKE_MODULE_PATH "${_vklive_saved_cmake_module_path}")
+    unset(_vklive_saved_cmake_module_path)
+
+    if(TARGET Zest)
+        get_target_property(_vklive_zest_sources Zest SOURCES)
+        if(_vklive_zest_sources)
+            list(FILTER _vklive_zest_sources EXCLUDE REGEX "imgui_impl_vulkan\\.(cpp|h)$")
+            set_property(TARGET Zest PROPERTY SOURCES ${_vklive_zest_sources})
+        endif()
+
+        foreach(_vklive_link_property LINK_LIBRARIES INTERFACE_LINK_LIBRARIES)
+            get_target_property(_vklive_zest_link_libraries Zest ${_vklive_link_property})
+            if(_vklive_zest_link_libraries)
+                list(REMOVE_ITEM _vklive_zest_link_libraries Vulkan::Vulkan)
+                set_property(TARGET Zest PROPERTY ${_vklive_link_property} ${_vklive_zest_link_libraries})
+            endif()
+        endforeach()
+
+        unset(_vklive_zest_sources)
+        unset(_vklive_link_property)
+        unset(_vklive_zest_link_libraries)
+    endif()
+endif()
 
 # Set this to use a lib instead of the single header build
 set (ZEP_LIB 1)

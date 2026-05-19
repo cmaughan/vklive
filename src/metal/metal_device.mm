@@ -30,11 +30,7 @@ void report_scene_error_once(Scene& scene, bool& reported, const std::string& te
         return;
     }
 
-    Message msg;
-    msg.severity = MessageSeverity::Error;
-    msg.path = scene.sceneGraphPath;
-    msg.text = text;
-    scene.errors.push_back(msg);
+    scene_report_error(scene, MessageSeverity::Error, text, scene.sceneGraphPath);
     validation_error(text);
     reported = true;
 }

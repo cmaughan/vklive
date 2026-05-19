@@ -327,7 +327,7 @@ void ImGui_ImplMetal_RenderDrawData(ImDrawData* drawData, id<MTLCommandBuffer> c
     [commandBuffer addCompletedHandler:^(id<MTLCommandBuffer>)
     {
         dispatch_async(dispatch_get_main_queue(), ^{
-            @synchronized(bd->SharedMetalContext.bufferCache)
+            @synchronized(sharedMetalContext.bufferCache)
             {
                 [sharedMetalContext.bufferCache addObject:vertexBuffer];
                 [sharedMetalContext.bufferCache addObject:indexBuffer];
