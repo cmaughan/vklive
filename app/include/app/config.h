@@ -2,6 +2,8 @@
 
 #include <glm/glm.hpp>
 
+#include <vklive/render_backend.h>
+
 #include <zest/file/file.h>
 
 #include <zing/audio/audio_analysis_settings.h>
@@ -18,6 +20,7 @@ struct AppConfig
 {
     bool vim_mode = false;
     fs::path project_root; 
+    RenderBackend renderer = RenderBackend::Auto;
     bool viewports = false;
 
     // Rendering type

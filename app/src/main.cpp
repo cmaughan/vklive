@@ -225,6 +225,10 @@ int main(int argc, char** argv)
     {
         appConfig.project_root = fs::absolute(commandLineOptions.projectRoot);
     }
+    if (commandLineOptions.rendererSpecified)
+    {
+        appConfig.renderer = commandLineOptions.renderer;
+    }
     if (commandLineOptions.smokeTest)
     {
         return 0;

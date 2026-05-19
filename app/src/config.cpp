@@ -26,6 +26,13 @@ void config_load(const fs::path& path)
         }
         appConfig.vim_mode = tbl["settings"]["vim_mode"].value_or(false);
 
+        RenderBackend renderer = RenderBackend::Auto;
+        const auto rendererText = tbl["settings"]["renderer"].value_or("auto");
+        if (render_backend_from_string(rendererText, renderer))
+        {
+            appConfig.renderer = renderer;
+        }
+
         appConfig.main_window_size = toml_read_vec2<glm::vec2>(tbl["settings"]["main_window_size"]);
         appConfig.main_window_pos = toml_read_vec2<glm::vec2>(tbl["settings"]["main_window_pos"]);
         appConfig.main_window_state = WindowState(tbl["settings"]["main_window_state"].value_or(int(WindowState::Normal)));
@@ -56,6 +63,7 @@ void config_save(const fs::path& path)
 {
     toml::table settings;
     settings.insert_or_assign("project_root", appConfig.project_root.string());
+    settings.insert_or_assign("renderer", render_backend_to_string(appConfig.renderer));
 
     // Window
     toml_write_vec2(settings, "main_window_size", appConfig.main_window_size);

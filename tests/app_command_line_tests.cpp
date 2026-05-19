@@ -36,6 +36,7 @@ int main()
     ok &= require(error.empty(), "parser returned error: " + error);
     ok &= require(options.projectRoot == fs::path("run_tree/projects/pbr_robot"), "project path not parsed");
     ok &= require(options.sceneGraph == fs::path("uv_debug.scenegraph"), "scenegraph path not parsed");
+    ok &= require(!options.rendererSpecified, "renderer should not be specified by default");
 
     AppCommandLineOptions badOptions;
     const char* badArgv[] = { "Rezonality.exe", "--scenegraph" };
@@ -43,6 +44,43 @@ int main()
     const bool badOk = app_parse_command_line(static_cast<int>(std::size(badArgv)), const_cast<char**>(badArgv), badOptions, badError);
     ok &= require(!badOk, "missing scenegraph value should fail");
     ok &= require(!badError.empty(), "missing scenegraph value should explain failure");
+
+    const char* rendererArgv[] = {
+        "Rezonality.exe",
+        "--renderer",
+        "metal",
+        "--smoke-test"
+    };
+    AppCommandLineOptions rendererOptions;
+    std::string rendererError;
+    bool rendererOk = app_parse_command_line(static_cast<int>(std::size(rendererArgv)), const_cast<char**>(rendererArgv), rendererOptions, rendererError);
+    ok &= require(rendererOk, "renderer parser failed: " + rendererError);
+    ok &= require(rendererOptions.rendererSpecified, "metal renderer should be marked specified");
+    ok &= require(rendererOptions.renderer == RenderBackend::Metal, "metal renderer not parsed");
+    ok &= require(rendererOptions.smokeTest, "smoke-test not parsed after renderer");
+
+    const char* autoRendererArgv[] = {
+        "Rezonality.exe",
+        "--renderer",
+        "auto"
+    };
+    AppCommandLineOptions autoRendererOptions;
+    std::string autoRendererError;
+    bool autoRendererOk = app_parse_command_line(static_cast<int>(std::size(autoRendererArgv)), const_cast<char**>(autoRendererArgv), autoRendererOptions, autoRendererError);
+    ok &= require(autoRendererOk, "auto renderer parser failed: " + autoRendererError);
+    ok &= require(autoRendererOptions.rendererSpecified, "auto renderer should be marked specified");
+    ok &= require(autoRendererOptions.renderer == RenderBackend::Auto, "auto renderer not parsed");
+
+    const char* badRendererArgv[] = {
+        "Rezonality.exe",
+        "--renderer",
+        "direct3d"
+    };
+    AppCommandLineOptions badRendererOptions;
+    std::string badRendererError;
+    bool badRendererOk = app_parse_command_line(static_cast<int>(std::size(badRendererArgv)), const_cast<char**>(badRendererArgv), badRendererOptions, badRendererError);
+    ok &= require(!badRendererOk, "bad renderer should fail");
+    ok &= require(badRendererError == "Unknown renderer: direct3d", "bad renderer error text changed");
 
     return ok ? EXIT_SUCCESS : EXIT_FAILURE;
 }

@@ -261,6 +261,10 @@ target_include_directories(vklive_app_command_line_tests PRIVATE
     ${CMAKE_BINARY_DIR}
     ${CMAKE_CURRENT_LIST_DIR}/app/include)
 
+add_executable(vklive_render_backend_tests tests/render_backend_tests.cpp)
+target_link_libraries(vklive_render_backend_tests PRIVATE vklive)
+target_include_directories(vklive_render_backend_tests PRIVATE ${CMAKE_BINARY_DIR})
+
 add_executable(vklive_zep_imgui_input_tests tests/zep_imgui_input_tests.cpp)
 target_link_libraries(vklive_zep_imgui_input_tests PRIVATE Zep::Zep Zing::Zing)
 target_include_directories(vklive_zep_imgui_input_tests PRIVATE
@@ -285,6 +289,11 @@ add_test(
 add_test(
     NAME vklive_app_command_line_tests
     COMMAND vklive_app_command_line_tests
+)
+
+add_test(
+    NAME vklive_render_backend_tests
+    COMMAND vklive_render_backend_tests
 )
 
 add_test(

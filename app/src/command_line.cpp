@@ -5,12 +5,13 @@
 std::string app_command_line_help()
 {
     return R"(Usage:
-  Rezonality [--project <dir>] [--scenegraph <file>] [--smoke-test]
+  Rezonality [--project <dir>] [--scenegraph <file>] [--renderer <auto|vulkan|metal>] [--smoke-test]
 
 Options:
-  --project <dir>      Load a project directory for this launch.
-  --scenegraph <file>  Override the project's scenegraph for this launch.
-  --smoke-test         Start and exit immediately after command-line parsing.
+  --project <dir>                 Load a project directory for this launch.
+  --scenegraph <file>             Override the project's scenegraph for this launch.
+  --renderer <auto|vulkan|metal>  Select the graphics backend for this launch.
+  --smoke-test                    Start and exit immediately after command-line parsing.
 )";
 }
 
@@ -49,6 +50,20 @@ bool app_parse_command_line(int argc, char** argv, AppCommandLineOptions& option
                 return false;
             }
             options.sceneGraph = value;
+        }
+        else if (arg == "--renderer")
+        {
+            const char* value = requireValue(arg);
+            if (!value)
+            {
+                return false;
+            }
+            if (!render_backend_from_string(value, options.renderer))
+            {
+                error = fmt::format("Unknown renderer: {}", value);
+                return false;
+            }
+            options.rendererSpecified = true;
         }
         else if (arg == "--smoke-test")
         {
