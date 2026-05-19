@@ -1,6 +1,7 @@
 #pragma once
 
 #include <memory>
+#include <mutex>
 #include <unordered_map>
 
 #include <vklive/IDevice.h>
@@ -24,6 +25,7 @@ struct MetalContext : DeviceContext
     void* lastCommandBuffer = nullptr;
 
     std::shared_ptr<MetalImGuiTexture> spFontTexture;
+    std::mutex metalSceneMutex;
     std::unordered_map<Scene*, std::shared_ptr<MetalScene>> mapMetalScene;
 };
 

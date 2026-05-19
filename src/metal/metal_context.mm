@@ -165,7 +165,10 @@ void context_present(MetalContext& ctx)
 void context_destroy(MetalContext& ctx)
 {
     context_wait_idle(ctx);
-    ctx.mapMetalScene.clear();
+    {
+        std::lock_guard<std::mutex> lock(ctx.metalSceneMutex);
+        ctx.mapMetalScene.clear();
+    }
     release_obj(ctx.currentDrawable);
     release_obj(ctx.frameCommandBuffer);
     release_obj(ctx.lastCommandBuffer);

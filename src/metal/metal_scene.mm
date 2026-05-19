@@ -1,4 +1,5 @@
 #include <fmt/format.h>
+#include <mutex>
 
 #include <vklive/metal/metal_context.h>
 #include <vklive/metal/metal_model.h>
@@ -14,6 +15,15 @@ void report_metal_scene_error(Scene& scene, const std::string& text, const fs::p
 {
     scene_report_error(scene, MessageSeverity::Error, text, path.empty() ? scene.sceneGraphPath : path);
     validation_error(text);
+}
+
+void report_metal_scene_warning(Scene& scene, const std::string& text, const fs::path& path = fs::path())
+{
+    Message msg;
+    msg.severity = MessageSeverity::Warning;
+    msg.text = text;
+    msg.path = path.empty() ? scene.sceneGraphPath : path;
+    scene.warnings.push_back(msg);
 }
 
 bool metal_shader_extension_supported(const fs::path& path)
@@ -113,6 +123,7 @@ namespace metal
 
 std::shared_ptr<MetalScene> metal_scene_get(MetalContext& ctx, Scene& scene)
 {
+    std::lock_guard<std::mutex> lock(ctx.metalSceneMutex);
     auto itr = ctx.mapMetalScene.find(&scene);
     if (itr == ctx.mapMetalScene.end())
     {
@@ -136,7 +147,6 @@ std::shared_ptr<MetalScene> metal_scene_create(MetalContext& ctx, Scene& scene)
     }
 
     auto spMetalScene = std::make_shared<MetalScene>(&scene);
-    ctx.mapMetalScene[&scene] = spMetalScene;
 
     for (auto& [path, pGeom] : scene.models)
     {
@@ -154,18 +164,29 @@ std::shared_ptr<MetalScene> metal_scene_create(MetalContext& ctx, Scene& scene)
         }
     }
 
+    {
+        std::lock_guard<std::mutex> lock(ctx.metalSceneMutex);
+        ctx.mapMetalScene[&scene] = spMetalScene;
+    }
+
     return spMetalScene;
 }
 
 void metal_scene_destroy(MetalContext& ctx, Scene& scene)
 {
-    auto itr = ctx.mapMetalScene.find(&scene);
-    if (itr == ctx.mapMetalScene.end())
+    std::shared_ptr<MetalScene> spMetalScene;
     {
-        return;
+        std::lock_guard<std::mutex> lock(ctx.metalSceneMutex);
+        auto itr = ctx.mapMetalScene.find(&scene);
+        if (itr == ctx.mapMetalScene.end())
+        {
+            return;
+        }
+
+        spMetalScene = itr->second;
+        ctx.mapMetalScene.erase(itr);
     }
 
-    auto spMetalScene = itr->second;
     for (auto& spPass : spMetalScene->passes)
     {
         if (spPass)
@@ -193,7 +214,6 @@ void metal_scene_destroy(MetalContext& ctx, Scene& scene)
     }
     spMetalScene->models.clear();
 
-    ctx.mapMetalScene.erase(itr);
 }
 
 RenderOutput metal_scene_render(MetalContext& ctx, MetalScene& metalScene, const glm::vec2& size)
@@ -204,7 +224,7 @@ RenderOutput metal_scene_render(MetalContext& ctx, MetalScene& metalScene, const
     if (metalScene.pScene && !metalScene.reportedRasterRenderUnsupported)
     {
         metalScene.reportedRasterRenderUnsupported = true;
-        report_metal_scene_error(*metalScene.pScene, "Metal raster pass rendering is not implemented yet.");
+        report_metal_scene_warning(*metalScene.pScene, "Metal raster pass rendering is not implemented yet.");
     }
 
     return {};
