@@ -123,7 +123,8 @@ bool binding_uses_sampler(ShaderBindingType type)
 
 void assign_resource_bindings(metal::MetalShader& shader)
 {
-    uint32_t nextBufferIndex = 0;
+    // Slot 0 is reserved for vertex data in Metal raster passes; reflected buffers start after it.
+    uint32_t nextBufferIndex = 1;
     uint32_t nextTextureIndex = 0;
     uint32_t nextSamplerIndex = 0;
 
