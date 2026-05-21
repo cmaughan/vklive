@@ -404,6 +404,16 @@ target_include_directories(vklive_zep_imgui_input_tests PRIVATE
     ${CMAKE_BINARY_DIR}
     ${CMAKE_CURRENT_SOURCE_DIR}/zep/include)
 
+if(VKLIVE_ENABLE_METAL)
+    add_executable(vklive_metal_binding_tests tests/metal_binding_tests.mm)
+    target_link_libraries(vklive_metal_binding_tests
+        PRIVATE
+            vklive
+            ${METAL_FRAMEWORK}
+            ${FOUNDATION_FRAMEWORK})
+    target_include_directories(vklive_metal_binding_tests PRIVATE ${CMAKE_BINARY_DIR})
+endif()
+
 add_test(
     NAME vklive_model_tests_robot
     COMMAND vklive_model_tests ${CMAKE_CURRENT_LIST_DIR}/run_tree/projects/pbr_robot/models/robot/scene.gltf
@@ -425,6 +435,11 @@ add_test(
 )
 
 if(VKLIVE_ENABLE_METAL)
+    add_test(
+        NAME vklive_metal_binding_tests
+        COMMAND vklive_metal_binding_tests ${CMAKE_CURRENT_LIST_DIR}
+    )
+
     add_test(NAME vklive_render_parity_simple_metal
         COMMAND vklive_render_parity_harness
             $<TARGET_FILE:Rezonality>

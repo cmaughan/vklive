@@ -27,6 +27,7 @@ struct MetalShaderResourceBinding
     uint32_t set = 0;
     uint32_t binding = 0;
     ShaderBindingType type = ShaderBindingType::Unknown;
+    uint32_t count = 1;
     uint32_t bufferIndex = std::numeric_limits<uint32_t>::max();
     uint32_t textureIndex = std::numeric_limits<uint32_t>::max();
     uint32_t samplerIndex = std::numeric_limits<uint32_t>::max();

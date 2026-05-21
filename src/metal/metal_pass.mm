@@ -58,45 +58,62 @@ void report_pass_error(metal::MetalPass& pass, const std::string& text, const fs
     validation_error(text);
 }
 
-bool binding_supported_for_basic_pass(ShaderBindingType type, uint32_t set, uint32_t binding)
-{
-    return type == ShaderBindingType::UniformBuffer && set == 0 && binding == 0;
-}
-
-bool metal_shader_bindings_supported(metal::MetalPass& pass, const metal::MetalShader& shader)
-{
-    for (const auto& [setIndex, bindingSet] : shader.bindingSets)
-    {
-        for (const auto& [bindingIndex, binding] : bindingSet.bindings)
-        {
-            if (!binding_supported_for_basic_pass(binding.type, setIndex, bindingIndex))
-            {
-                auto itrMeta = bindingSet.bindingMeta.find(bindingIndex);
-                const auto name = itrMeta != bindingSet.bindingMeta.end() ? itrMeta->second.name : std::string("<unnamed>");
-                const auto path = itrMeta != bindingSet.bindingMeta.end() ? itrMeta->second.shaderPath : (shader.pShader ? shader.pShader->path : fs::path());
-                const auto line = itrMeta != bindingSet.bindingMeta.end() ? itrMeta->second.line : -1;
-                report_pass_error(pass,
-                    fmt::format("Metal pass '{}' cannot bind shader resource '{}' yet (set {}, binding {}, {}). This first renderer only supports the default UBO at set 0 binding 0.",
-                        pass.pass.name,
-                        name,
-                        setIndex,
-                        bindingIndex,
-                        shader_binding_type_to_string(binding.type)),
-                    path,
-                    line);
-                return false;
-            }
-        }
-    }
-
-    return true;
-}
-
 struct BasicPassShaders
 {
     metal::MetalShader* vertex = nullptr;
     metal::MetalShader* fragment = nullptr;
 };
+
+const ShaderBindingMeta* metal_pass_find_binding_meta(const metal::MetalShader& shader, uint32_t set, uint32_t binding)
+{
+    auto itrSet = shader.bindingSets.find(set);
+    if (itrSet == shader.bindingSets.end())
+    {
+        return nullptr;
+    }
+
+    auto itrMeta = itrSet->second.bindingMeta.find(binding);
+    if (itrMeta == itrSet->second.bindingMeta.end())
+    {
+        return nullptr;
+    }
+
+    return &itrMeta->second;
+}
+
+bool metal_pass_binding_is_bound_by_basic_pass(const metal::MetalShaderResourceBinding& binding)
+{
+    return binding.set == 0 && binding.binding == 0 && binding.type == ShaderBindingType::UniformBuffer && binding.count == 1;
+}
+
+bool metal_pass_validate_shader_bindings(metal::MetalPass& pass, const metal::MetalShader& shader)
+{
+    for (const auto& [_, binding] : shader.resourceBindings)
+    {
+        if (metal_pass_binding_is_bound_by_basic_pass(binding))
+        {
+            continue;
+        }
+
+        const auto* meta = metal_pass_find_binding_meta(shader, binding.set, binding.binding);
+        const auto name = meta ? meta->name : std::string("<unnamed>");
+        const auto path = meta ? meta->shaderPath : (shader.pShader ? shader.pShader->path : fs::path());
+        const auto line = meta ? meta->line : -1;
+        report_pass_error(pass,
+            fmt::format("Metal pass '{}' cannot bind reflected shader resource '{}' at set {}, binding {} ({}, count {}). Only the single default UBO at set 0 binding 0 is bound by this Metal pass.",
+                pass.pass.name,
+                name,
+                binding.set,
+                binding.binding,
+                shader_binding_type_to_string(binding.type),
+                binding.count),
+            path,
+            line);
+        return false;
+    }
+
+    return true;
+}
 
 bool metal_pass_get_shaders(metal::MetalPass& pass, BasicPassShaders& shaders)
 {
@@ -113,11 +130,6 @@ bool metal_pass_get_shaders(metal::MetalPass& pass, BasicPassShaders& shaders)
         }
 
         auto& shader = *itrShader->second;
-        if (!metal_shader_bindings_supported(pass, shader))
-        {
-            return false;
-        }
-
         if (shader.stage == metal::MetalShaderStage::Vertex)
         {
             shaders.vertex = &shader;
@@ -484,26 +496,71 @@ bool metal_pass_update_uniforms(metal::MetalContext& ctx, metal::MetalPass& pass
     return true;
 }
 
-void metal_pass_bind_uniform(id<MTLRenderCommandEncoder> encoder, const metal::MetalShader& shader, id<MTLBuffer> uniformBuffer)
+void metal_pass_set_buffer(id<MTLRenderCommandEncoder> encoder, const metal::MetalShader& shader, const metal::MetalShaderResourceBinding& binding, id<MTLBuffer> buffer)
 {
-    auto itrBinding = shader.resourceBindings.find({ 0, 0 });
-    if (itrBinding == shader.resourceBindings.end() || itrBinding->second.bufferIndex == std::numeric_limits<uint32_t>::max())
+    if (!buffer || binding.bufferIndex == std::numeric_limits<uint32_t>::max())
     {
         return;
     }
-
     if (shader.stage == metal::MetalShaderStage::Vertex)
     {
-        [encoder setVertexBuffer:uniformBuffer offset:0 atIndex:itrBinding->second.bufferIndex];
+        [encoder setVertexBuffer:buffer offset:0 atIndex:binding.bufferIndex];
     }
     else
     {
-        [encoder setFragmentBuffer:uniformBuffer offset:0 atIndex:itrBinding->second.bufferIndex];
+        [encoder setFragmentBuffer:buffer offset:0 atIndex:binding.bufferIndex];
     }
+}
+
+void metal_pass_set_texture(id<MTLRenderCommandEncoder> encoder, const metal::MetalShader& shader, const metal::MetalShaderResourceBinding& binding, id<MTLTexture> texture)
+{
+    if (!texture || binding.textureIndex == std::numeric_limits<uint32_t>::max())
+    {
+        return;
+    }
+    if (shader.stage == metal::MetalShaderStage::Vertex)
+    {
+        [encoder setVertexTexture:texture atIndex:binding.textureIndex];
+    }
+    else
+    {
+        [encoder setFragmentTexture:texture atIndex:binding.textureIndex];
+    }
+}
+
+void metal_pass_set_sampler(id<MTLRenderCommandEncoder> encoder, const metal::MetalShader& shader, const metal::MetalShaderResourceBinding& binding, id<MTLSamplerState> sampler)
+{
+    if (!sampler || binding.samplerIndex == std::numeric_limits<uint32_t>::max())
+    {
+        return;
+    }
+    if (shader.stage == metal::MetalShaderStage::Vertex)
+    {
+        [encoder setVertexSamplerState:sampler atIndex:binding.samplerIndex];
+    }
+    else
+    {
+        [encoder setFragmentSamplerState:sampler atIndex:binding.samplerIndex];
+    }
+}
+
+void metal_pass_bind_uniform(id<MTLRenderCommandEncoder> encoder, const metal::MetalShader& shader, id<MTLBuffer> uniformBuffer)
+{
+    auto itrBinding = shader.resourceBindings.find({ 0, 0 });
+    if (itrBinding == shader.resourceBindings.end() || itrBinding->second.type != ShaderBindingType::UniformBuffer || itrBinding->second.count != 1)
+    {
+        return;
+    }
+    metal_pass_set_buffer(encoder, shader, itrBinding->second, uniformBuffer);
 }
 
 bool metal_pass_encode_draw(metal::MetalContext& ctx, metal::MetalPass& pass, const BasicPassShaders& shaders, const MetalPassTargets& targets)
 {
+    if (!metal_pass_validate_shader_bindings(pass, *shaders.vertex) || !metal_pass_validate_shader_bindings(pass, *shaders.fragment))
+    {
+        return false;
+    }
+
     auto commandQueue = bridge<id<MTLCommandQueue>>(ctx.commandQueue);
     if (!commandQueue)
     {
@@ -679,6 +736,8 @@ bool metal_pass_draw(MetalContext& ctx, MetalPass& pass, const glm::uvec2& rende
     BasicPassShaders shaders;
     MetalPassTargets targets;
     const bool ok = metal_pass_get_shaders(pass, shaders) &&
+        metal_pass_validate_shader_bindings(pass, *shaders.vertex) &&
+        metal_pass_validate_shader_bindings(pass, *shaders.fragment) &&
         metal_pass_prepare_targets(ctx, pass, renderSize, targets) &&
         metal_pass_ensure_pipeline(ctx, pass, shaders, targets) &&
         metal_pass_update_uniforms(ctx, pass, targets) &&

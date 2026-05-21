@@ -136,20 +136,25 @@ void assign_resource_bindings(metal::MetalShader& shader)
             metalBinding.set = setIndex;
             metalBinding.binding = bindingIndex;
             metalBinding.type = reflectedBinding.type;
+            metalBinding.count = reflectedBinding.count;
+            const uint32_t descriptorCount = reflectedBinding.count > 0 ? reflectedBinding.count : 1;
 
             // Descriptor set is part of the sorted key, so set/binding pairs map to stable dense Metal slots
             // without flattening different descriptor sets onto the same binding number.
             if (binding_uses_buffer(reflectedBinding.type))
             {
-                metalBinding.bufferIndex = nextBufferIndex++;
+                metalBinding.bufferIndex = nextBufferIndex;
+                nextBufferIndex += descriptorCount;
             }
             if (binding_uses_texture(reflectedBinding.type))
             {
-                metalBinding.textureIndex = nextTextureIndex++;
+                metalBinding.textureIndex = nextTextureIndex;
+                nextTextureIndex += descriptorCount;
             }
             if (binding_uses_sampler(reflectedBinding.type))
             {
-                metalBinding.samplerIndex = nextSamplerIndex++;
+                metalBinding.samplerIndex = nextSamplerIndex;
+                nextSamplerIndex += descriptorCount;
             }
 
             shader.resourceBindings[{ setIndex, bindingIndex }] = metalBinding;
