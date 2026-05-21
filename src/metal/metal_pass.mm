@@ -3,6 +3,7 @@
 
 #include <cstring>
 #include <limits>
+#include <map>
 
 #include <fmt/format.h>
 
@@ -86,7 +87,38 @@ bool metal_pass_binding_is_bound_by_basic_pass(const metal::MetalShaderResourceB
     return binding.set == 0 && binding.binding == 0 && binding.type == ShaderBindingType::UniformBuffer && binding.count == 1;
 }
 
-bool metal_pass_validate_shader_bindings(metal::MetalPass& pass, const metal::MetalShader& shader)
+bool metal_pass_binding_is_sampled_surface(const metal::MetalShaderResourceBinding& binding)
+{
+    return binding.type == ShaderBindingType::CombinedImageSampler || binding.type == ShaderBindingType::SampledImage || binding.type == ShaderBindingType::Sampler;
+}
+
+bool metal_pass_binding_requires_texture(const metal::MetalShaderResourceBinding& binding)
+{
+    return binding.type == ShaderBindingType::CombinedImageSampler || binding.type == ShaderBindingType::SampledImage;
+}
+
+bool metal_pass_binding_requires_sampler(const metal::MetalShaderResourceBinding& binding)
+{
+    return binding.type == ShaderBindingType::CombinedImageSampler || binding.type == ShaderBindingType::Sampler;
+}
+
+using MetalSampledSurfaces = std::map<std::string, metal::MetalSurface*>;
+
+MetalSampledSurfaces metal_pass_sampled_surfaces(metal::MetalContext& ctx, metal::MetalPass& pass)
+{
+    MetalSampledSurfaces sampledSurfaces;
+    for (auto& passSampler : pass.pass.samplers)
+    {
+        auto* surface = metal::metal_scene_get_or_create_surface(ctx, pass.metalScene, passSampler.sampler, Scene::GlobalFrameCount, passSampler.sampleAlternate);
+        if (surface)
+        {
+            sampledSurfaces[passSampler.sampler] = surface;
+        }
+    }
+    return sampledSurfaces;
+}
+
+bool metal_pass_validate_shader_bindings(metal::MetalPass& pass, const metal::MetalShader& shader, const MetalSampledSurfaces& sampledSurfaces)
 {
     for (const auto& [_, binding] : shader.resourceBindings)
     {
@@ -99,8 +131,92 @@ bool metal_pass_validate_shader_bindings(metal::MetalPass& pass, const metal::Me
         const auto name = meta ? meta->name : std::string("<unnamed>");
         const auto path = meta ? meta->shaderPath : (shader.pShader ? shader.pShader->path : fs::path());
         const auto line = meta ? meta->line : -1;
+
+        if (metal_pass_binding_is_sampled_surface(binding))
+        {
+            if (binding.count != 1)
+            {
+                report_pass_error(pass,
+                    fmt::format("Metal pass '{}' cannot bind sampled shader resource '{}' at set {}, binding {} ({}, count {}). Metal sampled surfaces support a single descriptor per binding.",
+                        pass.pass.name,
+                        name,
+                        binding.set,
+                        binding.binding,
+                        shader_binding_type_to_string(binding.type),
+                        binding.count),
+                    path,
+                    line);
+                return false;
+            }
+
+            if (!meta || meta->name.empty())
+            {
+                report_pass_error(pass,
+                    fmt::format("Metal pass '{}' cannot bind sampled shader resource at set {}, binding {} ({}, count {}) because reflection did not provide a resource name.",
+                        pass.pass.name,
+                        binding.set,
+                        binding.binding,
+                        shader_binding_type_to_string(binding.type),
+                        binding.count),
+                    path,
+                    line);
+                return false;
+            }
+
+            auto itrSurface = sampledSurfaces.find(meta->name);
+            if (itrSurface == sampledSurfaces.end() || !itrSurface->second)
+            {
+                report_pass_error(pass,
+                    fmt::format("Metal pass '{}' cannot bind sampled shader resource '{}' at set {}, binding {} ({}, count {}) because the pass does not declare a sampler with that name.",
+                        pass.pass.name,
+                        meta->name,
+                        binding.set,
+                        binding.binding,
+                        shader_binding_type_to_string(binding.type),
+                        binding.count),
+                    path,
+                    line);
+                return false;
+            }
+
+            auto* surface = itrSurface->second;
+            if (surface->allocationState == metal::MetalAllocationState::Failed)
+            {
+                report_pass_error(pass,
+                    fmt::format("Metal pass '{}' cannot bind sampled shader resource '{}' at set {}, binding {} ({}, count {}) because surface loading failed.",
+                        pass.pass.name,
+                        meta->name,
+                        binding.set,
+                        binding.binding,
+                        shader_binding_type_to_string(binding.type),
+                        binding.count),
+                    path,
+                    line);
+                return false;
+            }
+
+            if ((metal_pass_binding_requires_texture(binding) && !surface->texture) || (metal_pass_binding_requires_sampler(binding) && !surface->sampler))
+            {
+                report_pass_error(pass,
+                    fmt::format("Metal pass '{}' cannot bind sampled shader resource '{}' at set {}, binding {} ({}, count {}) because the prepared surface is missing {}{}.",
+                        pass.pass.name,
+                        meta->name,
+                        binding.set,
+                        binding.binding,
+                        shader_binding_type_to_string(binding.type),
+                        binding.count,
+                        metal_pass_binding_requires_texture(binding) && !surface->texture ? "texture" : "",
+                        metal_pass_binding_requires_texture(binding) && !surface->texture && metal_pass_binding_requires_sampler(binding) && !surface->sampler ? " and sampler" : (metal_pass_binding_requires_sampler(binding) && !surface->sampler ? "sampler" : "")),
+                    path,
+                    line);
+                return false;
+            }
+
+            continue;
+        }
+
         report_pass_error(pass,
-            fmt::format("Metal pass '{}' cannot bind reflected shader resource '{}' at set {}, binding {} ({}, count {}). Only the single default UBO at set 0 binding 0 is bound by this Metal pass.",
+            fmt::format("Metal pass '{}' cannot bind reflected shader resource '{}' at set {}, binding {} ({}, count {}). Metal raster passes currently support the single default UBO and named sampled surfaces only.",
                 pass.pass.name,
                 name,
                 binding.set,
@@ -169,6 +285,8 @@ MTLPixelFormat metal_pixel_format(metal::MetalSurfaceFormat format)
         return MTLPixelFormatRGBA32Float;
     case metal::MetalSurfaceFormat::RGBA8Unorm:
         return MTLPixelFormatRGBA8Unorm;
+    case metal::MetalSurfaceFormat::RGBA8Unorm_sRGB:
+        return MTLPixelFormatRGBA8Unorm_sRGB;
     default:
         return MTLPixelFormatInvalid;
     }
@@ -315,6 +433,77 @@ bool metal_pass_prepare_targets(metal::MetalContext& ctx, metal::MetalPass& pass
     pass.colorTargetGeneration = targets.color->generation;
     pass.depthTargetGeneration = targets.depth ? targets.depth->generation : 0;
     return true;
+}
+
+bool metal_pass_prepare_samplers(metal::MetalContext& ctx, metal::MetalPass& pass)
+{
+    bool ok = true;
+    for (auto& passSampler : pass.pass.samplers)
+    {
+        if (passSampler.sampleAlternate)
+        {
+            report_pass_error(pass,
+                fmt::format("Metal sampled surface feedback/ping-pong is not implemented yet; sampler '!{}' / surface {} cannot be used yet.",
+                    passSampler.sampler,
+                    passSampler.sampler),
+                pass.pass.scene.sceneGraphPath,
+                pass.pass.scriptSamplersLine);
+            ok = false;
+            continue;
+        }
+
+        auto* metalSurface = metal::metal_scene_get_or_create_surface(ctx, pass.metalScene, passSampler.sampler, Scene::GlobalFrameCount, passSampler.sampleAlternate);
+        if (!metalSurface || !metalSurface->pSurface)
+        {
+            report_pass_error(pass, fmt::format("Metal pass '{}' could not find sampled surface '{}'.", pass.pass.name, passSampler.sampler), pass.pass.scene.sceneGraphPath, pass.pass.scriptSamplersLine);
+            ok = false;
+            continue;
+        }
+
+        auto& surface = *metalSurface->pSurface;
+        if (!surface.isTarget)
+        {
+            if (surface.name == "AudioAnalysis")
+            {
+                if (!metal::metal_surface_update_from_audio(ctx, *metalSurface))
+                {
+                    report_pass_error(pass, fmt::format("Metal pass '{}' could not prepare audio sampled surface '{}'.", pass.pass.name, passSampler.sampler), pass.pass.scene.sceneGraphPath, pass.pass.scriptSamplersLine);
+                    ok = false;
+                }
+            }
+            else if (metalSurface->allocationState == metal::MetalAllocationState::Init)
+            {
+                if (surface.path.empty())
+                {
+                    report_pass_error(pass, fmt::format("Metal pass '{}' sampled surface '{}' has no texture path.", pass.pass.name, passSampler.sampler), pass.pass.scene.sceneGraphPath, pass.pass.scriptSamplersLine);
+                    metalSurface->allocationState = metal::MetalAllocationState::Failed;
+                    ok = false;
+                }
+                else
+                {
+                    auto file = scene_find_asset(pass.pass.scene, surface.path, AssetType::Texture);
+                    if (file.empty())
+                    {
+                        report_pass_error(pass, fmt::format("Metal pass '{}' could not find texture '{}' for sampled surface '{}'.", pass.pass.name, surface.path.string(), passSampler.sampler), pass.pass.scene.sceneGraphPath, pass.pass.scriptSamplersLine);
+                        metalSurface->allocationState = metal::MetalAllocationState::Failed;
+                        ok = false;
+                    }
+                    else if (!metal::metal_surface_create_from_file(ctx, *metalSurface, file))
+                    {
+                        report_pass_error(pass, fmt::format("Metal pass '{}' could not load texture '{}' for sampled surface '{}'.", pass.pass.name, file.string(), passSampler.sampler), file);
+                        metalSurface->allocationState = metal::MetalAllocationState::Failed;
+                        ok = false;
+                    }
+                }
+            }
+        }
+
+        if (!metalSurface->sampler && metalSurface->texture)
+        {
+            metal::metal_surface_create_sampler(ctx, *metalSurface);
+        }
+    }
+    return ok;
 }
 
 void metal_pass_reset_pipeline(metal::MetalPass& pass)
@@ -556,10 +745,7 @@ void metal_pass_bind_uniform(id<MTLRenderCommandEncoder> encoder, const metal::M
 
 bool metal_pass_encode_draw(metal::MetalContext& ctx, metal::MetalPass& pass, const BasicPassShaders& shaders, const MetalPassTargets& targets)
 {
-    if (!metal_pass_validate_shader_bindings(pass, *shaders.vertex) || !metal_pass_validate_shader_bindings(pass, *shaders.fragment))
-    {
-        return false;
-    }
+    auto sampledSurfaces = metal_pass_sampled_surfaces(ctx, pass);
 
     auto commandQueue = bridge<id<MTLCommandQueue>>(ctx.commandQueue);
     if (!commandQueue)
@@ -612,6 +798,35 @@ bool metal_pass_encode_draw(metal::MetalContext& ctx, metal::MetalPass& pass, co
         metal_pass_bind_uniform(encoder, *shaders.vertex, uniformBuffer);
         metal_pass_bind_uniform(encoder, *shaders.fragment, uniformBuffer);
     }
+
+    auto bindSampledSurfaces = [&](const metal::MetalShader& shader) {
+        for (const auto& [_, metalBinding] : shader.resourceBindings)
+        {
+            if (!metal_pass_binding_is_sampled_surface(metalBinding))
+            {
+                continue;
+            }
+
+            const auto* meta = metal_pass_find_binding_meta(shader, metalBinding.set, metalBinding.binding);
+            if (!meta)
+            {
+                continue;
+            }
+
+            auto itrSurface = sampledSurfaces.find(meta->name);
+            if (itrSurface == sampledSurfaces.end() || !itrSurface->second)
+            {
+                continue;
+            }
+
+            auto* surface = itrSurface->second;
+            metal_pass_set_texture(encoder, shader, metalBinding, bridge<id<MTLTexture>>(surface->texture));
+            metal_pass_set_sampler(encoder, shader, metalBinding, bridge<id<MTLSamplerState>>(surface->sampler));
+        }
+    };
+
+    bindSampledSurfaces(*shaders.vertex);
+    bindSampledSurfaces(*shaders.fragment);
 
     for (const auto& modelPath : pass.pass.models)
     {
@@ -683,13 +898,6 @@ bool metal_pass_supported(metal::MetalPass& pass)
         return false;
     }
 
-    if (!pass.pass.samplers.empty())
-    {
-        report_pass_error(pass, fmt::format("Metal pass '{}' uses samplers, which are not supported by the first Metal raster pass implementation.", pass.pass.name));
-        pass.reportedUnsupportedFeatures = true;
-        return false;
-    }
-
     if (pass.pass.models.empty())
     {
         report_pass_error(pass, fmt::format("Metal pass '{}' has no models to draw.", pass.pass.name));
@@ -735,9 +943,14 @@ bool metal_pass_draw(MetalContext& ctx, MetalPass& pass, const glm::uvec2& rende
 
     BasicPassShaders shaders;
     MetalPassTargets targets;
+    MetalSampledSurfaces sampledSurfaces;
     const bool ok = metal_pass_get_shaders(pass, shaders) &&
-        metal_pass_validate_shader_bindings(pass, *shaders.vertex) &&
-        metal_pass_validate_shader_bindings(pass, *shaders.fragment) &&
+        metal_pass_prepare_samplers(ctx, pass) &&
+        ([&]() {
+            sampledSurfaces = metal_pass_sampled_surfaces(ctx, pass);
+            return metal_pass_validate_shader_bindings(pass, *shaders.vertex, sampledSurfaces) &&
+                metal_pass_validate_shader_bindings(pass, *shaders.fragment, sampledSurfaces);
+        })() &&
         metal_pass_prepare_targets(ctx, pass, renderSize, targets) &&
         metal_pass_ensure_pipeline(ctx, pass, shaders, targets) &&
         metal_pass_update_uniforms(ctx, pass, targets) &&

@@ -65,13 +65,20 @@ int main(int argc, char** argv)
 {
     @autoreleasepool
     {
-        if (argc != 2)
+        if (argc != 2 && argc != 3)
         {
-            std::cerr << "usage: vklive_metal_binding_tests <source-root>\n";
+            std::cerr << "usage: vklive_metal_binding_tests <source-root> [feedback]\n";
             return EXIT_FAILURE;
         }
 
         const fs::path sourceRoot = argv[1];
+        const bool feedbackOnly = argc == 3 && std::string(argv[2]) == "feedback";
+        if (argc == 3 && !feedbackOnly)
+        {
+            std::cerr << "unknown vklive_metal_binding_tests mode: " << argv[2] << "\n";
+            return EXIT_FAILURE;
+        }
+
         Zest::runtree_init(sourceRoot.string().c_str(), sourceRoot.string().c_str());
 
         auto device = MTLCreateSystemDefaultDevice();
@@ -114,6 +121,50 @@ void main()
 
         metal::MetalContext ctx;
         ctx.device = (__bridge void*)device;
+
+        if (feedbackOnly)
+        {
+            validation_clear_error_state();
+            Scene feedbackScene(shaderDir);
+            feedbackScene.sceneGraphPath = shaderDir / "feedback.scenegraph";
+            metal::MetalScene feedbackMetalScene(&feedbackScene);
+
+            Shader feedbackVertexShader(shaderDir / "feedback.vert");
+            Shader feedbackFragmentShader(shaderDir / "feedback.frag");
+            auto feedbackVertexMetalShader = std::make_shared<metal::MetalShader>(&feedbackVertexShader);
+            feedbackVertexMetalShader->stage = metal::MetalShaderStage::Vertex;
+            feedbackVertexMetalShader->function = reinterpret_cast<void*>(1);
+
+            auto feedbackFragmentMetalShader = std::make_shared<metal::MetalShader>(&feedbackFragmentShader);
+            feedbackFragmentMetalShader->stage = metal::MetalShaderStage::Fragment;
+            feedbackFragmentMetalShader->function = reinterpret_cast<void*>(1);
+
+            feedbackMetalScene.shaderStages[feedbackVertexShader.path] = feedbackVertexMetalShader;
+            feedbackMetalScene.shaderStages[feedbackFragmentShader.path] = feedbackFragmentMetalShader;
+
+            Pass feedbackPass(feedbackScene, "feedback_pass");
+            feedbackPass.passType = PassType::Standard;
+            feedbackPass.models.push_back("dummy.obj");
+            feedbackPass.shaders.push_back(feedbackVertexShader.path);
+            feedbackPass.shaders.push_back(feedbackFragmentShader.path);
+            feedbackPass.samplers.push_back(PassSampler{ "default_color", true });
+            feedbackPass.scriptSamplersLine = 17;
+
+            auto feedbackMetalPass = metal::metal_pass_create(feedbackMetalScene, feedbackPass);
+            ok &= require(!metal::metal_pass_draw(ctx, *feedbackMetalPass, glm::uvec2(64, 64)), "sampleAlternate feedback should reject draw");
+            ok &= require(!feedbackScene.errors.empty(), "sampleAlternate feedback should report a scene error");
+            if (!feedbackScene.errors.empty())
+            {
+                const auto& error = feedbackScene.errors.front();
+                ok &= require(message_contains(error, "Metal sampled surface feedback/ping-pong is not implemented yet"), "feedback error should explain unsupported ping-pong");
+                ok &= require(message_contains(error, "sampler '!default_color'"), "feedback error should include original sampler spelling");
+                ok &= require(message_contains(error, "surface default_color"), "feedback error should include surface name");
+                ok &= require(error.path == feedbackScene.sceneGraphPath, "feedback error should use scenegraph path");
+                ok &= require(error.line == feedbackPass.scriptSamplersLine, "feedback error should use samplers line");
+            }
+
+            return ok ? EXIT_SUCCESS : EXIT_FAILURE;
+        }
 
         Scene scene(shaderDir);
         metal::MetalScene metalScene(&scene);

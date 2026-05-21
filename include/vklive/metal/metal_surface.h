@@ -7,6 +7,7 @@
 #include <string>
 
 #include <glm/glm.hpp>
+#include <zest/file/file.h>
 
 struct Surface;
 
@@ -20,9 +21,17 @@ enum class MetalSurfaceFormat
 {
     Unknown,
     RGBA8Unorm,
+    RGBA8Unorm_sRGB,
     RGBA16Float,
     RGBA32Float,
     Depth32Float
+};
+
+enum class MetalAllocationState
+{
+    Init,
+    Loaded,
+    Failed
 };
 
 struct MetalSurfaceKey
@@ -70,8 +79,12 @@ struct MetalSurface
     std::string debugName;
     void* texture = nullptr;
     void* sampler = nullptr;
+    MetalAllocationState allocationState = MetalAllocationState::Init;
     glm::uvec2 size = glm::uvec2(0);
     MetalSurfaceFormat format = MetalSurfaceFormat::Unknown;
+    uint32_t mipLevels = 1;
+    bool isAudioSurface = false;
+    void* stagingBuffer = nullptr;
     uint64_t generation = 0;
 };
 
@@ -80,5 +93,8 @@ void metal_surface_destroy(MetalContext& ctx, MetalSurface& surface);
 void metal_surface_create_target(MetalContext& ctx, MetalSurface& surface, const glm::uvec2& size, MetalSurfaceFormat format);
 void metal_surface_create_sampler(MetalContext& ctx, MetalSurface& surface);
 bool metal_surface_ensure_target(MetalContext& ctx, MetalScene& scene, MetalSurface& surface, const glm::uvec2& renderSize);
+bool metal_surface_create_from_file(MetalContext& ctx, MetalSurface& surface, const fs::path& path, bool flipY = false);
+bool metal_surface_create_from_memory(MetalContext& ctx, MetalSurface& surface, const fs::path& sourceName, const char* data, size_t dataSize, bool flipY = false);
+bool metal_surface_update_from_audio(MetalContext& ctx, MetalSurface& surface);
 
 } // namespace metal

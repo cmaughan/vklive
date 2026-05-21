@@ -440,11 +440,29 @@ if(VKLIVE_ENABLE_METAL)
         COMMAND vklive_metal_binding_tests ${CMAKE_CURRENT_LIST_DIR}
     )
 
+    add_test(
+        NAME vklive_metal_feedback_rejection_tests
+        COMMAND vklive_metal_binding_tests ${CMAKE_CURRENT_LIST_DIR} feedback
+    )
+
     add_test(NAME vklive_render_parity_simple_metal
         COMMAND vklive_render_parity_harness
             $<TARGET_FILE:Rezonality>
             ${CMAKE_SOURCE_DIR}/run_tree/projects/simple
             metal)
+
+    add_test(NAME vklive_render_parity_default_metal
+        COMMAND vklive_render_parity_harness
+            $<TARGET_FILE:Rezonality>
+            ${CMAKE_SOURCE_DIR}/run_tree/projects/default
+            metal)
+
+    add_test(NAME vklive_render_parity_audio_metal
+        COMMAND vklive_render_parity_harness
+            $<TARGET_FILE:Rezonality>
+            ${CMAKE_SOURCE_DIR}/run_tree/projects/shadertoy/audio_spectrum_analysis
+            metal)
+
 endif()
 
 add_test(
