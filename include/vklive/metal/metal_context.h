@@ -33,7 +33,7 @@ void context_init(MetalContext& ctx);
 void context_destroy(MetalContext& ctx);
 void context_validate_drawable_size(MetalContext& ctx);
 bool context_begin_frame(MetalContext& ctx);
-void context_present(MetalContext& ctx);
+bool context_present(MetalContext& ctx);
 void context_wait_idle(MetalContext& ctx);
 
 } // namespace metal

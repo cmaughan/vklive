@@ -13,6 +13,7 @@ struct AppCommandLineOptions
     RenderBackend renderer = RenderBackend::Auto;
     bool rendererSpecified = false;
     bool smokeTest = false;
+    bool startupFrameTest = false;
     bool help = false;
 };
 

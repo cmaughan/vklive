@@ -82,5 +82,30 @@ int main()
     ok &= require(!badRendererOk, "bad renderer should fail");
     ok &= require(badRendererError == "Unknown renderer: direct3d", "bad renderer error text changed");
 
+    const char* startupFrameArgv[] = {
+        "Rezonality.exe",
+        "--renderer",
+        "metal",
+        "--startup-frame-test"
+    };
+    AppCommandLineOptions startupFrameOptions;
+    std::string startupFrameError;
+    bool startupFrameOk = app_parse_command_line(static_cast<int>(std::size(startupFrameArgv)), const_cast<char**>(startupFrameArgv), startupFrameOptions, startupFrameError);
+    ok &= require(startupFrameOk, "startup-frame parser failed: " + startupFrameError);
+    ok &= require(startupFrameOptions.renderer == RenderBackend::Metal, "startup-frame renderer not parsed");
+    ok &= require(startupFrameOptions.startupFrameTest, "startup-frame flag not parsed");
+
+    const char* macPersistenceArgv[] = {
+        "Rezonality.exe",
+        "-ApplePersistenceIgnoreState",
+        "YES",
+        "--startup-frame-test"
+    };
+    AppCommandLineOptions macPersistenceOptions;
+    std::string macPersistenceError;
+    bool macPersistenceOk = app_parse_command_line(static_cast<int>(std::size(macPersistenceArgv)), const_cast<char**>(macPersistenceArgv), macPersistenceOptions, macPersistenceError);
+    ok &= require(macPersistenceOk, "ApplePersistenceIgnoreState parser failed: " + macPersistenceError);
+    ok &= require(macPersistenceOptions.startupFrameTest, "startup-frame flag not parsed after ApplePersistenceIgnoreState");
+
     return ok ? EXIT_SUCCESS : EXIT_FAILURE;
 }

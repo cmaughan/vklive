@@ -7,7 +7,7 @@
 
 #include <zest/logger/logger.h>
 
-void window_render(IDevice* pDevice, Scene& scene, bool background, const std::function<RenderOutput(const glm::vec2& size, Scene& scene)>& fnRender)
+bool window_render(IDevice* pDevice, Scene& scene, bool background, const std::function<RenderOutput(const glm::vec2& size, Scene& scene)>& fnRender)
 {
     ImVec2 canvas_size;
     ImVec2 canvas_pos;
@@ -106,4 +106,6 @@ void window_render(IDevice* pDevice, Scene& scene, bool background, const std::f
     {
         ImGui::End();
     }
+
+    return drawn;
 }

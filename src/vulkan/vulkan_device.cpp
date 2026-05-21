@@ -124,9 +124,9 @@ void VulkanDevice::WaitIdle()
     }
 }
 
-void VulkanDevice::Present()
+bool VulkanDevice::Present()
 {
-    vulkan::main_window_present(ctx);
+    return vulkan::main_window_present(ctx);
 }
 
 RenderBackend VulkanDevice::Backend() const

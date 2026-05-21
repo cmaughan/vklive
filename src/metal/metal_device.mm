@@ -133,9 +133,9 @@ void MetalDevice::WaitIdle()
     context_wait_idle(ctx);
 }
 
-void MetalDevice::Present()
+bool MetalDevice::Present()
 {
-    context_present(ctx);
+    return context_present(ctx);
 }
 
 RenderBackend MetalDevice::Backend() const

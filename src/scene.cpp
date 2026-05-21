@@ -269,7 +269,11 @@ void scene_destroy_parser()
 
     for (auto& p : parser.parsers)
     {
-        mpc_cleanup(1, p);
+        mpc_undefine(p);
+    }
+    for (auto& p : parser.parsers)
+    {
+        mpc_delete(p);
     }
     parser.parsers.clear();
     parser.pError = nullptr;

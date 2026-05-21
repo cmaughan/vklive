@@ -143,7 +143,7 @@ bool context_begin_frame(MetalContext& ctx)
     return true;
 }
 
-void context_present(MetalContext& ctx)
+bool context_present(MetalContext& ctx)
 {
     auto drawable = bridge<id<CAMetalDrawable>>(ctx.currentDrawable);
     auto commandBuffer = bridge<id<MTLCommandBuffer>>(ctx.frameCommandBuffer);
@@ -151,7 +151,7 @@ void context_present(MetalContext& ctx)
     {
         release_obj(ctx.currentDrawable);
         release_obj(ctx.frameCommandBuffer);
-        return;
+        return false;
     }
 
     [commandBuffer presentDrawable:drawable];
@@ -161,6 +161,7 @@ void context_present(MetalContext& ctx)
     ctx.lastCommandBuffer = ctx.frameCommandBuffer;
     ctx.frameCommandBuffer = nullptr;
     release_obj(ctx.currentDrawable);
+    return true;
 }
 
 void context_destroy(MetalContext& ctx)

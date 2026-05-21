@@ -319,11 +319,11 @@ void main_window_validate_swapchain(VulkanContext& ctx)
 }
 
 // swap the main window
-void main_window_present(VulkanContext& ctx)
+bool main_window_present(VulkanContext& ctx)
 {
     if (ctx.swapChainRebuild)
     {
-        return;
+        return false;
     }
 
     auto wnd = &ctx.mainWindowData;
@@ -333,9 +333,10 @@ void main_window_present(VulkanContext& ctx)
     if (err == vk::Result::eErrorOutOfDateKHR || err == vk::Result::eSuboptimalKHR)
     {
         ctx.swapChainRebuild = true;
-        return;
+        return false;
     }
     wnd->semaphoreIndex = (wnd->semaphoreIndex + 1) % wnd->semaphoreCount; // Now we can use the next set of semaphores
+    return true;
 }
 
 void window_destroy(VulkanContext& ctx, VulkanWindow* wd)

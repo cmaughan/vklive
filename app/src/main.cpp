@@ -1,4 +1,5 @@
 #include <atomic>
+#include <chrono>
 #include <iostream>
 #include <mutex>
 #include <thread>
@@ -144,19 +145,22 @@ void save_state()
     Zest::layout_manager_save();
 }
 
-void register_windows()
+void register_windows(bool loadPersistentLayouts)
 {
     Zest::layout_manager_register_window("Profiler", "Profiler", &g_WindowEnables.profiler);
     Zest::layout_manager_register_window("Targets", "Targets", &g_WindowEnables.targets);
     Zest::layout_manager_register_window("Sequencer", "Sequencer", &g_WindowEnables.sequencer);
     Zest::layout_manager_register_window("Demo Window", "Demo Window", &g_WindowEnables.demoWindow);
 
-    Zest::layout_manager_load_layouts_file("vklive", [](const std::string& name, const Zest::LayoutInfo& info) {
-        if (!info.windowLayout.empty())
-        {
-            ImGui::LoadIniSettingsFromMemory(info.windowLayout.c_str());
-        }
-    });
+    if (loadPersistentLayouts)
+    {
+        Zest::layout_manager_load_layouts_file("vklive", [](const std::string& name, const Zest::LayoutInfo& info) {
+            if (!info.windowLayout.empty())
+            {
+                ImGui::LoadIniSettingsFromMemory(info.windowLayout.c_str());
+            }
+        });
+    }
 }
 
 void copy_scene_errors_to_zep(Scene& scene)
@@ -206,10 +210,28 @@ int main(int argc, char** argv)
     // Asset paths
     Zest::runtree_init(SDL_GetBasePath(), VKLIVE_ROOT);
 
-    // Get the settings
-    auto settings_path = Zest::file_init_settings("VkLive",
-        Zest::runtree_find_path("settings.toml"),
-        fs::path("settings") / "settings.toml");
+    fs::path startupFrameSettingsRoot;
+    fs::path settings_path;
+    std::string imSettingsPath;
+    if (commandLineOptions.startupFrameTest)
+    {
+        const auto uniqueSuffix = std::chrono::steady_clock::now().time_since_epoch().count();
+        startupFrameSettingsRoot = fs::temp_directory_path() / fmt::format("vklive-startup-frame-{}", uniqueSuffix);
+        fs::create_directories(startupFrameSettingsRoot);
+        settings_path = startupFrameSettingsRoot / "settings.toml";
+        imSettingsPath = (startupFrameSettingsRoot / "imgui.ini").string();
+    }
+    else
+    {
+        // Get the settings
+        settings_path = Zest::file_init_settings("VkLive",
+            Zest::runtree_find_path("settings.toml"),
+            fs::path("settings") / "settings.toml");
+        imSettingsPath = Zest::file_init_settings("VkLive",
+            Zest::runtree_find_path("imgui.ini"),
+            fs::path("settings") / "imgui.ini")
+                             .string();
+    }
     config_load(settings_path);
     if (!commandLineOptions.projectRoot.empty())
     {
@@ -224,11 +246,6 @@ int main(int argc, char** argv)
     {
         return 0;
     }
-
-    auto imSettingsPath = Zest::file_init_settings("VkLive",
-        Zest::runtree_find_path("imgui.ini"),
-        fs::path("settings") / "imgui.ini")
-                              .string();
 
     // Set the audio config from the loaded config. We copy it back when closing the app
     Zing::GetAudioContext().audioAnalysisSettings = appConfig.audioAnalysisSettings;
@@ -251,7 +268,7 @@ int main(int argc, char** argv)
 
     Zing::audio_init(nullptr);
 
-    register_windows();
+    register_windows(!commandLineOptions.startupFrameTest);
 
     // python_init();
 
@@ -295,9 +312,15 @@ int main(int argc, char** argv)
 
     // Main loop
     bool done = false;
+    bool startupFrameSucceeded = false;
+    const auto startupFrameStartTime = std::chrono::steady_clock::now();
+    constexpr auto StartupFrameTestTimeout = std::chrono::seconds(10);
     uint32_t zepFocusFlags = 0;
     while (!done)
     {
+        bool renderedCurrentSceneThisFrame = false;
+        bool presentedThisFrame = false;
+
         Zest::Profiler::NewFrame();
 
         PROFILE_NAME_THREAD(UI);
@@ -313,12 +336,26 @@ int main(int argc, char** argv)
             ImGui_ImplSDL2_ProcessEvent(&event);
             if (event.type == SDL_QUIT)
             {
+                if (commandLineOptions.startupFrameTest && !startupFrameSucceeded)
+                {
+                    std::cerr << "--startup-frame-test quit before rendering and presenting a project scene\n";
+                    exitCode = 4;
+                }
                 done = true;
             }
 
             if (event.type == SDL_WINDOWEVENT && event.window.event == SDL_WINDOWEVENT_CLOSE && event.window.windowID == SDL_GetWindowID(g_pDevice->Context().window))
             {
-                done = controller_check_exit();
+                if (commandLineOptions.startupFrameTest && !startupFrameSucceeded)
+                {
+                    std::cerr << "--startup-frame-test window closed before rendering and presenting a project scene\n";
+                    exitCode = 4;
+                    done = true;
+                }
+                else
+                {
+                    done = controller_check_exit();
+                }
             }
 
             if (event.type == SDL_KEYDOWN)
@@ -336,6 +373,14 @@ int main(int argc, char** argv)
         if (g_pDevice->Context().deviceState == DeviceState::Lost)
         {
             LOG(ERR, "Device Lost! (This shouldn't happen)");
+            if (commandLineOptions.startupFrameTest && !startupFrameSucceeded)
+            {
+                std::cerr << "--startup-frame-test device lost before rendering and presenting a project scene\n";
+                exitCode = 5;
+                done = true;
+                validation_enable_messages(false);
+                continue;
+            }
 
             // Try to restart
             if (project_has_scene(g_Controller.spCurrentProject.get()))
@@ -529,7 +574,7 @@ int main(int argc, char** argv)
             auto spScene = g_Controller.spCurrentProject->spScene;
             LOG_SCOPE(DBG, "\nDraw Current Scene: " << spScene.get());
 
-            window_render(g_pDevice.get(), *spScene, appConfig.draw_on_background, [=](const glm::vec2& size, Scene& scene) {
+            renderedCurrentSceneThisFrame = window_render(g_pDevice.get(), *spScene, appConfig.draw_on_background, [&](const glm::vec2& size, Scene& scene) {
                 return g_pDevice->Render_3D(scene, size);
             });
 
@@ -541,6 +586,21 @@ int main(int argc, char** argv)
                 // Device lost, reset.
                 // Note: this currently shouldn't happen, and I haven't figured a workaround for it anyway
                 // - once the device is lost, only an .exe restart seems to work.
+                if (commandLineOptions.startupFrameTest)
+                {
+                    std::cerr << "--startup-frame-test device lost before rendering and presenting a project scene\n";
+                    exitCode = 5;
+                    done = true;
+                }
+                else
+                {
+                    continue;
+                }
+            }
+
+            if (done)
+            {
+                validation_enable_messages(false);
                 continue;
             }
 
@@ -611,7 +671,21 @@ int main(int argc, char** argv)
         // Present Main Platform Window
         if (!g_pDevice->Context().minimized)
         {
-            g_pDevice->Present();
+            presentedThisFrame = g_pDevice->Present();
+        }
+        if (commandLineOptions.startupFrameTest)
+        {
+            if (renderedCurrentSceneThisFrame && presentedThisFrame)
+            {
+                startupFrameSucceeded = true;
+                done = true;
+            }
+            else if (std::chrono::steady_clock::now() - startupFrameStartTime >= StartupFrameTestTimeout)
+            {
+                std::cerr << "--startup-frame-test timed out before rendering and presenting a project scene\n";
+                exitCode = 3;
+                done = true;
+            }
         }
 
         // We have been once through, no more messages until the user recompiles
@@ -626,15 +700,22 @@ int main(int argc, char** argv)
     // Cleanup
     zep_destroy();
 
-    save_state();
-
-    config_save(settings_path);
+    if (!commandLineOptions.startupFrameTest)
+    {
+        save_state();
+        config_save(settings_path);
+    }
 
     if (project_has_scene(g_Controller.spCurrentProject.get()))
     {
         g_pDevice->DestroyScene(*g_Controller.spCurrentProject->spScene.get());
     }
     g_pDevice.reset();
+    if (!startupFrameSettingsRoot.empty())
+    {
+        std::error_code ec;
+        fs::remove_all(startupFrameSettingsRoot, ec);
+    }
 
     scene_destroy_parser();
 
@@ -644,5 +725,5 @@ int main(int argc, char** argv)
 
     Zest::Profiler::Finish();
 
-    return 0;
+    return exitCode;
 }

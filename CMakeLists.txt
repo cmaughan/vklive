@@ -391,6 +391,9 @@ target_include_directories(vklive_app_command_line_tests PRIVATE
     ${CMAKE_BINARY_DIR}
     ${CMAKE_CURRENT_LIST_DIR}/app/include)
 
+add_executable(vklive_render_parity_harness tests/render_parity_harness.cpp)
+target_link_libraries(vklive_render_parity_harness PRIVATE reproc++)
+
 add_executable(vklive_render_backend_tests tests/render_backend_tests.cpp)
 target_link_libraries(vklive_render_backend_tests PRIVATE vklive)
 target_include_directories(vklive_render_backend_tests PRIVATE ${CMAKE_BINARY_DIR})
@@ -420,6 +423,14 @@ add_test(
     NAME vklive_app_command_line_tests
     COMMAND vklive_app_command_line_tests
 )
+
+if(VKLIVE_ENABLE_METAL)
+    add_test(NAME vklive_render_parity_simple_metal
+        COMMAND vklive_render_parity_harness
+            $<TARGET_FILE:Rezonality>
+            ${CMAKE_SOURCE_DIR}/run_tree/projects/simple
+            metal)
+endif()
 
 add_test(
     NAME vklive_render_backend_tests

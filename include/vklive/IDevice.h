@@ -84,7 +84,7 @@ struct IDevice
     virtual void WaitIdle() = 0;
 
     virtual void ValidateSwapChain() = 0;
-    virtual void Present() = 0;
+    virtual bool Present() = 0;
 
     virtual std::string GetDeviceString() const = 0;
     virtual std::set<std::string> ShaderFileExtensions() = 0;

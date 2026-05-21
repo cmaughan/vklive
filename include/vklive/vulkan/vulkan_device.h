@@ -27,7 +27,7 @@ struct VulkanDevice : public IDevice
     virtual void WriteToFile(Scene& scene, const fs::path& path) override;
 
     virtual void ValidateSwapChain() override;
-    virtual void Present() override;
+    virtual bool Present() override;
 
     virtual std::set<std::string> ShaderFileExtensions() override;
 
