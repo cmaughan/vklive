@@ -300,7 +300,7 @@ bool vulkan_model_prepare_material_descriptors(VulkanContext& ctx, VulkanModel& 
     return true;
 }
 
-vk::Format component_format(Component component)
+vk::Format component_format(VertexComponent component)
 {
     switch (component)
     {

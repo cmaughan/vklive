@@ -45,7 +45,7 @@ Original here: https://github.com/progschj/ThreadPool
 #include <stdexcept>
 #include <string>
 
-#include <concurrentqueue/concurrentqueue.h>
+#include <moodycamel/concurrentqueue.h>
 //#include <mutils/thread/thread_utils.h>
 
 // std::thread pool for resources recycling
@@ -137,4 +137,3 @@ private:
     // workers finalization flag
     std::atomic_bool stop;
 };
-

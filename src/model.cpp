@@ -8,6 +8,7 @@
 #include <assimp/material.h>
 #include <assimp/postprocess.h>
 #include <assimp/scene.h>
+#include <fmt/format.h>
 
 #include <vklive/model.h>
 
@@ -15,12 +16,12 @@ const int DefaultModelFlags = aiProcess_FlipWindingOrder | aiProcess_Triangulate
 
 // Vertex layout for this example
 VertexLayout g_vertexLayout{ {
-    Component::VERTEX_COMPONENT_POSITION,
-    Component::VERTEX_COMPONENT_UV,
-    Component::VERTEX_COMPONENT_COLOR,
-    Component::VERTEX_COMPONENT_NORMAL,
-    Component::VERTEX_COMPONENT_TANGENT,
-    Component::VERTEX_COMPONENT_BITANGENT,
+    VertexComponent::VERTEX_COMPONENT_POSITION,
+    VertexComponent::VERTEX_COMPONENT_UV,
+    VertexComponent::VERTEX_COMPONENT_COLOR,
+    VertexComponent::VERTEX_COMPONENT_NORMAL,
+    VertexComponent::VERTEX_COMPONENT_TANGENT,
+    VertexComponent::VERTEX_COMPONENT_BITANGENT,
 } };
 
 std::set<std::string> model_file_extensions()
@@ -312,7 +313,7 @@ void model_append_vertex(Model& model, std::vector<uint8_t>& outputBuffer, const
     model.dim.min = glm::min(scaledPos, model.dim.min);
 }
 
-uint32_t component_index(const VertexLayout& layout, Component component)
+uint32_t component_index(const VertexLayout& layout, VertexComponent component)
 {
     for (size_t i = 0; i < layout.components.size(); ++i)
     {
@@ -324,7 +325,7 @@ uint32_t component_index(const VertexLayout& layout, Component component)
     return static_cast<uint32_t>(-1);
 }
 
-uint32_t component_size(Component component)
+uint32_t component_size(VertexComponent component)
 {
     switch (component)
     {

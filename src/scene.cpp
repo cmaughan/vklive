@@ -69,7 +69,7 @@ extern "C" {
 #define T_RAY_INTERSECTION "intersection"
 #define T_RAY_CALLABLE "callable"
 
-#include <concurrentqueue/concurrentqueue.h>
+#include <moodycamel/concurrentqueue.h>
 
 struct Parser
 {

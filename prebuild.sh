@@ -9,11 +9,15 @@ fi
 
 triplet=(x64-linux)
 if [ "$(uname)" == "Darwin" ]; then
-   triplet=(x64-osx)
+   if [ "$(uname -m)" == "arm64" ]; then
+       triplet=(arm64-osx)
+   else
+       triplet=(x64-osx)
+   fi
 fi
 
 cd vcpkg
-common_packages=(lodepng minizip tsl-ordered-map ableton-link cppcodec range-v3 portaudio stb gli reproc fmt nativefiledialog tinyfiledialogs clipp concurrentqueue assimp glm tinydir spirv-reflect)
+common_packages=(lodepng minizip tsl-ordered-map ableton-link cppcodec range-v3 portaudio stb gli reproc fmt nativefiledialog-extended tinyfiledialogs clipp concurrentqueue assimp glm tinydir spirv-reflect)
 if [ "$(uname)" == "Darwin" ]; then
     metal_packages=(sdl2 spirv-cross)
     if [ "${VKLIVE_PREBUILD_VULKAN:-0}" == "1" ]; then

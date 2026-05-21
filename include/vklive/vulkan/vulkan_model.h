@@ -82,7 +82,7 @@ struct VulkanModel : Model
 };
 
 
-vk::Format component_format(Component component);
+vk::Format component_format(VertexComponent component);
 
 std::shared_ptr<VulkanModel> vulkan_model_load(VulkanContext& ctx, const ModelCreateInfo& createInfo);
 

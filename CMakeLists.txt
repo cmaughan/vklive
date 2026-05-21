@@ -58,7 +58,7 @@ find_package(reproc++ REQUIRED) # Process launch library for loading shader comp
 find_package(SDL2 CONFIG REQUIRED) # SDL UI library for creating windows, etc.
 find_package(unofficial-concurrentqueue REQUIRED) # Concurrent lock/free queue for thread interactions
 find_package(tinyfiledialogs CONFIG REQUIRED) # File dialogs that look OS specific and more standard
-find_package(unofficial-nativefiledialog CONFIG REQUIRED) # File dialogs that look OS specific and more standard
+find_package(nfd CONFIG REQUIRED) # File dialogs that look OS specific and more standard
 find_package(unofficial-spirv-reflect CONFIG REQUIRED)
 #find_package(VulkanMemoryAllocator CONFIG REQUIRED)
 find_package(gli CONFIG REQUIRED)
@@ -72,6 +72,7 @@ if(VKLIVE_ENABLE_METAL)
     set(CMAKE_OBJCXX_STANDARD 20)
     set(CMAKE_OBJCXX_STANDARD_REQUIRED ON)
     find_package(spirv_cross_core CONFIG REQUIRED)
+    find_package(spirv_cross_glsl CONFIG REQUIRED)
     find_package(spirv_cross_msl CONFIG REQUIRED)
     find_package(spirv_cross_cpp CONFIG REQUIRED)
     find_library(METAL_FRAMEWORK Metal REQUIRED)
@@ -457,7 +458,7 @@ target_link_libraries(Rezonality
         $<IF:$<TARGET_EXISTS:SDL2::SDL2>,SDL2::SDL2,SDL2::SDL2-static>
         unofficial::concurrentqueue::concurrentqueue
         clipp::clipp
-        unofficial::nativefiledialog::nfd
+        nfd::nfd
         unofficial::spirv-reflect
         gli
         Zing::Zing

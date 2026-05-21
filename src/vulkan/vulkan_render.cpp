@@ -33,12 +33,12 @@ TPool threadPool;
 
 // Vertex layout for this example
 VertexLayout g_vertexLayout{ {
-    Component::VERTEX_COMPONENT_POSITION,
-    Component::VERTEX_COMPONENT_UV,
-    Component::VERTEX_COMPONENT_COLOR,
-    Component::VERTEX_COMPONENT_NORMAL,
-    Component::VERTEX_COMPONENT_TANGENT,
-    Component::VERTEX_COMPONENT_BITANGENT,
+    VertexComponent::VERTEX_COMPONENT_POSITION,
+    VertexComponent::VERTEX_COMPONENT_UV,
+    VertexComponent::VERTEX_COMPONENT_COLOR,
+    VertexComponent::VERTEX_COMPONENT_NORMAL,
+    VertexComponent::VERTEX_COMPONENT_TANGENT,
+    VertexComponent::VERTEX_COMPONENT_BITANGENT,
 } };
 
 } // namespace

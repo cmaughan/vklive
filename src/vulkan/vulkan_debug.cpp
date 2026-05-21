@@ -4,7 +4,7 @@
 
 #include <fmt/format.h>
 
-#include <concurrentqueue/concurrentqueue.h>
+#include <moodycamel/concurrentqueue.h>
 
 #include <zest/string/string_utils.h>
 #include <zest/logger/logger.h>

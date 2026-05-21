@@ -3,7 +3,7 @@
 #include <memory>
 #include <atomic>
 
-#include <concurrentqueue/concurrentqueue.h>
+#include <moodycamel/concurrentqueue.h>
 
 #include <vklive/message.h>
 #include <vklive/validation.h>

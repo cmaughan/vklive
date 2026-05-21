@@ -167,7 +167,7 @@ bool metal_format_is_depth(metal::MetalSurfaceFormat format)
     return format == metal::MetalSurfaceFormat::Depth32Float;
 }
 
-MTLVertexFormat metal_vertex_format(Component component)
+MTLVertexFormat metal_vertex_format(VertexComponent component)
 {
     switch (component)
     {

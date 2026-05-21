@@ -30,7 +30,7 @@ void controller_load_project(const fs::path& projectPath)
 
 fs::path controller_open_project()
 {
-    nfdchar_t *pszPath = NULL;
+    nfdchar_t* pszPath = nullptr;
 
     auto docPath = (Zest::file_documents_path() / "VkLive");
     if (!appConfig.last_folder_path.empty() && fs::exists(appConfig.last_folder_path) && fs::is_directory(appConfig.last_folder_path))
@@ -42,10 +42,11 @@ fs::path controller_open_project()
         appConfig.last_folder_path = fs::path(); 
     }
 
-    NFD_PickFolder(docPath.string().c_str(), &pszPath);
+    NFD_PickFolder(&pszPath, docPath.string().c_str());
     if (pszPath)
     {
         fs::path p(pszPath);
+        NFD_FreePath(pszPath);
         if (fs::exists(p) && fs::is_directory(p))
         {
             if (fs::exists(p.parent_path()))
@@ -69,11 +70,12 @@ fs::path controller_save_project_as()
     auto docPath = (Zest::file_documents_path() / "VkLive");
 
     fs::create_directories(docPath);
-    nfdchar_t *pszPath = NULL;
-    NFD_PickFolder(docPath.string().c_str(), &pszPath);
+    nfdchar_t* pszPath = nullptr;
+    NFD_PickFolder(&pszPath, docPath.string().c_str());
     if (pszPath)
     {
         auto p = fs::path(pszPath);
+        NFD_FreePath(pszPath);
         if (fs::equivalent(p, g_Controller.spCurrentProject->rootPath) || !fs::is_directory(p))
         {
             // Already there.  empty path to say we didn't save

@@ -20,7 +20,7 @@ class Importer;
 };
 
 // Layout
-enum Component
+enum VertexComponent
 {
     VERTEX_COMPONENT_POSITION = 0x0,
     VERTEX_COMPONENT_NORMAL = 0x1,
@@ -37,7 +37,7 @@ enum Component
 
 struct VertexLayout
 {
-    std::vector<Component> components;
+    std::vector<VertexComponent> components;
     bool operator==(const VertexLayout& rhs) const
     {
         return rhs.components == components;
@@ -210,8 +210,8 @@ struct Model
 
 extern const int DefaultModelFlags;
 
-uint32_t component_index(const VertexLayout& layout, Component component);
-uint32_t component_size(Component component);
+uint32_t component_index(const VertexLayout& layout, VertexComponent component);
+uint32_t component_size(VertexComponent component);
 uint32_t layout_size(const VertexLayout& layout);
 uint32_t layout_offset(const VertexLayout& layout, uint32_t index);
 void model_load(Model& model, const ModelCreateInfo& createInfo, int flags = DefaultModelFlags);
