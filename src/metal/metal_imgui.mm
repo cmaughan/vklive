@@ -58,6 +58,10 @@ void imgui_init(MetalContext& ctx, const std::string& iniPath, bool viewports)
     {
         throw std::runtime_error("Could not initialize ImGui Metal renderer backend");
     }
+    if (!ImGui_ImplMetal_CreateDeviceObjects(device))
+    {
+        throw std::runtime_error("Could not create ImGui Metal renderer device objects");
+    }
 
     ctx.spFontContext = std::make_shared<Zest::FontContext>();
     ctx.spFontTexture = std::make_shared<MetalImGuiTexture>(ctx);
