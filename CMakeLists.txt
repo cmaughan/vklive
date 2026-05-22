@@ -482,7 +482,7 @@ if(VKLIVE_ENABLE_METAL)
     )
 
     add_test(
-        NAME vklive_metal_feedback_rejection_tests
+        NAME vklive_metal_feedback_tests
         COMMAND vklive_metal_binding_tests ${CMAKE_CURRENT_LIST_DIR} feedback
     )
 
@@ -525,6 +525,12 @@ if(VKLIVE_ENABLE_METAL)
         COMMAND vklive_render_parity_harness
             $<TARGET_FILE:Rezonality>
             ${CMAKE_SOURCE_DIR}/run_tree/projects/shadertoy/audio_spectrum_analysis
+            metal)
+
+    add_test(NAME vklive_render_parity_blend_waves_metal
+        COMMAND vklive_render_parity_harness
+            $<TARGET_FILE:Rezonality>
+            ${CMAKE_SOURCE_DIR}/run_tree/projects/blend_waves
             metal)
 
     add_test(NAME vklive_render_parity_deferred_metal

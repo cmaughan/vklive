@@ -220,44 +220,35 @@ void main()
 
         if (feedbackOnly)
         {
-            validation_clear_error_state();
-            Scene feedbackScene(shaderDir);
-            feedbackScene.sceneGraphPath = shaderDir / "feedback.scenegraph";
-            metal::MetalScene feedbackMetalScene(&feedbackScene);
+            ok &= require(metal::MetalSurfaceKey("default_color", 0, false).pingPongIndex == 0, "frame 0 target writes should use ping-pong slot 0");
+            ok &= require(metal::MetalSurfaceKey("default_color", 1, false).pingPongIndex == 1, "frame 1 target writes should use ping-pong slot 1");
+            ok &= require(metal::MetalSurfaceKey("default_color", 0, true).pingPongIndex == 1, "frame 0 feedback samplers should read ping-pong slot 1");
+            ok &= require(metal::MetalSurfaceKey("default_color", 1, true).pingPongIndex == 0, "frame 1 feedback samplers should read ping-pong slot 0");
 
-            Shader feedbackVertexShader(shaderDir / "feedback.vert");
-            Shader feedbackFragmentShader(shaderDir / "feedback.frag");
-            auto feedbackVertexMetalShader = std::make_shared<metal::MetalShader>(&feedbackVertexShader);
-            feedbackVertexMetalShader->stage = metal::MetalShaderStage::Vertex;
-            feedbackVertexMetalShader->function = reinterpret_cast<void*>(1);
+            Scene keyScene(shaderDir);
+            auto targetSurface = std::make_shared<Surface>("FeedbackTarget");
+            targetSurface->isTarget = true;
+            keyScene.surfaces[targetSurface->name] = targetSurface;
+            auto staticSurface = std::make_shared<Surface>("StaticTexture");
+            staticSurface->path = "static.png";
+            keyScene.surfaces[staticSurface->name] = staticSurface;
+            metal::MetalScene keyMetalScene(&keyScene);
 
-            auto feedbackFragmentMetalShader = std::make_shared<metal::MetalShader>(&feedbackFragmentShader);
-            feedbackFragmentMetalShader->stage = metal::MetalShaderStage::Fragment;
-            feedbackFragmentMetalShader->function = reinterpret_cast<void*>(1);
+            auto* targetWrite0 = metal::metal_scene_get_or_create_surface(ctx, keyMetalScene, "FeedbackTarget", 0, false);
+            auto* targetWrite1 = metal::metal_scene_get_or_create_surface(ctx, keyMetalScene, "FeedbackTarget", 1, false);
+            auto* targetSample0 = metal::metal_scene_get_or_create_surface(ctx, keyMetalScene, "FeedbackTarget", 0, true);
+            auto* targetSample1 = metal::metal_scene_get_or_create_surface(ctx, keyMetalScene, "FeedbackTarget", 1, true);
+            ok &= require(targetWrite0 && targetWrite0->key.pingPongIndex == 0, "target frame 0 should create write slot 0");
+            ok &= require(targetWrite1 && targetWrite1->key.pingPongIndex == 1, "target frame 1 should create write slot 1");
+            ok &= require(targetSample0 == targetWrite1, "frame 0 target feedback should sample slot 1");
+            ok &= require(targetSample1 == targetWrite0, "frame 1 target feedback should sample slot 0");
 
-            feedbackMetalScene.shaderStages[feedbackVertexShader.path] = feedbackVertexMetalShader;
-            feedbackMetalScene.shaderStages[feedbackFragmentShader.path] = feedbackFragmentMetalShader;
-
-            Pass feedbackPass(feedbackScene, "feedback_pass");
-            feedbackPass.passType = PassType::Standard;
-            feedbackPass.models.push_back("dummy.obj");
-            feedbackPass.shaders.push_back(feedbackVertexShader.path);
-            feedbackPass.shaders.push_back(feedbackFragmentShader.path);
-            feedbackPass.samplers.push_back(PassSampler{ "default_color", true });
-            feedbackPass.scriptSamplersLine = 17;
-
-            auto feedbackMetalPass = metal::metal_pass_create(feedbackMetalScene, feedbackPass);
-            ok &= require(!metal::metal_pass_draw(ctx, *feedbackMetalPass, glm::uvec2(64, 64)), "sampleAlternate feedback should reject draw");
-            ok &= require(!feedbackScene.errors.empty(), "sampleAlternate feedback should report a scene error");
-            if (!feedbackScene.errors.empty())
-            {
-                const auto& error = feedbackScene.errors.front();
-                ok &= require(message_contains(error, "Metal sampled surface feedback/ping-pong is not implemented yet"), "feedback error should explain unsupported ping-pong");
-                ok &= require(message_contains(error, "sampler '!default_color'"), "feedback error should include original sampler spelling");
-                ok &= require(message_contains(error, "surface default_color"), "feedback error should include surface name");
-                ok &= require(error.path == feedbackScene.sceneGraphPath, "feedback error should use scenegraph path");
-                ok &= require(error.line == feedbackPass.scriptSamplersLine, "feedback error should use samplers line");
-            }
+            auto* staticFrame0 = metal::metal_scene_get_or_create_surface(ctx, keyMetalScene, "StaticTexture", 0, false);
+            auto* staticFrame1 = metal::metal_scene_get_or_create_surface(ctx, keyMetalScene, "StaticTexture", 1, false);
+            auto* staticAlternate = metal::metal_scene_get_or_create_surface(ctx, keyMetalScene, "StaticTexture", 1, true);
+            ok &= require(staticFrame0 && staticFrame0->key.pingPongIndex == 0, "static sampled surfaces should use slot 0");
+            ok &= require(staticFrame1 == staticFrame0, "static sampled surfaces should not alternate with frame count");
+            ok &= require(staticAlternate == staticFrame0, "sampleAlternate should not alternate non-target surfaces");
 
             return ok ? EXIT_SUCCESS : EXIT_FAILURE;
         }

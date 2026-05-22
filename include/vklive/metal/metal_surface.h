@@ -87,6 +87,7 @@ struct MetalSurface
     bool isAudioSurface = false;
     void* stagingBuffer = nullptr;
     uint64_t generation = 0;
+    bool rendered = false;
 };
 
 std::shared_ptr<MetalSurface> metal_surface_create(MetalContext& ctx, MetalScene& scene, Surface& surface);

@@ -346,7 +346,9 @@ MetalSurface* metal_scene_get_or_create_surface(MetalContext& ctx, MetalScene& m
         return nullptr;
     }
 
-    MetalSurfaceKey key(surfaceName, frameCount, sampling);
+    const auto keyFrameCount = pSurface->isTarget ? frameCount : 0;
+    const auto keySampling = pSurface->isTarget && sampling;
+    MetalSurfaceKey key(surfaceName, keyFrameCount, keySampling);
     auto itr = metalScene.surfaces.find(key);
     if (itr != metalScene.surfaces.end())
     {
@@ -371,11 +373,12 @@ void metal_scene_prepare_output_targets(MetalContext& ctx, MetalScene& metalScen
 
     for (auto& [_, spMetalSurface] : metalScene.surfaces)
     {
-        if (!spMetalSurface || !spMetalSurface->pSurface || !spMetalSurface->pSurface->rendered)
+        if (!spMetalSurface || !spMetalSurface->pSurface || !spMetalSurface->rendered)
         {
             continue;
         }
 
+        spMetalSurface->rendered = false;
         spMetalSurface->pSurface->rendered = false;
         if (format_is_depth(spMetalSurface->pSurface->format) || spMetalSurface->format == MetalSurfaceFormat::Depth32Float || !spMetalSurface->texture)
         {

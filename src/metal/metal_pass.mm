@@ -500,23 +500,11 @@ bool metal_pass_prepare_targets(metal::MetalContext& ctx, metal::MetalPass& pass
     return true;
 }
 
-bool metal_pass_prepare_samplers(metal::MetalContext& ctx, metal::MetalPass& pass)
+bool metal_pass_prepare_samplers(metal::MetalContext& ctx, metal::MetalPass& pass, const glm::uvec2& renderSize)
 {
     bool ok = true;
     for (auto& passSampler : pass.pass.samplers)
     {
-        if (passSampler.sampleAlternate)
-        {
-            report_pass_error(pass,
-                fmt::format("Metal sampled surface feedback/ping-pong is not implemented yet; sampler '!{}' / surface {} cannot be used yet.",
-                    passSampler.sampler,
-                    passSampler.sampler),
-                pass.pass.scene.sceneGraphPath,
-                pass.pass.scriptSamplersLine);
-            ok = false;
-            continue;
-        }
-
         auto* metalSurface = metal::metal_scene_get_or_create_surface(ctx, pass.metalScene, passSampler.sampler, Scene::GlobalFrameCount, passSampler.sampleAlternate);
         if (!metalSurface || !metalSurface->pSurface)
         {
@@ -526,7 +514,15 @@ bool metal_pass_prepare_samplers(metal::MetalContext& ctx, metal::MetalPass& pas
         }
 
         auto& surface = *metalSurface->pSurface;
-        if (!surface.isTarget)
+        if (surface.isTarget)
+        {
+            if (!metal::metal_surface_ensure_target(ctx, pass.metalScene, *metalSurface, renderSize))
+            {
+                report_pass_error(pass, fmt::format("Metal pass '{}' could not prepare sampled target surface '{}'.", pass.pass.name, passSampler.sampler), pass.pass.scene.sceneGraphPath, pass.pass.scriptSamplersLine);
+                ok = false;
+            }
+        }
+        else
         {
             if (surface.name == "AudioAnalysis")
             {
@@ -1309,6 +1305,7 @@ bool metal_pass_encode_draw(metal::MetalContext& ctx, metal::MetalPass& pass, co
     {
         if (color && color->pSurface)
         {
+            color->rendered = true;
             color->pSurface->rendered = true;
         }
     }
@@ -1421,6 +1418,7 @@ bool metal_pass_encode_ray_trace(metal::MetalContext& ctx, metal::MetalPass& pas
     {
         if (color && color->pSurface)
         {
+            color->rendered = true;
             color->pSurface->rendered = true;
         }
     }
@@ -1507,6 +1505,7 @@ bool metal_pass_draw(MetalContext& ctx, MetalPass& pass, const glm::uvec2& rende
             {
                 if (color && color->pSurface)
                 {
+                    color->rendered = true;
                     color->pSurface->rendered = true;
                 }
             }
@@ -1521,7 +1520,7 @@ bool metal_pass_draw(MetalContext& ctx, MetalPass& pass, const glm::uvec2& rende
         MetalPassTargets targets;
         metal::MetalShader* rayShader = nullptr;
         const bool ok = metal_pass_prepare_targets(ctx, pass, renderSize, targets) &&
-            metal_pass_prepare_samplers(ctx, pass) &&
+            metal_pass_prepare_samplers(ctx, pass, renderSize) &&
             metal_pass_update_uniforms(ctx, pass, targets) &&
             metal_pass_ray_tracing_supported(ctx, pass) &&
             ([&]() {
@@ -1539,7 +1538,7 @@ bool metal_pass_draw(MetalContext& ctx, MetalPass& pass, const glm::uvec2& rende
     MetalPassTargets targets;
     MetalSampledSurfaces sampledSurfaces;
     const bool ok = metal_pass_get_shaders(pass, shaders) &&
-        metal_pass_prepare_samplers(ctx, pass) &&
+        metal_pass_prepare_samplers(ctx, pass, renderSize) &&
         ([&]() {
             sampledSurfaces = metal_pass_sampled_surfaces(ctx, pass);
             return metal_pass_validate_shader_bindings(pass, *shaders.vertex, sampledSurfaces) &&

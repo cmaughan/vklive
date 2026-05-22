@@ -296,12 +296,11 @@ namespace metal
 
 MetalSurfaceKey::MetalSurfaceKey(const std::string& name, uint64_t frameCount, bool sampling)
     : targetName(name)
-    , pingPongIndex(0)
+    , pingPongIndex(frame_to_pingpong(frameCount))
 {
-    // Render target writes stay on a stable key until Metal sampler ping-pong is implemented.
     if (sampling)
     {
-        pingPongIndex = 1 - frame_to_pingpong(frameCount);
+        pingPongIndex = 1 - pingPongIndex;
     }
 }
 
@@ -342,6 +341,7 @@ void metal_surface_destroy(MetalContext& ctx, MetalSurface& surface)
     surface.size = glm::uvec2(0);
     surface.format = MetalSurfaceFormat::Unknown;
     surface.mipLevels = 1;
+    surface.rendered = false;
 }
 
 void metal_surface_create_target(MetalContext& ctx, MetalSurface& surface, const glm::uvec2& size, MetalSurfaceFormat format)
@@ -712,6 +712,7 @@ bool metal_surface_ensure_target(MetalContext& ctx, MetalScene& scene, MetalSurf
         metal_surface_create_target(ctx, surface, size, format);
     }
 
+    surface.rendered = false;
     surface.pSurface->rendered = false;
     return surface.texture != nullptr;
 }
