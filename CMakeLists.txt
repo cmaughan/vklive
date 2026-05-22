@@ -463,6 +463,12 @@ if(VKLIVE_ENABLE_METAL)
             ${CMAKE_SOURCE_DIR}/run_tree/projects/shadertoy/audio_spectrum_analysis
             metal)
 
+    add_test(NAME vklive_render_parity_deferred_metal
+        COMMAND vklive_render_parity_harness
+            $<TARGET_FILE:Rezonality>
+            ${CMAKE_SOURCE_DIR}/run_tree/projects/deferred_shading
+            metal)
+
 endif()
 
 add_test(

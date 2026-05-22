@@ -2,6 +2,7 @@
 
 #include <cstdint>
 #include <memory>
+#include <vector>
 
 #include <glm/glm.hpp>
 
@@ -31,11 +32,11 @@ struct MetalPass
     void* uniformBuffer = nullptr;
 
     glm::uvec2 targetSize = glm::uvec2(0);
-    MetalSurfaceKey colorTargetKey;
+    std::vector<MetalSurfaceKey> colorTargetKeys;
     MetalSurfaceKey depthTargetKey;
-    uint64_t colorTargetGeneration = 0;
+    std::vector<uint64_t> colorTargetGenerations;
     uint64_t depthTargetGeneration = 0;
-    uint32_t colorPixelFormat = 0;
+    std::vector<uint32_t> colorPixelFormats;
     uint32_t depthPixelFormat = 0;
     float lastUniformTime = 0.0f;
 

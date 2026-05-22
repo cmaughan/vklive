@@ -4,6 +4,7 @@
 #include <cstring>
 #include <limits>
 #include <map>
+#include <vector>
 
 #include <fmt/format.h>
 
@@ -20,6 +21,8 @@
 
 namespace
 {
+
+constexpr size_t kMetalMaxColorAttachments = 8;
 
 template <typename T>
 T bridge(void* object)
@@ -343,10 +346,10 @@ MTLVertexDescriptor* metal_vertex_descriptor(const VertexLayout& layout)
 
 struct MetalPassTargets
 {
-    metal::MetalSurface* color = nullptr;
+    std::vector<metal::MetalSurface*> colors;
+    std::vector<MTLPixelFormat> colorFormats;
     metal::MetalSurface* depth = nullptr;
     glm::uvec2 size = glm::uvec2(0);
-    MTLPixelFormat colorFormat = MTLPixelFormatInvalid;
     MTLPixelFormat depthFormat = MTLPixelFormatInvalid;
 };
 
@@ -399,38 +402,62 @@ bool metal_pass_prepare_targets(metal::MetalContext& ctx, metal::MetalPass& pass
         }
         else
         {
-            if (targets.color)
+            if (targets.colors.empty())
             {
-                report_pass_error(pass, fmt::format("Metal pass '{}' has more than one color target. Basic Metal raster rendering supports one color target.", pass.pass.name));
+                targets.size = pMetalSurface->size;
+            }
+            else if (pMetalSurface->size != targets.size)
+            {
+                const auto firstColorName = targets.colors.front() && targets.colors.front()->pSurface ? targets.colors.front()->pSurface->name : std::string("<unknown>");
+                report_pass_error(pass,
+                    fmt::format("Metal pass '{}' target '{}' size {}x{} does not match first color target '{}' size {}x{}.",
+                        pass.pass.name,
+                        targetName,
+                        pMetalSurface->size.x,
+                        pMetalSurface->size.y,
+                        firstColorName,
+                        targets.size.x,
+                        targets.size.y));
                 return false;
             }
-            targets.color = pMetalSurface;
-            targets.colorFormat = pixelFormat;
+            targets.colors.push_back(pMetalSurface);
+            targets.colorFormats.push_back(pixelFormat);
         }
     }
 
-    if (!targets.color)
+    if (targets.colors.empty())
     {
         report_pass_error(pass, fmt::format("Metal pass '{}' has no color target. Basic Metal raster rendering requires one color target.", pass.pass.name));
         return false;
     }
 
-    targets.size = targets.color->size;
     if (targets.depth && targets.depth->size != targets.size)
     {
-        report_pass_error(pass, fmt::format("Metal pass '{}' target sizes do not match: color {}x{}, depth {}x{}.",
-                                   pass.pass.name,
-                                   targets.size.x,
-                                   targets.size.y,
-                                   targets.depth->size.x,
-                                   targets.depth->size.y));
+        const auto firstColorName = targets.colors.front() && targets.colors.front()->pSurface ? targets.colors.front()->pSurface->name : std::string("<unknown>");
+        const auto depthName = targets.depth->pSurface ? targets.depth->pSurface->name : std::string("<unknown>");
+        report_pass_error(pass,
+            fmt::format("Metal pass '{}' depth target '{}' size {}x{} does not match first color target '{}' size {}x{}.",
+                pass.pass.name,
+                depthName,
+                targets.depth->size.x,
+                targets.depth->size.y,
+                firstColorName,
+                targets.size.x,
+                targets.size.y));
         return false;
     }
 
     pass.targetSize = targets.size;
-    pass.colorTargetKey = targets.color->key;
+    pass.colorTargetKeys.clear();
+    pass.colorTargetGenerations.clear();
+    pass.colorTargetKeys.reserve(targets.colors.size());
+    pass.colorTargetGenerations.reserve(targets.colors.size());
+    for (const auto* color : targets.colors)
+    {
+        pass.colorTargetKeys.push_back(color->key);
+        pass.colorTargetGenerations.push_back(color->generation);
+    }
     pass.depthTargetKey = targets.depth ? targets.depth->key : metal::MetalSurfaceKey();
-    pass.colorTargetGeneration = targets.color->generation;
     pass.depthTargetGeneration = targets.depth ? targets.depth->generation : 0;
     return true;
 }
@@ -510,15 +537,33 @@ void metal_pass_reset_pipeline(metal::MetalPass& pass)
 {
     release_obj(pass.renderPipelineState);
     release_obj(pass.depthStencilState);
-    pass.colorPixelFormat = 0;
+    pass.colorPixelFormats.clear();
     pass.depthPixelFormat = 0;
 }
 
 bool metal_pass_ensure_pipeline(metal::MetalContext& ctx, metal::MetalPass& pass, const BasicPassShaders& shaders, const MetalPassTargets& targets)
 {
-    auto colorPixelFormat = static_cast<uint32_t>(targets.colorFormat);
+    if (targets.colorFormats.empty())
+    {
+        report_pass_error(pass, fmt::format("Metal pass '{}' cannot create a pipeline without at least one color attachment.", pass.pass.name));
+        return false;
+    }
+
+    if (targets.colorFormats.size() > kMetalMaxColorAttachments)
+    {
+        report_pass_error(pass, fmt::format("Metal pass '{}' has {} color attachments, but Metal supports at most {}.", pass.pass.name, targets.colorFormats.size(), kMetalMaxColorAttachments));
+        return false;
+    }
+
+    std::vector<uint32_t> colorPixelFormats;
+    colorPixelFormats.reserve(targets.colorFormats.size());
+    for (const auto colorFormat : targets.colorFormats)
+    {
+        colorPixelFormats.push_back(static_cast<uint32_t>(colorFormat));
+    }
+
     auto depthPixelFormat = static_cast<uint32_t>(targets.depthFormat);
-    if (pass.renderPipelineState && pass.colorPixelFormat == colorPixelFormat && pass.depthPixelFormat == depthPixelFormat)
+    if (pass.renderPipelineState && pass.colorPixelFormats == colorPixelFormats && pass.depthPixelFormat == depthPixelFormat)
     {
         return true;
     }
@@ -539,14 +584,17 @@ bool metal_pass_ensure_pipeline(metal::MetalContext& ctx, metal::MetalPass& pass
     descriptor.vertexDescriptor = metal_vertex_descriptor(g_vertexLayout);
     descriptor.inputPrimitiveTopology = MTLPrimitiveTopologyClassTriangle;
     descriptor.rasterSampleCount = 1;
-    descriptor.colorAttachments[0].pixelFormat = targets.colorFormat;
-    descriptor.colorAttachments[0].blendingEnabled = YES;
-    descriptor.colorAttachments[0].sourceRGBBlendFactor = MTLBlendFactorSourceAlpha;
-    descriptor.colorAttachments[0].destinationRGBBlendFactor = MTLBlendFactorOneMinusSourceAlpha;
-    descriptor.colorAttachments[0].rgbBlendOperation = MTLBlendOperationAdd;
-    descriptor.colorAttachments[0].sourceAlphaBlendFactor = MTLBlendFactorOne;
-    descriptor.colorAttachments[0].destinationAlphaBlendFactor = MTLBlendFactorOneMinusSourceAlpha;
-    descriptor.colorAttachments[0].alphaBlendOperation = MTLBlendOperationAdd;
+    for (NSUInteger i = 0; i < targets.colorFormats.size(); ++i)
+    {
+        descriptor.colorAttachments[i].pixelFormat = targets.colorFormats[i];
+        descriptor.colorAttachments[i].blendingEnabled = YES;
+        descriptor.colorAttachments[i].sourceRGBBlendFactor = MTLBlendFactorSourceAlpha;
+        descriptor.colorAttachments[i].destinationRGBBlendFactor = MTLBlendFactorOneMinusSourceAlpha;
+        descriptor.colorAttachments[i].rgbBlendOperation = MTLBlendOperationAdd;
+        descriptor.colorAttachments[i].sourceAlphaBlendFactor = MTLBlendFactorOne;
+        descriptor.colorAttachments[i].destinationAlphaBlendFactor = MTLBlendFactorOneMinusSourceAlpha;
+        descriptor.colorAttachments[i].alphaBlendOperation = MTLBlendOperationAdd;
+    }
 
     if (targets.depth)
     {
@@ -576,7 +624,7 @@ bool metal_pass_ensure_pipeline(metal::MetalContext& ctx, metal::MetalPass& pass
         retain_obj(pass.depthStencilState, depthState);
     }
 
-    pass.colorPixelFormat = colorPixelFormat;
+    pass.colorPixelFormats = colorPixelFormats;
     pass.depthPixelFormat = depthPixelFormat;
     return true;
 }
@@ -755,10 +803,13 @@ bool metal_pass_encode_draw(metal::MetalContext& ctx, metal::MetalPass& pass, co
     }
 
     MTLRenderPassDescriptor* renderPass = [MTLRenderPassDescriptor renderPassDescriptor];
-    renderPass.colorAttachments[0].texture = bridge<id<MTLTexture>>(targets.color->texture);
-    renderPass.colorAttachments[0].loadAction = pass.pass.hasClear ? MTLLoadActionClear : MTLLoadActionLoad;
-    renderPass.colorAttachments[0].storeAction = MTLStoreActionStore;
-    renderPass.colorAttachments[0].clearColor = MTLClearColorMake(pass.pass.clearColor.x, pass.pass.clearColor.y, pass.pass.clearColor.z, pass.pass.clearColor.w);
+    for (NSUInteger i = 0; i < targets.colors.size(); ++i)
+    {
+        renderPass.colorAttachments[i].texture = bridge<id<MTLTexture>>(targets.colors[i]->texture);
+        renderPass.colorAttachments[i].loadAction = pass.pass.hasClear ? MTLLoadActionClear : MTLLoadActionLoad;
+        renderPass.colorAttachments[i].storeAction = MTLStoreActionStore;
+        renderPass.colorAttachments[i].clearColor = MTLClearColorMake(pass.pass.clearColor.x, pass.pass.clearColor.y, pass.pass.clearColor.z, pass.pass.clearColor.w);
+    }
 
     if (targets.depth)
     {
@@ -881,9 +932,12 @@ bool metal_pass_encode_draw(metal::MetalContext& ctx, metal::MetalPass& pass, co
         return false;
     }
 
-    if (targets.color && targets.color->pSurface)
+    for (auto* color : targets.colors)
     {
-        targets.color->pSurface->rendered = true;
+        if (color && color->pSurface)
+        {
+            color->pSurface->rendered = true;
+        }
     }
 
     return true;
@@ -924,9 +978,9 @@ void metal_pass_destroy(MetalContext& ctx, MetalPass& pass)
     metal_pass_reset_pipeline(pass);
     release_obj(pass.uniformBuffer);
     pass.targetSize = glm::uvec2(0);
-    pass.colorTargetKey = MetalSurfaceKey();
+    pass.colorTargetKeys.clear();
     pass.depthTargetKey = MetalSurfaceKey();
-    pass.colorTargetGeneration = 0;
+    pass.colorTargetGenerations.clear();
     pass.depthTargetGeneration = 0;
     pass.lastUniformTime = 0.0f;
 }
