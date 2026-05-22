@@ -416,7 +416,7 @@ void metal_surface_create_sampler(MetalContext& ctx, MetalSurface& surface)
     retain_obj(surface.sampler, sampler);
 }
 
-bool metal_surface_create_from_memory(MetalContext& ctx, MetalSurface& surface, const fs::path& sourceName, const char* data, size_t dataSize, bool flipY)
+bool metal_surface_create_from_memory(MetalContext& ctx, MetalSurface& surface, const fs::path& sourceName, const char* data, size_t dataSize, bool flipY, MetalSurfaceFormat ldrFormat)
 {
     metal_surface_destroy(ctx, surface);
 
@@ -469,7 +469,7 @@ bool metal_surface_create_from_memory(MetalContext& ctx, MetalSurface& surface, 
 
         loaded = loadedLdr;
         bytesPerPixel = 4;
-        format = MetalSurfaceFormat::RGBA8Unorm;
+        format = ldrFormat == MetalSurfaceFormat::RGBA8Unorm_sRGB ? MetalSurfaceFormat::RGBA8Unorm_sRGB : MetalSurfaceFormat::RGBA8Unorm;
     }
 
     if (flipY)
@@ -500,7 +500,7 @@ bool metal_surface_create_from_memory(MetalContext& ctx, MetalSurface& surface, 
     return true;
 }
 
-bool metal_surface_create_from_file(MetalContext& ctx, MetalSurface& surface, const fs::path& path, bool flipY)
+bool metal_surface_create_from_file(MetalContext& ctx, MetalSurface& surface, const fs::path& path, bool flipY, MetalSurfaceFormat ldrFormat)
 {
     if (!fs::exists(path))
     {
@@ -515,7 +515,7 @@ bool metal_surface_create_from_file(MetalContext& ctx, MetalSurface& surface, co
         return false;
     }
 
-    return metal_surface_create_from_memory(ctx, surface, path, data.c_str(), data.size(), flipY);
+    return metal_surface_create_from_memory(ctx, surface, path, data.c_str(), data.size(), flipY, ldrFormat);
 }
 
 bool metal_surface_update_from_audio(MetalContext& ctx, MetalSurface& surface)

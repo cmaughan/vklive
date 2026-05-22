@@ -168,6 +168,20 @@ void copy_scene_errors_to_zep(Scene& scene)
     // Report the errors, regardless
     for (auto& err : scene.errors)
     {
+        if (commandLineOptions.startupFrameTest)
+        {
+            std::cerr << "startup-frame scene error: " << err.text;
+            if (!err.path.empty())
+            {
+                std::cerr << " (" << err.path.string();
+                if (err.line >= 0)
+                {
+                    std::cerr << ":" << err.line;
+                }
+                std::cerr << ")";
+            }
+            std::cerr << "\n";
+        }
         if (!err.path.empty())
         {
             zep_add_file_message(err);

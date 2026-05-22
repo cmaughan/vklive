@@ -93,8 +93,8 @@ void metal_surface_destroy(MetalContext& ctx, MetalSurface& surface);
 void metal_surface_create_target(MetalContext& ctx, MetalSurface& surface, const glm::uvec2& size, MetalSurfaceFormat format);
 void metal_surface_create_sampler(MetalContext& ctx, MetalSurface& surface);
 bool metal_surface_ensure_target(MetalContext& ctx, MetalScene& scene, MetalSurface& surface, const glm::uvec2& renderSize);
-bool metal_surface_create_from_file(MetalContext& ctx, MetalSurface& surface, const fs::path& path, bool flipY = false);
-bool metal_surface_create_from_memory(MetalContext& ctx, MetalSurface& surface, const fs::path& sourceName, const char* data, size_t dataSize, bool flipY = false);
+bool metal_surface_create_from_file(MetalContext& ctx, MetalSurface& surface, const fs::path& path, bool flipY = false, MetalSurfaceFormat ldrFormat = MetalSurfaceFormat::RGBA8Unorm);
+bool metal_surface_create_from_memory(MetalContext& ctx, MetalSurface& surface, const fs::path& sourceName, const char* data, size_t dataSize, bool flipY = false, MetalSurfaceFormat ldrFormat = MetalSurfaceFormat::RGBA8Unorm);
 bool metal_surface_update_from_audio(MetalContext& ctx, MetalSurface& surface);
 
 } // namespace metal

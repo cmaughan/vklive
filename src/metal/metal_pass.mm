@@ -4,6 +4,7 @@
 #include <cstring>
 #include <limits>
 #include <map>
+#include <optional>
 #include <vector>
 
 #include <fmt/format.h>
@@ -105,6 +106,30 @@ bool metal_pass_binding_requires_sampler(const metal::MetalShaderResourceBinding
     return binding.type == ShaderBindingType::CombinedImageSampler || binding.type == ShaderBindingType::Sampler;
 }
 
+bool metal_pass_binding_is_material_resource(const metal::MetalShaderResourceBinding& binding, const std::string& name)
+{
+    if (binding.set != 2)
+    {
+        return false;
+    }
+
+    if (binding.binding == 0 || name == "vklMaterials" || name == "VklMaterials")
+    {
+        return binding.type == ShaderBindingType::StorageBuffer && binding.count == 1;
+    }
+
+    if (name == "vklBaseColorTextures" ||
+        name == "vklNormalTextures" ||
+        name == "vklMetallicRoughnessTextures" ||
+        name == "vklEmissiveTextures" ||
+        name == "vklOcclusionTextures")
+    {
+        return binding.type == ShaderBindingType::CombinedImageSampler && binding.count <= metal::MetalMaxMaterials;
+    }
+
+    return false;
+}
+
 using MetalSampledSurfaces = std::map<std::string, metal::MetalSurface*>;
 
 MetalSampledSurfaces metal_pass_sampled_surfaces(metal::MetalContext& ctx, metal::MetalPass& pass)
@@ -134,6 +159,26 @@ bool metal_pass_validate_shader_bindings(metal::MetalPass& pass, const metal::Me
         const auto name = meta ? meta->name : std::string("<unnamed>");
         const auto path = meta ? meta->shaderPath : (shader.pShader ? shader.pShader->path : fs::path());
         const auto line = meta ? meta->line : -1;
+
+        if (meta && metal_pass_binding_is_material_resource(binding, meta->name))
+        {
+            continue;
+        }
+
+        if (binding.set == 2)
+        {
+            report_pass_error(pass,
+                fmt::format("Metal pass '{}' cannot bind reflected material resource '{}' at set {}, binding {} ({}, count {}). Expected vklMaterials or one of the vkl material texture arrays.",
+                    pass.pass.name,
+                    name,
+                    binding.set,
+                    binding.binding,
+                    shader_binding_type_to_string(binding.type),
+                    binding.count),
+                path,
+                line);
+            return false;
+        }
 
         if (metal_pass_binding_is_sampled_surface(binding))
         {
@@ -219,7 +264,7 @@ bool metal_pass_validate_shader_bindings(metal::MetalPass& pass, const metal::Me
         }
 
         report_pass_error(pass,
-            fmt::format("Metal pass '{}' cannot bind reflected shader resource '{}' at set {}, binding {} ({}, count {}). Metal raster passes currently support the single default UBO and named sampled surfaces only.",
+            fmt::format("Metal pass '{}' cannot bind reflected shader resource '{}' at set {}, binding {} ({}, count {}). Metal raster passes currently support the single default UBO, named sampled surfaces, and set 2 model material resources.",
                 pass.pass.name,
                 name,
                 binding.set,
@@ -791,6 +836,223 @@ void metal_pass_bind_uniform(id<MTLRenderCommandEncoder> encoder, const metal::M
     metal_pass_set_buffer(encoder, shader, itrBinding->second, uniformBuffer);
 }
 
+std::optional<uint32_t> metal_pass_find_buffer_argument_index(const metal::MetalShader& shader, const std::string& argumentName)
+{
+    size_t searchOffset = 0;
+    while (true)
+    {
+        const auto namePos = shader.mslSource.find(argumentName, searchOffset);
+        if (namePos == std::string::npos)
+        {
+            return std::nullopt;
+        }
+
+        const auto bufferPos = shader.mslSource.find("[[buffer(", namePos);
+        if (bufferPos == std::string::npos)
+        {
+            return std::nullopt;
+        }
+
+        const auto nextComma = shader.mslSource.find(',', namePos);
+        const auto nextCloseParen = shader.mslSource.find(')', namePos);
+        const auto argumentEnd = std::min(nextComma == std::string::npos ? shader.mslSource.size() : nextComma,
+            nextCloseParen == std::string::npos ? shader.mslSource.size() : nextCloseParen);
+        if (bufferPos < argumentEnd)
+        {
+            const auto digitStart = bufferPos + std::string("[[buffer(").size();
+            uint32_t value = 0;
+            bool sawDigit = false;
+            for (size_t i = digitStart; i < shader.mslSource.size(); ++i)
+            {
+                const char c = shader.mslSource[i];
+                if (c < '0' || c > '9')
+                {
+                    break;
+                }
+                sawDigit = true;
+                value = (value * 10) + static_cast<uint32_t>(c - '0');
+            }
+            if (sawDigit)
+            {
+                return value;
+            }
+        }
+
+        searchOffset = namePos + argumentName.size();
+    }
+}
+
+bool metal_pass_set_draw_push_constants(id<MTLRenderCommandEncoder> encoder, metal::MetalPass& pass, const metal::MetalShader& shader, const metal::MetalDrawPushConstants& constants)
+{
+    auto bufferIndex = metal_pass_find_buffer_argument_index(shader, "vklDraw");
+    if (!bufferIndex)
+    {
+        return true;
+    }
+
+    if (shader.stage == metal::MetalShaderStage::Vertex)
+    {
+        if (*bufferIndex == 0)
+        {
+            report_pass_error(pass, fmt::format("Metal pass '{}' cannot bind vertex draw push constants at buffer(0) because vertex buffer slot 0 is reserved for model vertices.", pass.pass.name), shader.pShader ? shader.pShader->path : fs::path());
+            return false;
+        }
+        [encoder setVertexBytes:&constants length:sizeof(constants) atIndex:*bufferIndex];
+    }
+    else
+    {
+        [encoder setFragmentBytes:&constants length:sizeof(constants) atIndex:*bufferIndex];
+    }
+    return true;
+}
+
+void metal_pass_set_argument_texture_array(id<MTLRenderCommandEncoder> encoder, MTLRenderStages stages, id<MTLArgumentEncoder> argumentEncoder, const metal::MetalShaderResourceBinding& binding, const std::vector<metal::MetalModelTexture*>& textures)
+{
+    if (binding.textureIndex == std::numeric_limits<uint32_t>::max() || binding.count == 0 || textures.empty())
+    {
+        return;
+    }
+
+    const auto count = std::min<size_t>(binding.count, textures.size());
+    for (size_t i = 0; i < count; ++i)
+    {
+        auto texture = textures[i] ? bridge<id<MTLTexture>>(textures[i]->texture) : nil;
+        [argumentEncoder setTexture:texture atIndex:binding.textureIndex + i];
+        if (texture)
+        {
+            [encoder useResource:texture usage:MTLResourceUsageRead stages:stages];
+        }
+    }
+}
+
+void metal_pass_set_argument_sampler_array(id<MTLArgumentEncoder> argumentEncoder, const metal::MetalShaderResourceBinding& binding, const std::vector<metal::MetalModelTexture*>& textures)
+{
+    if (binding.samplerIndex == std::numeric_limits<uint32_t>::max() || binding.count == 0 || textures.empty())
+    {
+        return;
+    }
+
+    const auto count = std::min<size_t>(binding.count, textures.size());
+    for (size_t i = 0; i < count; ++i)
+    {
+        [argumentEncoder setSamplerState:textures[i] ? bridge<id<MTLSamplerState>>(textures[i]->sampler) : nil atIndex:binding.samplerIndex + i];
+    }
+}
+
+bool metal_pass_bind_material_argument_buffer(metal::MetalContext& ctx, id<MTLRenderCommandEncoder> encoder, NSMutableArray* liveArgumentBuffers, metal::MetalPass& pass, const metal::MetalShader& shader, metal::MetalModel& model)
+{
+    bool hasMaterialResources = false;
+    for (const auto& [_, binding] : shader.resourceBindings)
+    {
+        const auto* meta = metal_pass_find_binding_meta(shader, binding.set, binding.binding);
+        if (meta && metal_pass_binding_is_material_resource(binding, meta->name))
+        {
+            hasMaterialResources = true;
+            break;
+        }
+    }
+
+    if (!hasMaterialResources)
+    {
+        return true;
+    }
+
+    const auto argumentBufferIndex = metal_pass_find_buffer_argument_index(shader, "spvDescriptorSet2");
+    if (!argumentBufferIndex)
+    {
+        report_pass_error(pass, fmt::format("Metal pass '{}' could not find the set 2 material argument buffer in shader '{}'.", pass.pass.name, shader.pShader ? shader.pShader->path.filename().string() : std::string("<unknown>")), shader.pShader ? shader.pShader->path : fs::path());
+        return false;
+    }
+
+    if (shader.stage == metal::MetalShaderStage::Vertex && *argumentBufferIndex == 0)
+    {
+        report_pass_error(pass, fmt::format("Metal pass '{}' cannot bind vertex material argument buffer at buffer(0) because vertex buffer slot 0 is reserved for model vertices.", pass.pass.name), shader.pShader ? shader.pShader->path : fs::path());
+        return false;
+    }
+
+    auto function = bridge<id<MTLFunction>>(shader.function);
+    auto device = bridge<id<MTLDevice>>(ctx.device);
+    if (!function || !device)
+    {
+        report_pass_error(pass, fmt::format("Metal pass '{}' cannot create material argument buffer because the Metal function or device is unavailable.", pass.pass.name), shader.pShader ? shader.pShader->path : fs::path());
+        return false;
+    }
+
+    id<MTLArgumentEncoder> argumentEncoder = [function newArgumentEncoderWithBufferIndex:*argumentBufferIndex];
+    if (!argumentEncoder)
+    {
+        report_pass_error(pass, fmt::format("Metal pass '{}' could not create material argument encoder for shader '{}'.", pass.pass.name, shader.pShader ? shader.pShader->path.filename().string() : std::string("<unknown>")), shader.pShader ? shader.pShader->path : fs::path());
+        return false;
+    }
+
+    id<MTLBuffer> argumentBuffer = [device newBufferWithLength:argumentEncoder.encodedLength options:MTLResourceStorageModeShared];
+    if (!argumentBuffer)
+    {
+        report_pass_error(pass, fmt::format("Metal pass '{}' could not allocate material argument buffer for model '{}'.", pass.pass.name, model.debugName), shader.pShader ? shader.pShader->path : fs::path());
+        return false;
+    }
+    argumentBuffer.label = ns_string(fmt::format("{}:{}:MaterialArguments", pass.pass.name, model.debugName));
+    [argumentEncoder setArgumentBuffer:argumentBuffer offset:0];
+    const auto resourceStages = shader.stage == metal::MetalShaderStage::Vertex ? MTLRenderStageVertex : MTLRenderStageFragment;
+
+    for (const auto& [_, binding] : shader.resourceBindings)
+    {
+        const auto* meta = metal_pass_find_binding_meta(shader, binding.set, binding.binding);
+        if (!meta || !metal_pass_binding_is_material_resource(binding, meta->name))
+        {
+            continue;
+        }
+
+        if (binding.binding == 0 || meta->name == "vklMaterials" || meta->name == "VklMaterials")
+        {
+            auto materialsBuffer = bridge<id<MTLBuffer>>(model.materialsBuffer);
+            if (!materialsBuffer)
+            {
+                report_pass_error(pass, fmt::format("Metal pass '{}' model '{}' has no material buffer.", pass.pass.name, model.debugName), meta->shaderPath, meta->line);
+                return false;
+            }
+            [argumentEncoder setBuffer:materialsBuffer offset:0 atIndex:binding.bufferIndex];
+            [encoder useResource:materialsBuffer usage:MTLResourceUsageRead stages:resourceStages];
+        }
+        else if (meta->name == "vklBaseColorTextures")
+        {
+            metal_pass_set_argument_texture_array(encoder, resourceStages, argumentEncoder, binding, model.baseColorTextures);
+            metal_pass_set_argument_sampler_array(argumentEncoder, binding, model.baseColorTextures);
+        }
+        else if (meta->name == "vklNormalTextures")
+        {
+            metal_pass_set_argument_texture_array(encoder, resourceStages, argumentEncoder, binding, model.normalTextures);
+            metal_pass_set_argument_sampler_array(argumentEncoder, binding, model.normalTextures);
+        }
+        else if (meta->name == "vklMetallicRoughnessTextures")
+        {
+            metal_pass_set_argument_texture_array(encoder, resourceStages, argumentEncoder, binding, model.metallicRoughnessTextures);
+            metal_pass_set_argument_sampler_array(argumentEncoder, binding, model.metallicRoughnessTextures);
+        }
+        else if (meta->name == "vklEmissiveTextures")
+        {
+            metal_pass_set_argument_texture_array(encoder, resourceStages, argumentEncoder, binding, model.emissiveTextures);
+            metal_pass_set_argument_sampler_array(argumentEncoder, binding, model.emissiveTextures);
+        }
+        else if (meta->name == "vklOcclusionTextures")
+        {
+            metal_pass_set_argument_texture_array(encoder, resourceStages, argumentEncoder, binding, model.occlusionTextures);
+            metal_pass_set_argument_sampler_array(argumentEncoder, binding, model.occlusionTextures);
+        }
+    }
+
+    [liveArgumentBuffers addObject:argumentBuffer];
+    if (shader.stage == metal::MetalShaderStage::Vertex)
+    {
+        [encoder setVertexBuffer:argumentBuffer offset:0 atIndex:*argumentBufferIndex];
+    }
+    else
+    {
+        [encoder setFragmentBuffer:argumentBuffer offset:0 atIndex:*argumentBufferIndex];
+    }
+    return true;
+}
+
 bool metal_pass_encode_draw(metal::MetalContext& ctx, metal::MetalPass& pass, const BasicPassShaders& shaders, const MetalPassTargets& targets)
 {
     auto sampledSurfaces = metal_pass_sampled_surfaces(ctx, pass);
@@ -879,6 +1141,7 @@ bool metal_pass_encode_draw(metal::MetalContext& ctx, metal::MetalPass& pass, co
     bindSampledSurfaces(*shaders.vertex);
     bindSampledSurfaces(*shaders.fragment);
 
+    NSMutableArray* liveArgumentBuffers = [NSMutableArray array];
     for (const auto& modelPath : pass.pass.models)
     {
         auto itrModel = pass.metalScene.models.find(modelPath);
@@ -900,11 +1163,26 @@ bool metal_pass_encode_draw(metal::MetalContext& ctx, metal::MetalPass& pass, co
         }
 
         [encoder setVertexBuffer:vertexBuffer offset:0 atIndex:0];
+        if (!metal_pass_bind_material_argument_buffer(ctx, encoder, liveArgumentBuffers, pass, *shaders.vertex, model) ||
+            !metal_pass_bind_material_argument_buffer(ctx, encoder, liveArgumentBuffers, pass, *shaders.fragment, model))
+        {
+            [encoder endEncoding];
+            return false;
+        }
 
         if (!model.parts.empty())
         {
             for (const auto& part : model.parts)
             {
+                metal::MetalDrawPushConstants constants;
+                constants.materialIndex = part.materialIndex;
+                if (!metal_pass_set_draw_push_constants(encoder, pass, *shaders.vertex, constants) ||
+                    !metal_pass_set_draw_push_constants(encoder, pass, *shaders.fragment, constants))
+                {
+                    [encoder endEncoding];
+                    return false;
+                }
+
                 [encoder drawIndexedPrimitives:MTLPrimitiveTypeTriangle
                                     indexCount:part.indexCount
                                      indexType:MTLIndexTypeUInt32
@@ -914,6 +1192,15 @@ bool metal_pass_encode_draw(metal::MetalContext& ctx, metal::MetalPass& pass, co
         }
         else if (model.indexCount > 0)
         {
+            metal::MetalDrawPushConstants constants;
+            constants.materialIndex = 0;
+            if (!metal_pass_set_draw_push_constants(encoder, pass, *shaders.vertex, constants) ||
+                !metal_pass_set_draw_push_constants(encoder, pass, *shaders.fragment, constants))
+            {
+                [encoder endEncoding];
+                return false;
+            }
+
             [encoder drawIndexedPrimitives:MTLPrimitiveTypeTriangle
                                 indexCount:model.indexCount
                                  indexType:MTLIndexTypeUInt32

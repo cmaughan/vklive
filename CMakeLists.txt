@@ -469,6 +469,12 @@ if(VKLIVE_ENABLE_METAL)
             ${CMAKE_SOURCE_DIR}/run_tree/projects/deferred_shading
             metal)
 
+    add_test(NAME vklive_render_parity_pbr_robot_metal
+        COMMAND vklive_render_parity_harness
+            $<TARGET_FILE:Rezonality>
+            ${CMAKE_SOURCE_DIR}/run_tree/projects/pbr_robot
+            metal)
+
 endif()
 
 add_test(

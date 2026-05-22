@@ -4,6 +4,7 @@
 #include <cstring>
 #include <exception>
 #include <fmt/format.h>
+#include <limits>
 #include <vector>
 
 #include <spirv_msl.hpp>
@@ -121,6 +122,33 @@ bool binding_uses_sampler(ShaderBindingType type)
     }
 }
 
+spirv_cross::SPIRType::BaseType binding_base_type(ShaderBindingType type)
+{
+    switch (type)
+    {
+    case ShaderBindingType::CombinedImageSampler:
+        return spirv_cross::SPIRType::SampledImage;
+    case ShaderBindingType::SampledImage:
+    case ShaderBindingType::StorageImage:
+    case ShaderBindingType::InputAttachment:
+        return spirv_cross::SPIRType::Image;
+    case ShaderBindingType::Sampler:
+        return spirv_cross::SPIRType::Sampler;
+    case ShaderBindingType::UniformTexelBuffer:
+    case ShaderBindingType::StorageTexelBuffer:
+    case ShaderBindingType::UniformBuffer:
+    case ShaderBindingType::StorageBuffer:
+    case ShaderBindingType::UniformBufferDynamic:
+    case ShaderBindingType::StorageBufferDynamic:
+        return spirv_cross::SPIRType::Struct;
+    case ShaderBindingType::AccelerationStructure:
+        return spirv_cross::SPIRType::AccelerationStructure;
+    case ShaderBindingType::Unknown:
+    default:
+        return spirv_cross::SPIRType::Unknown;
+    }
+}
+
 void assign_resource_bindings(metal::MetalShader& shader)
 {
     // Slot 0 is reserved for vertex data in Metal raster passes; reflected buffers start after it.
@@ -167,10 +195,17 @@ void add_spirv_cross_resource_bindings(spirv_cross::CompilerMSL& compiler, const
     auto executionModel = execution_model_from_stage(shader.stage);
     for (auto& [_, metalBinding] : shader.resourceBindings)
     {
+        if (metalBinding.set >= 2)
+        {
+            continue;
+        }
+
         spirv_cross::MSLResourceBinding resourceBinding;
         resourceBinding.stage = executionModel;
         resourceBinding.desc_set = metalBinding.set;
         resourceBinding.binding = metalBinding.binding;
+        resourceBinding.basetype = binding_base_type(metalBinding.type);
+        resourceBinding.count = metalBinding.count;
         if (binding_uses_buffer(metalBinding.type))
         {
             resourceBinding.msl_buffer = metalBinding.bufferIndex;
@@ -184,6 +219,72 @@ void add_spirv_cross_resource_bindings(spirv_cross::CompilerMSL& compiler, const
             resourceBinding.msl_sampler = metalBinding.samplerIndex;
         }
         compiler.add_msl_resource_binding(resourceBinding);
+    }
+}
+
+void update_automatic_resource_binding(spirv_cross::CompilerMSL& compiler, metal::MetalShader& shader, const spirv_cross::Resource& resource)
+{
+    const auto set = compiler.get_decoration(resource.id, spv::DecorationDescriptorSet);
+    const auto binding = compiler.get_decoration(resource.id, spv::DecorationBinding);
+    auto itrBinding = shader.resourceBindings.find({ set, binding });
+    if (itrBinding == shader.resourceBindings.end())
+    {
+        return;
+    }
+
+    auto& metalBinding = itrBinding->second;
+    const auto primary = compiler.get_automatic_msl_resource_binding(resource.id);
+    const auto secondary = compiler.get_automatic_msl_resource_binding_secondary(resource.id);
+    constexpr auto invalid = std::numeric_limits<uint32_t>::max();
+
+    if (binding_uses_buffer(metalBinding.type) && primary != invalid)
+    {
+        metalBinding.bufferIndex = primary;
+    }
+    if (binding_uses_texture(metalBinding.type) && primary != invalid)
+    {
+        metalBinding.textureIndex = primary;
+    }
+    if (metalBinding.type == ShaderBindingType::CombinedImageSampler && secondary != invalid)
+    {
+        metalBinding.samplerIndex = secondary;
+    }
+    else if (metalBinding.type == ShaderBindingType::Sampler && primary != invalid)
+    {
+        metalBinding.samplerIndex = primary;
+    }
+}
+
+void update_automatic_resource_bindings(spirv_cross::CompilerMSL& compiler, metal::MetalShader& shader)
+{
+    auto resources = compiler.get_shader_resources();
+    for (const auto& resource : resources.uniform_buffers)
+    {
+        update_automatic_resource_binding(compiler, shader, resource);
+    }
+    for (const auto& resource : resources.storage_buffers)
+    {
+        update_automatic_resource_binding(compiler, shader, resource);
+    }
+    for (const auto& resource : resources.sampled_images)
+    {
+        update_automatic_resource_binding(compiler, shader, resource);
+    }
+    for (const auto& resource : resources.separate_images)
+    {
+        update_automatic_resource_binding(compiler, shader, resource);
+    }
+    for (const auto& resource : resources.separate_samplers)
+    {
+        update_automatic_resource_binding(compiler, shader, resource);
+    }
+    for (const auto& resource : resources.storage_images)
+    {
+        update_automatic_resource_binding(compiler, shader, resource);
+    }
+    for (const auto& resource : resources.subpass_inputs)
+    {
+        update_automatic_resource_binding(compiler, shader, resource);
     }
 }
 
@@ -253,7 +354,9 @@ bool translate_spirv_to_msl(metal::MetalScene& scene, metal::MetalShader& shader
 
         auto options = compiler.get_msl_options();
         options.platform = spirv_cross::CompilerMSL::Options::macOS;
-        options.msl_version = spirv_cross::CompilerMSL::Options::make_msl_version(2, 0);
+        options.msl_version = spirv_cross::CompilerMSL::Options::make_msl_version(3, 0);
+        options.argument_buffers = true;
+        options.argument_buffers_tier = spirv_cross::CompilerMSL::Options::ArgumentBuffersTier::Tier2;
         compiler.set_msl_options(options);
 
         shader.entryPointName = "main0";
@@ -262,8 +365,11 @@ bool translate_spirv_to_msl(metal::MetalScene& scene, metal::MetalShader& shader
         compiler.set_entry_point(shader.entryPointName, executionModel);
 
         add_spirv_cross_resource_bindings(compiler, shader);
+        compiler.add_discrete_descriptor_set(0);
+        compiler.add_discrete_descriptor_set(1);
 
         shader.mslSource = compiler.compile();
+        update_automatic_resource_bindings(compiler, shader);
         return true;
     }
     catch (const std::exception& ex)

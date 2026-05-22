@@ -18,7 +18,7 @@ layout(push_constant) uniform VklDraw
 
 layout(std430, set = 2, binding = 0) readonly buffer VklMaterials
 {
-    VklMaterial vklMaterials[];
+    VklMaterial vklMaterials[VKLIVE_MAX_MATERIALS];
 };
 
 layout(set = 2, binding = 1) uniform sampler2D vklBaseColorTextures[VKLIVE_MAX_MATERIALS];
