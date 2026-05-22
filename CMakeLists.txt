@@ -410,6 +410,10 @@ target_include_directories(vklive_zep_imgui_input_tests PRIVATE
     ${CMAKE_BINARY_DIR}
     ${CMAKE_CURRENT_SOURCE_DIR}/zep/include)
 
+add_executable(vklive_zest_file_tests tests/zest_file_tests.cpp)
+target_link_libraries(vklive_zest_file_tests PRIVATE Zest::Zest)
+target_include_directories(vklive_zest_file_tests PRIVATE ${CMAKE_BINARY_DIR})
+
 if(VKLIVE_ENABLE_METAL)
     add_executable(vklive_metal_binding_tests tests/metal_binding_tests.mm)
     target_link_libraries(vklive_metal_binding_tests
@@ -544,6 +548,11 @@ add_test(
 add_test(
     NAME vklive_zep_imgui_input_tests
     COMMAND vklive_zep_imgui_input_tests
+)
+
+add_test(
+    NAME vklive_zest_file_tests
+    COMMAND vklive_zest_file_tests
 )
 
 # App
