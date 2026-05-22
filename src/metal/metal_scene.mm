@@ -10,6 +10,7 @@
 #include <zest/time/timer.h>
 
 #include <vklive/metal/metal_context.h>
+#include <vklive/metal/metal_geometry_compat.h>
 #include <vklive/metal/metal_model.h>
 #include <vklive/metal/metal_pass.h>
 #include <vklive/metal/metal_scene.h>
@@ -36,6 +37,11 @@ bool metal_shader_extension_supported(const fs::path& path)
     return path.extension() == ".vert" || path.extension() == ".frag";
 }
 
+bool metal_geometry_shader_extension(const fs::path& path)
+{
+    return path.extension() == ".geom";
+}
+
 bool metal_native_ray_extension_supported(const fs::path& path)
 {
     return path.extension() == ".metal";
@@ -44,6 +50,39 @@ bool metal_native_ray_extension_supported(const fs::path& path)
 bool metal_ray_shader_extension(const fs::path& path)
 {
     return path.extension() == ".rgen" || path.extension() == ".rmiss" || path.extension() == ".rchit";
+}
+
+bool metal_validate_standard_shader(Scene& scene, const Pass& pass, const fs::path& shaderPath)
+{
+    if (metal_shader_extension_supported(shaderPath))
+    {
+        return true;
+    }
+
+    if (metal_geometry_shader_extension(shaderPath))
+    {
+        const auto compatibility = metal::metal_geometry_classify(shaderPath);
+        if (compatibility == metal::MetalGeometryCompatibility::NormalLineVisualizer)
+        {
+            report_metal_scene_error(scene,
+                fmt::format("Metal pass '{}' geometry shader '{}' matches Metal's normal-line geometry compatibility pattern, but the Metal fallback renderer is not implemented yet.",
+                    pass.name,
+                    shaderPath.filename().string()),
+                shaderPath);
+        }
+        else
+        {
+            report_metal_scene_error(scene,
+                fmt::format("Metal pass '{}' does not support geometry shader '{}'. Metal does not support arbitrary geometry shaders; only recognized compatibility patterns can be considered.",
+                    pass.name,
+                    shaderPath.filename().string()),
+                shaderPath);
+        }
+        return false;
+    }
+
+    report_metal_scene_error(scene, fmt::format("Metal pass '{}' does not support shader stage '{}'. Only .vert and .frag shaders are accepted.", pass.name, shaderPath.filename().string()), shaderPath);
+    return false;
 }
 
 bool metal_validate_pass(Scene& scene, Pass& pass)
@@ -74,9 +113,8 @@ bool metal_validate_pass(Scene& scene, Pass& pass)
 
     for (auto& shaderPath : pass.shaders)
     {
-        if (!metal_shader_extension_supported(shaderPath))
+        if (!metal_validate_standard_shader(scene, pass, shaderPath))
         {
-            report_metal_scene_error(scene, fmt::format("Metal pass '{}' does not support shader stage '{}'. Only .vert and .frag shaders are accepted.", pass.name, shaderPath.filename().string()), shaderPath);
             valid = false;
         }
     }
@@ -107,9 +145,8 @@ bool metal_validate_pass(Scene& scene, Pass& pass)
 
         for (auto& [_, spShader] : spShaderGroup->shaders)
         {
-            if (spShader && !metal_shader_extension_supported(spShader->path))
+            if (spShader && !metal_validate_standard_shader(scene, pass, spShader->path))
             {
-                report_metal_scene_error(scene, fmt::format("Metal pass '{}' does not support shader stage '{}'. Only .vert and .frag shaders are accepted.", pass.name, spShader->path.filename().string()), spShader->path);
                 valid = false;
             }
         }
@@ -124,7 +161,7 @@ bool metal_validate_scene(Scene& scene)
 
     for (auto& [_, spShader] : scene.shaders)
     {
-        if (spShader && !metal_shader_extension_supported(spShader->path) && !metal_ray_shader_extension(spShader->path))
+        if (spShader && !metal_shader_extension_supported(spShader->path) && !metal_geometry_shader_extension(spShader->path) && !metal_ray_shader_extension(spShader->path))
         {
             report_metal_scene_error(scene, fmt::format("Metal does not support shader stage '{}'. Only .vert and .frag shaders are accepted.", spShader->path.filename().string()), spShader->path);
             valid = false;

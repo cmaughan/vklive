@@ -199,6 +199,7 @@ set(METAL_OBJCXX_SOURCES
     src/metal/imgui_impl_metal_1917.mm
     src/metal/metal_context.mm
     src/metal/metal_device.mm
+    src/metal/metal_geometry_compat.mm
     src/metal/metal_imgui.mm
     src/metal/metal_imgui_texture.mm
     src/metal/metal_model.mm
@@ -217,6 +218,7 @@ set(METAL_SOURCES
 
     include/vklive/metal/metal_context.h
     include/vklive/metal/metal_device.h
+    include/vklive/metal/metal_geometry_compat.h
     include/vklive/metal/metal_imgui.h
     include/vklive/metal/metal_imgui_texture.h
     include/vklive/metal/metal_model.h
@@ -452,6 +454,11 @@ if(VKLIVE_ENABLE_METAL)
     add_test(
         NAME vklive_metal_feedback_rejection_tests
         COMMAND vklive_metal_binding_tests ${CMAKE_CURRENT_LIST_DIR} feedback
+    )
+
+    add_test(
+        NAME vklive_metal_geometry_tests
+        COMMAND vklive_metal_binding_tests ${CMAKE_CURRENT_LIST_DIR} geometry
     )
 
     add_test(NAME vklive_render_parity_simple_metal

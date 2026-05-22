@@ -992,7 +992,7 @@ git commit -m "feat: enable Metal ImGui viewports"
 
 Direct `.rgen`/`.rmiss`/`.rchit` SPIR-V to native Metal ray functions is not supported by the current SPIRV-Cross MSL path. This task therefore builds the reusable acceleration-structure foundation and keeps ray passes rejected with a precise diagnostic instead of claiming false ray-tracing parity.
 
-- [ ] **Step 1: Add Metal acceleration-structure fields**
+- [x] **Step 1: Add Metal acceleration-structure fields**
 
 Add to `MetalModel`:
 
@@ -1004,11 +1004,11 @@ void* accelerationInstanceBuffer = nullptr;
 bool accelerationStructuresBuilt = false;
 ```
 
-- [ ] **Step 2: Build BLAS/TLAS for `buildAS` models**
+- [x] **Step 2: Build BLAS/TLAS for `buildAS` models**
 
 Create `metal_model_build_acceleration_structures(MetalContext& ctx, MetalScene& scene, MetalModel& model)` in `src/metal/metal_model_as.mm`. Use `MTLAccelerationStructureTriangleGeometryDescriptor` with the staged vertex and index buffers, then build a BLAS and one-instance identity TLAS with `MTLAccelerationStructureCommandEncoder`.
 
-- [ ] **Step 3: Gate support and report precise diagnostics**
+- [x] **Step 3: Gate support and report precise diagnostics**
 
 Guard the AS build with `@available(macOS 11.0, *)` and `[device supportsRaytracing]`. Unsupported macOS/device combinations must not crash or block ordinary raster rendering.
 
@@ -1018,7 +1018,7 @@ Keep `PassType::RayTracing` rejected in `metal_validate_pass`, but replace the g
 Metal can build acceleration structures for build_as models, but Vulkan ray shader stages (.rgen/.rmiss/.rchit) cannot be translated to Metal; native Metal ray shaders and dispatch are required.
 ```
 
-- [ ] **Step 4: Verify foundation and diagnostic**
+- [x] **Step 4: Verify foundation and diagnostic**
 
 Add:
 
@@ -1045,7 +1045,7 @@ cmake --build build --config Debug
 ctest --test-dir build --output-on-failure -R 'vklive_render_parity_metal_as_metal|vklive_render_parity_ray_tracer_metal_diagnostic'
 ```
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```sh
 git add include/vklive/metal/metal_model.h include/vklive/metal/metal_model_as.h src/metal/metal_model.mm src/metal/metal_model_as.mm src/metal/metal_scene.mm tests/content/render_parity/metal_as CMakeLists.txt docs/superpowers/plans/2026-05-21-metal-vulkan-parity.md
@@ -1067,11 +1067,11 @@ git commit -m "feat: add Metal acceleration structure foundation"
 - Test: `tests/render_parity_harness.cpp`
 - Modify: `CMakeLists.txt`
 
-- [ ] **Step 1: Choose the native Metal ray shader input**
+- [x] **Step 1: Choose the native Metal ray shader input**
 
 Do not depend on SPIRV-Cross to translate Vulkan ray shader stages. Either add explicit `.metal` ray shader support for ray passes or define a small VkLive-native ray shader input that can generate Metal ray functions intentionally.
 
-- [ ] **Step 2: Add ray shader compilation path**
+- [x] **Step 2: Add ray shader compilation path**
 
 Extend `MetalShaderStage` to include:
 
@@ -1086,7 +1086,7 @@ Callable
 
 For native Metal ray shaders, compile Metal functions into visible/intersection functions or compute kernels as required. If a project still uses Vulkan `.rgen`/`.rmiss`/`.rchit`, report a scene error naming the shader and the required rewrite path.
 
-- [ ] **Step 3: Add Metal ray dispatch**
+- [x] **Step 3: Add Metal ray dispatch**
 
 Create `metal_raytrace_draw(MetalContext& ctx, MetalPass& pass, const MetalPassTargets& targets)` that:
 
@@ -1095,7 +1095,7 @@ Create `metal_raytrace_draw(MetalContext& ctx, MetalPass& pass, const MetalPassT
 - Binds TLAS resources.
 - Dispatches ray work over `targets.size.x` by `targets.size.y`.
 
-- [ ] **Step 4: Route `PassType::RayTracing`**
+- [x] **Step 4: Route `PassType::RayTracing`**
 
 Permit `PassType::RayTracing` in `metal_validate_pass`. In `metal_pass_draw`, branch:
 
@@ -1109,7 +1109,7 @@ if (pass.pass.passType == PassType::RayTracing)
 }
 ```
 
-- [ ] **Step 5: Verify ray tracer sample**
+- [x] **Step 5: Verify ray tracer sample**
 
 Run:
 
@@ -1130,7 +1130,7 @@ add_test(NAME vklive_render_parity_ray_tracer_metal
 
 Expected: ray tracer scene produces a default color output on Metal.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```sh
 git add include/vklive/metal/metal_model_as.h src/metal/metal_model_as.mm include/vklive/metal/metal_raytrace.h src/metal/metal_raytrace.mm include/vklive/metal/metal_context.h include/vklive/metal/metal_model.h include/vklive/metal/metal_pass.h src/metal/metal_model.mm src/metal/metal_pass.mm src/metal/metal_shader.mm CMakeLists.txt
@@ -1145,61 +1145,67 @@ git commit -m "feat: add Metal ray tracing path"
 - Create: `include/vklive/metal/metal_geometry_compat.h`
 - Create: `src/metal/metal_geometry_compat.mm`
 - Modify: `src/metal/metal_scene.mm`
-- Modify: `src/metal/metal_pass.mm`
-- Modify: `src/metal/metal_shader.mm`
-- Test: `tests/render_parity_harness.cpp`
+- Test: `tests/metal_binding_tests.mm`
 - Modify: `CMakeLists.txt`
 
-- [ ] **Step 1: Classify geometry shader usage**
+- [x] **Step 1: Classify known geometry shader usage**
 
 Add a compatibility classifier:
 
 ```cpp
 enum class MetalGeometryCompatibility
 {
-    NotGeometry,
-    Passthrough,
-    ExpandLinesFromTriangles,
-    Unsupported
+    Unsupported,
+    NormalLineVisualizer
 };
 
+MetalGeometryCompatibility metal_geometry_classify_source(const std::string& source);
 MetalGeometryCompatibility metal_geometry_classify(const fs::path& shaderPath);
 ```
 
-Initial supported compatibility classes:
+The current slice recognizes the existing normal-line visualizer geometry shaders by deterministic GLSL tokens:
 
-- `Passthrough`: geometry shader emits the same triangle vertices it receives.
-- `ExpandLinesFromTriangles`: geometry shader emits line-list normals/debug primitives from triangle input.
+- `layout(triangles) in`
+- `layout(line_strip, max_vertices = 6) out`
+- `gl_in`
+- `EmitVertex`
+- `EndPrimitive`
 
-- [ ] **Step 2: Add compute or CPU expansion for supported classes**
+- [x] **Step 2: Report precise Metal diagnostics without renderer fallback**
 
-For `Passthrough`, omit the geometry stage and use vertex+fragment stages directly.
+Metal validation now permits `.geom` to reach pass-specific diagnostics instead of emitting a generic scene-level `.vert/.frag` rejection.
 
-For `ExpandLinesFromTriangles`, create an expanded Metal model buffer before drawing the pass:
+For recognized normal-line visualizer shaders, report:
 
-```cpp
-bool metal_geometry_expand_lines_from_triangles(MetalContext& ctx, MetalModel& source, MetalModel& expanded);
+```text
+Metal pass '<pass>' geometry shader '<shader>' matches Metal's normal-line geometry compatibility pattern, but the Metal fallback renderer is not implemented yet.
 ```
 
-The expansion reads indexed triangles from CPU model data, creates line vertices, stages a Metal vertex/index buffer, and draws with `MTLPrimitiveTypeLine`.
+For unsupported `.geom` shaders, report that Metal does not support arbitrary geometry shaders and only recognized compatibility patterns can be considered.
 
-- [ ] **Step 3: Route `.geom` pass setup**
+- [x] **Step 3: Add classifier and diagnostic tests**
 
-Permit `.geom` in Metal scene validation only when `metal_geometry_classify(shaderPath) != Unsupported`. In `metal_pass_get_shaders`, store the geometry compatibility mode on `MetalPass`.
+Add a `geometry` mode to `vklive_metal_binding_tests` that verifies:
 
-- [ ] **Step 4: Draw compatible geometry modes**
+- `run_tree/projects/default/geom.geom` is `NormalLineVisualizer`.
+- `run_tree/projects/shadertoy/protoplanetary_disc/geom.geom` is `NormalLineVisualizer`.
+- `tests/content/device_lost/geom.geom` is `NormalLineVisualizer`.
+- Arbitrary geometry shader source is `Unsupported`.
+- `tests/content/device_lost/default.scenegraph` rejects Metal scene creation before resource creation with the precise recognized-pattern-but-no-fallback diagnostic, without a duplicate generic `.vert/.frag` diagnostic.
 
-In `metal_pass_encode_draw`, choose primitive type:
+- [ ] **Step 4: Implement normal-line fallback renderer**
+
+This remains future work. Create a Metal-compatible equivalent for the normal-line visualizer:
 
 ```objc
-const auto primitiveType = pass.geometryCompatibility == MetalGeometryCompatibility::ExpandLinesFromTriangles
+const auto primitiveType = pass.geometryCompatibility == MetalGeometryCompatibility::NormalLineVisualizer
     ? MTLPrimitiveTypeLine
     : MTLPrimitiveTypeTriangle;
 ```
 
-Use expanded model buffers for line expansion passes.
+Likely implementation: create an expanded line vertex/index buffer from triangle CPU model data, preserve the required interpolants for the existing fragment shaders, store compatibility mode on `MetalPass`, and select the expanded buffers during draw.
 
-- [ ] **Step 5: Verify existing geometry samples**
+- [ ] **Step 5: Verify existing geometry samples after fallback renderer**
 
 Run:
 
@@ -1218,12 +1224,12 @@ add_test(NAME vklive_render_parity_protoplanetary_metal
         metal)
 ```
 
-Expected: supported geometry scenes run on Metal; unsupported `.geom` files produce one editor-visible diagnostic with the shader path and unsupported pattern.
+Expected after Step 4: supported geometry scenes run on Metal; unsupported `.geom` files produce one editor-visible diagnostic with the shader path and unsupported pattern.
 
-- [ ] **Step 6: Commit**
+- [ ] **Step 6: Commit fallback renderer**
 
 ```sh
-git add include/vklive/metal/metal_geometry_compat.h src/metal/metal_geometry_compat.mm src/metal/metal_scene.mm src/metal/metal_pass.mm src/metal/metal_shader.mm CMakeLists.txt
+git add include/vklive/metal/metal_geometry_compat.h src/metal/metal_geometry_compat.mm src/metal/metal_scene.mm src/metal/metal_pass.mm src/metal/metal_shader.mm tests/metal_binding_tests.mm CMakeLists.txt
 git commit -m "feat: add Metal geometry shader compatibility"
 ```
 

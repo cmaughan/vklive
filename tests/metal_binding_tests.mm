@@ -1,5 +1,6 @@
 #import <Metal/Metal.h>
 
+#include <array>
 #include <cstdlib>
 #include <fstream>
 #include <iostream>
@@ -9,6 +10,7 @@
 #include <zest/logger/logger.h>
 
 #include <vklive/metal/metal_context.h>
+#include <vklive/metal/metal_geometry_compat.h>
 #include <vklive/metal/metal_pass.h>
 #include <vklive/metal/metal_scene.h>
 #include <vklive/metal/metal_shader.h>
@@ -59,6 +61,82 @@ bool message_contains(const Message& message, const std::string& text)
 {
     return message.text.find(text) != std::string::npos;
 }
+
+bool run_geometry_tests(const fs::path& sourceRoot)
+{
+    bool ok = true;
+
+    const std::array<fs::path, 3> normalLineShaders = {
+        sourceRoot / "run_tree/projects/default/geom.geom",
+        sourceRoot / "run_tree/projects/shadertoy/protoplanetary_disc/geom.geom",
+        sourceRoot / "tests/content/device_lost/geom.geom",
+    };
+
+    for (const auto& shaderPath : normalLineShaders)
+    {
+        ok &= require(metal::metal_geometry_classify(shaderPath) == metal::MetalGeometryCompatibility::NormalLineVisualizer,
+            "normal-line geometry shader should be recognized: " + shaderPath.string());
+    }
+
+    ok &= require(metal::metal_geometry_classify_source(R"(#version 450
+layout(points) in;
+layout(triangle_strip, max_vertices = 3) out;
+void main()
+{
+    EmitVertex();
+    EndPrimitive();
+}
+)") == metal::MetalGeometryCompatibility::Unsupported,
+        "arbitrary geometry shader source should be unsupported");
+
+    ok &= require(metal::metal_geometry_classify_source(R"(#version 450
+layout(triangles) in;
+layout(line_strip, max_vertices = 6) out;
+layout(location = 0) in vec3 inNormal[];
+void main()
+{
+    // gl_in EmitVertex() EmitVertex() EndPrimitive()
+    /* gl_Position = gl_in[0].gl_Position + vec4(inNormal[0].xyz * 1.0, 0.0); */
+}
+)") == metal::MetalGeometryCompatibility::Unsupported,
+        "commented normal-line geometry tokens should be unsupported");
+
+    validation_clear_error_state();
+    auto scene = scene_build(sourceRoot / "tests/content/device_lost");
+    ok &= require(scene != nullptr, "device_lost scene should parse");
+    ok &= require(scene && scene->valid, "device_lost scene should be valid before Metal validation");
+
+    if (scene)
+    {
+        metal::MetalContext ctx;
+        auto metalScene = metal::metal_scene_create(ctx, *scene);
+        ok &= require(metalScene == nullptr, "recognized geometry shader should reject Metal scene until fallback renderer exists");
+        ok &= require(!scene->errors.empty(), "recognized geometry shader should report a Metal scene error");
+
+        bool foundGeometryDiagnostic = false;
+        bool foundGenericGeometryDiagnostic = false;
+        for (const auto& error : scene->errors)
+        {
+            if (message_contains(error, "matches Metal's normal-line geometry compatibility pattern")
+                && message_contains(error, "Metal fallback renderer is not implemented yet")
+                && error.path.filename() == "geom.geom")
+            {
+                foundGeometryDiagnostic = true;
+            }
+
+            if (error.path.filename() == "geom.geom"
+                && message_contains(error, "Only .vert and .frag shaders are accepted"))
+            {
+                foundGenericGeometryDiagnostic = true;
+            }
+        }
+
+        ok &= require(foundGeometryDiagnostic, "recognized geometry shader should report the precise no-fallback diagnostic");
+        ok &= require(!foundGenericGeometryDiagnostic, "recognized geometry shader should not also report the generic shader-stage diagnostic");
+    }
+
+    return ok;
+}
 }
 
 int main(int argc, char** argv)
@@ -67,19 +145,27 @@ int main(int argc, char** argv)
     {
         if (argc != 2 && argc != 3)
         {
-            std::cerr << "usage: vklive_metal_binding_tests <source-root> [feedback]\n";
+            std::cerr << "usage: vklive_metal_binding_tests <source-root> [feedback|geometry]\n";
             return EXIT_FAILURE;
         }
 
         const fs::path sourceRoot = argv[1];
         const bool feedbackOnly = argc == 3 && std::string(argv[2]) == "feedback";
-        if (argc == 3 && !feedbackOnly)
+        const bool geometryOnly = argc == 3 && std::string(argv[2]) == "geometry";
+        if (argc == 3 && !feedbackOnly && !geometryOnly)
         {
             std::cerr << "unknown vklive_metal_binding_tests mode: " << argv[2] << "\n";
             return EXIT_FAILURE;
         }
 
         Zest::runtree_init(sourceRoot.string().c_str(), sourceRoot.string().c_str());
+
+        if (geometryOnly)
+        {
+            const bool ok = run_geometry_tests(sourceRoot);
+            Zest::runtree_destroy();
+            return ok ? EXIT_SUCCESS : EXIT_FAILURE;
+        }
 
         auto device = MTLCreateSystemDefaultDevice();
         if (!device)
