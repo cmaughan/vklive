@@ -205,6 +205,16 @@ void main()
 }
 )");
 
+        const fs::path vertexShaderPath = shaderDir / "vertex_flip.vert";
+        ok &= write_shader(vertexShaderPath, R"(#version 450
+layout(location = 0) in vec4 inPos;
+
+void main()
+{
+    gl_Position = inPos;
+}
+)");
+
         metal::MetalContext ctx;
         ctx.device = (__bridge void*)device;
 
@@ -295,6 +305,16 @@ void main()
             }
 
             metal::metal_shader_destroy(ctx, *arrayShader);
+        }
+
+        Shader vertexShader(vertexShaderPath);
+        auto vertexShaderMsl = create_shader(ctx, metalScene, vertexShader);
+        ok &= require(vertexShaderMsl != nullptr, "vertex shader should compile for Metal");
+        if (vertexShaderMsl)
+        {
+            ok &= require(vertexShaderMsl->mslSource.find("gl_Position.y = -(out.gl_Position.y)") != std::string::npos,
+                "Metal vertex MSL should flip gl_Position.y to match Vulkan viewport orientation");
+            metal::metal_shader_destroy(ctx, *vertexShaderMsl);
         }
 
         validation_clear_error_state();

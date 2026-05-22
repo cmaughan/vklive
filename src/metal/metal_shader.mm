@@ -370,6 +370,11 @@ bool translate_spirv_to_msl(metal::MetalScene& scene, metal::MetalShader& shader
         options.argument_buffers_tier = spirv_cross::CompilerMSL::Options::ArgumentBuffersTier::Tier2;
         compiler.set_msl_options(options);
 
+        // VkLive shaders are authored for Vulkan viewport orientation; flip MSL vertex output to keep Metal renders upright.
+        auto commonOptions = compiler.get_common_options();
+        commonOptions.vertex.flip_vert_y = true;
+        compiler.set_common_options(commonOptions);
+
         shader.entryPointName = "main0";
         auto executionModel = execution_model_from_stage(shader.stage);
         compiler.rename_entry_point("main", shader.entryPointName, executionModel);
