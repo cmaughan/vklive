@@ -15,7 +15,7 @@ int main(int argc, char** argv)
 {
     if (argc < 3)
     {
-        std::cerr << "usage: render_parity_harness <Rezonality> <project> [renderer] [expected-exit-code] [expected-output-substring] [--record-one-frame] [--viewports]\n";
+        std::cerr << "usage: render_parity_harness <Rezonality> <project> [renderer] [expected-exit-code] [expected-output-substring] [--record-one-frame] [--viewports] [--allow-metal-raytracing-unsupported]\n";
         return EXIT_FAILURE;
     }
 
@@ -46,6 +46,7 @@ int main(int argc, char** argv)
 
     bool recordOneFrame = false;
     bool viewports = false;
+    bool allowMetalRaytracingUnsupported = false;
     for (int i = argIndex; i < argc; ++i)
     {
         if (std::string(argv[i]) == "--record-one-frame")
@@ -56,6 +57,11 @@ int main(int argc, char** argv)
         if (std::string(argv[i]) == "--viewports")
         {
             viewports = true;
+            continue;
+        }
+        if (std::string(argv[i]) == "--allow-metal-raytracing-unsupported")
+        {
+            allowMetalRaytracingUnsupported = true;
             continue;
         }
 
@@ -149,6 +155,11 @@ int main(int argc, char** argv)
     }
     if (status != expectedStatus)
     {
+        if (allowMetalRaytracingUnsupported && output.find("Metal ray tracing is unsupported") != std::string::npos)
+        {
+            std::cout << "render parity skipped native Metal ray tracing on unsupported device\n";
+            return EXIT_SUCCESS;
+        }
         std::cerr << output;
         std::cerr << "render parity app exited with status: " << status << " (expected " << expectedStatus << ")\n";
         return EXIT_FAILURE;

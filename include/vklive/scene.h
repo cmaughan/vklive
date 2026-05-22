@@ -188,6 +188,7 @@ struct Pass
     std::string depth;
     std::vector<fs::path> models;
     std::vector<fs::path> shaders;
+    fs::path metalRayKernel;
     std::vector<std::string> cameras;
     std::vector<std::shared_ptr<ShaderGroup>> shaderGroups;
 
@@ -273,4 +274,3 @@ bool scene_is_shader(const fs::path& path);
 bool scene_is_edit_file(const fs::path& path);
 bool scene_is_header(const fs::path& path);
 bool scene_is_scenegraph(const fs::path& path);
-

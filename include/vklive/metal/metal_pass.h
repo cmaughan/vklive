@@ -37,6 +37,7 @@ struct MetalPass
     Pass& pass;
 
     void* renderPipelineState = nullptr;
+    void* computePipelineState = nullptr;
     void* depthStencilState = nullptr;
     void* uniformBuffer = nullptr;
 

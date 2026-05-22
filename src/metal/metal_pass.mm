@@ -574,6 +574,7 @@ bool metal_pass_prepare_samplers(metal::MetalContext& ctx, metal::MetalPass& pas
 void metal_pass_reset_pipeline(metal::MetalPass& pass)
 {
     release_obj(pass.renderPipelineState);
+    release_obj(pass.computePipelineState);
     release_obj(pass.depthStencilState);
     pass.colorPixelFormats.clear();
     pass.depthPixelFormat = 0;
@@ -665,6 +666,98 @@ bool metal_pass_ensure_pipeline(metal::MetalContext& ctx, metal::MetalPass& pass
     pass.colorPixelFormats = colorPixelFormats;
     pass.depthPixelFormat = depthPixelFormat;
     return true;
+}
+
+metal::MetalShader* metal_pass_get_ray_shader(metal::MetalPass& pass)
+{
+    if (pass.pass.metalRayKernel.empty())
+    {
+        report_pass_error(pass, fmt::format("Metal pass '{}' is a ray tracing pass but has no native Metal ray kernel.", pass.pass.name));
+        return nullptr;
+    }
+
+    auto itrShader = pass.metalScene.shaderStages.find(pass.pass.metalRayKernel);
+    if (itrShader == pass.metalScene.shaderStages.end() || !itrShader->second)
+    {
+        report_pass_error(pass, fmt::format("Metal pass '{}' is missing compiled native ray kernel '{}'.", pass.pass.name, pass.pass.metalRayKernel.filename().string()), pass.pass.metalRayKernel);
+        return nullptr;
+    }
+
+    auto& shader = *itrShader->second;
+    if (shader.stage != metal::MetalShaderStage::RayCompute || !shader.function)
+    {
+        report_pass_error(pass, fmt::format("Metal pass '{}' native ray kernel '{}' did not compile to a compute function.", pass.pass.name, pass.pass.metalRayKernel.filename().string()), pass.pass.metalRayKernel);
+        return nullptr;
+    }
+    return &shader;
+}
+
+bool metal_pass_ensure_ray_pipeline(metal::MetalContext& ctx, metal::MetalPass& pass, const metal::MetalShader& shader)
+{
+    if (pass.computePipelineState)
+    {
+        return true;
+    }
+
+    auto device = bridge<id<MTLDevice>>(ctx.device);
+    if (!device)
+    {
+        report_pass_error(pass, fmt::format("Metal pass '{}' cannot create a compute pipeline because the Metal device is unavailable.", pass.pass.name));
+        return false;
+    }
+
+    NSError* error = nil;
+    id<MTLComputePipelineState> pipelineState = [device newComputePipelineStateWithFunction:bridge<id<MTLFunction>>(shader.function) error:&error];
+    if (!pipelineState)
+    {
+        report_pass_error(pass, fmt::format("Metal pass '{}' could not create native ray compute pipeline: {}", pass.pass.name, ns_string([error localizedDescription])), shader.path);
+        return false;
+    }
+
+    retain_obj(pass.computePipelineState, pipelineState);
+    return true;
+}
+
+metal::MetalModel* metal_pass_find_ray_model(metal::MetalPass& pass)
+{
+    for (const auto& modelPath : pass.pass.models)
+    {
+        auto itrModel = pass.metalScene.models.find(modelPath);
+        if (itrModel == pass.metalScene.models.end() || !itrModel->second)
+        {
+            continue;
+        }
+
+        auto& model = *itrModel->second;
+        if (model.accelerationStructuresBuilt && model.topLevelAccelerationStructure)
+        {
+            return &model;
+        }
+    }
+    return nullptr;
+}
+
+bool metal_pass_ray_tracing_supported(metal::MetalContext& ctx, metal::MetalPass& pass)
+{
+    auto device = bridge<id<MTLDevice>>(ctx.device);
+    if (!device)
+    {
+        report_pass_error(pass, fmt::format("Metal pass '{}' cannot dispatch ray tracing because the Metal device is unavailable.", pass.pass.name));
+        return false;
+    }
+
+    if (@available(macOS 11.0, *))
+    {
+        if (![device supportsRaytracing])
+        {
+            report_pass_error(pass, fmt::format("Metal ray tracing is unsupported on this macOS/Metal device; pass '{}' requires a device where supportsRaytracing is true.", pass.pass.name));
+            return false;
+        }
+        return true;
+    }
+
+    report_pass_error(pass, fmt::format("Metal ray tracing is unsupported on this macOS version; pass '{}' requires macOS 11.0 or newer with Metal ray tracing support.", pass.pass.name));
+    return false;
 }
 
 struct MetalPassChannel
@@ -1223,6 +1316,118 @@ bool metal_pass_encode_draw(metal::MetalContext& ctx, metal::MetalPass& pass, co
     return true;
 }
 
+bool metal_pass_encode_ray_trace(metal::MetalContext& ctx, metal::MetalPass& pass, const metal::MetalShader& shader, const metal::MetalPassTargets& targets)
+{
+    if (!metal_pass_ray_tracing_supported(ctx, pass))
+    {
+        return false;
+    }
+
+    auto* model = metal_pass_find_ray_model(pass);
+    if (!model)
+    {
+        report_pass_error(pass, fmt::format("Metal pass '{}' requires at least one model with built Metal acceleration structures.", pass.pass.name));
+        return false;
+    }
+
+    if (targets.colors.empty() || !targets.colors.front() || !targets.colors.front()->texture)
+    {
+        report_pass_error(pass, fmt::format("Metal pass '{}' requires a writable color target for native ray tracing.", pass.pass.name));
+        return false;
+    }
+
+    auto commandQueue = bridge<id<MTLCommandQueue>>(ctx.commandQueue);
+    if (!commandQueue)
+    {
+        report_pass_error(pass, fmt::format("Metal pass '{}' cannot dispatch ray tracing because the command queue is unavailable.", pass.pass.name));
+        return false;
+    }
+
+    auto pipelineState = bridge<id<MTLComputePipelineState>>(pass.computePipelineState);
+    auto outputTexture = bridge<id<MTLTexture>>(targets.colors.front()->texture);
+    auto uniformBuffer = bridge<id<MTLBuffer>>(pass.uniformBuffer);
+    auto vertexBuffer = bridge<id<MTLBuffer>>(model->vertexBuffer);
+    auto indexBuffer = bridge<id<MTLBuffer>>(model->indexBuffer);
+    if (!pipelineState || !outputTexture || !uniformBuffer || !vertexBuffer || !indexBuffer)
+    {
+        report_pass_error(pass, fmt::format("Metal pass '{}' cannot dispatch ray tracing because required pipeline, target, uniform, vertex, or index resources are missing.", pass.pass.name));
+        return false;
+    }
+
+    id<MTLCommandBuffer> commandBuffer = [commandQueue commandBuffer];
+    if (!commandBuffer)
+    {
+        report_pass_error(pass, fmt::format("Metal pass '{}' could not allocate a ray tracing command buffer.", pass.pass.name));
+        return false;
+    }
+    commandBuffer.label = ns_string(fmt::format("MetalPass:{}:RayTrace", pass.pass.name));
+
+    id<MTLComputeCommandEncoder> encoder = [commandBuffer computeCommandEncoder];
+    if (!encoder)
+    {
+        report_pass_error(pass, fmt::format("Metal pass '{}' could not create a ray tracing compute encoder.", pass.pass.name));
+        return false;
+    }
+    encoder.label = ns_string(fmt::format("MetalPass:{}:RayTraceEncoder", pass.pass.name));
+
+    [encoder setComputePipelineState:pipelineState];
+    [encoder setTexture:outputTexture atIndex:0];
+    [encoder setBuffer:uniformBuffer offset:0 atIndex:1];
+    [encoder setBuffer:vertexBuffer offset:0 atIndex:2];
+    [encoder setBuffer:indexBuffer offset:0 atIndex:3];
+    [encoder useResource:outputTexture usage:MTLResourceUsageWrite];
+    [encoder useResource:uniformBuffer usage:MTLResourceUsageRead];
+    [encoder useResource:vertexBuffer usage:MTLResourceUsageRead];
+    [encoder useResource:indexBuffer usage:MTLResourceUsageRead];
+
+    if (@available(macOS 11.0, *))
+    {
+        auto tlas = bridge<id<MTLAccelerationStructure>>(model->topLevelAccelerationStructure);
+        auto blas = bridge<id<MTLAccelerationStructure>>(model->bottomLevelAccelerationStructure);
+        if (!tlas)
+        {
+            [encoder endEncoding];
+            report_pass_error(pass, fmt::format("Metal pass '{}' model '{}' has no top-level acceleration structure.", pass.pass.name, model->debugName));
+            return false;
+        }
+        [encoder setAccelerationStructure:tlas atBufferIndex:0];
+        [encoder useResource:(id<MTLResource>)tlas usage:MTLResourceUsageRead];
+        if (blas)
+        {
+            [encoder useResource:(id<MTLResource>)blas usage:MTLResourceUsageRead];
+        }
+    }
+    else
+    {
+        [encoder endEncoding];
+        report_pass_error(pass, fmt::format("Metal ray tracing is unsupported on this macOS version; pass '{}' requires macOS 11.0 or newer with Metal ray tracing support.", pass.pass.name));
+        return false;
+    }
+
+    const MTLSize gridSize = MTLSizeMake(targets.size.x, targets.size.y, 1);
+    const MTLSize threadsPerThreadgroup = MTLSizeMake(8, 8, 1);
+    [encoder dispatchThreads:gridSize threadsPerThreadgroup:threadsPerThreadgroup];
+    [encoder endEncoding];
+    [commandBuffer commit];
+    [commandBuffer waitUntilCompleted];
+
+    if (commandBuffer.status == MTLCommandBufferStatusError)
+    {
+        report_pass_error(pass, fmt::format("Metal pass '{}' ray tracing command buffer failed: {}", pass.pass.name, ns_string([commandBuffer.error localizedDescription])));
+        return false;
+    }
+
+    for (auto* color : targets.colors)
+    {
+        if (color && color->pSurface)
+        {
+            color->pSurface->rendered = true;
+        }
+    }
+
+    return true;
+}
+
 bool metal_pass_supported(metal::MetalPass& pass)
 {
     if (pass.pass.passType == PassType::Scripted)
@@ -1230,9 +1435,14 @@ bool metal_pass_supported(metal::MetalPass& pass)
         return true;
     }
 
+    if (pass.pass.passType == PassType::RayTracing)
+    {
+        return true;
+    }
+
     if (pass.pass.passType != PassType::Standard)
     {
-        report_pass_error(pass, fmt::format("Metal pass '{}' has unsupported pass type. Metal rendering supports standard raster and scripted passes.", pass.pass.name));
+        report_pass_error(pass, fmt::format("Metal pass '{}' has unsupported pass type. Metal rendering supports standard raster, native ray tracing, and scripted passes.", pass.pass.name));
         pass.reportedUnsupportedFeatures = true;
         return false;
     }
@@ -1301,6 +1511,25 @@ bool metal_pass_draw(MetalContext& ctx, MetalPass& pass, const glm::uvec2& rende
                 }
             }
         }
+
+        validation_set_shaders({});
+        return ok && !validation_get_error_state() && pass.pass.scene.valid;
+    }
+
+    if (pass.pass.passType == PassType::RayTracing)
+    {
+        MetalPassTargets targets;
+        metal::MetalShader* rayShader = nullptr;
+        const bool ok = metal_pass_prepare_targets(ctx, pass, renderSize, targets) &&
+            metal_pass_prepare_samplers(ctx, pass) &&
+            metal_pass_update_uniforms(ctx, pass, targets) &&
+            metal_pass_ray_tracing_supported(ctx, pass) &&
+            ([&]() {
+                rayShader = metal_pass_get_ray_shader(pass);
+                return rayShader != nullptr;
+            })() &&
+            metal_pass_ensure_ray_pipeline(ctx, pass, *rayShader) &&
+            metal_pass_encode_ray_trace(ctx, pass, *rayShader, targets);
 
         validation_set_shaders({});
         return ok && !validation_get_error_state() && pass.pass.scene.valid;

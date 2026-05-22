@@ -67,6 +67,16 @@ metal::MetalShaderStage stage_from_path(const fs::path& path)
     return path.extension() == ".frag" ? metal::MetalShaderStage::Fragment : metal::MetalShaderStage::Vertex;
 }
 
+const fs::path& shader_path(const metal::MetalShader& shader)
+{
+    if (!shader.path.empty())
+    {
+        return shader.path;
+    }
+    static const fs::path emptyPath;
+    return shader.pShader ? shader.pShader->path : emptyPath;
+}
+
 spv::ExecutionModel execution_model_from_stage(metal::MetalShaderStage stage)
 {
     switch (stage)
@@ -75,6 +85,7 @@ spv::ExecutionModel execution_model_from_stage(metal::MetalShaderStage stage)
         return spv::ExecutionModelVertex;
     case metal::MetalShaderStage::Fragment:
         return spv::ExecutionModelFragment;
+    case metal::MetalShaderStage::RayCompute:
     default:
         return spv::ExecutionModelMax;
     }
@@ -381,10 +392,11 @@ bool translate_spirv_to_msl(metal::MetalScene& scene, metal::MetalShader& shader
 
 bool compile_msl_library(metal::MetalContext& ctx, metal::MetalScene& scene, metal::MetalShader& shader)
 {
+    const auto& path = shader_path(shader);
     auto device = bridge<id<MTLDevice>>(ctx.device);
     if (!device)
     {
-        report_shader_error(scene, "Could not compile Metal shader: Metal device is not available.", shader.pShader->path);
+        report_shader_error(scene, "Could not compile Metal shader: Metal device is not available.", path);
         return false;
     }
 
@@ -394,7 +406,7 @@ bool compile_msl_library(metal::MetalContext& ctx, metal::MetalScene& scene, met
     id<MTLLibrary> library = [device newLibraryWithSource:source options:options error:&error];
     if (!library)
     {
-        report_shader_error(scene, fmt::format("Could not compile Metal shader '{}': {}", shader.pShader->path.filename().string(), ns_string([error localizedDescription])), shader.pShader->path);
+        report_shader_error(scene, fmt::format("Could not compile Metal shader '{}': {}", path.filename().string(), ns_string([error localizedDescription])), path);
         return false;
     }
 
@@ -402,13 +414,44 @@ bool compile_msl_library(metal::MetalContext& ctx, metal::MetalScene& scene, met
     id<MTLFunction> function = [library newFunctionWithName:functionName];
     if (!function)
     {
-        report_shader_error(scene, fmt::format("Could not create Metal shader function '{}' for shader '{}'.", shader.entryPointName, shader.pShader->path.filename().string()), shader.pShader->path);
+        report_shader_error(scene, fmt::format("Could not create Metal shader function '{}' for shader '{}'.", shader.entryPointName, path.filename().string()), path);
         return false;
     }
 
     retain_obj(shader.library, library);
     retain_obj(shader.function, function);
     return true;
+}
+
+std::shared_ptr<metal::MetalShader> create_native_metal_shader(metal::MetalContext& ctx, metal::MetalScene& scene, const fs::path& path, metal::MetalShaderStage stage, const std::string& entryPointName)
+{
+    if (!fs::exists(path))
+    {
+        report_shader_error(scene, fmt::format("Native Metal shader missing: {}", path.filename().string()), path);
+        return nullptr;
+    }
+
+    auto source = Zest::file_read(path);
+    if (source.empty())
+    {
+        report_shader_error(scene, fmt::format("Could not read native Metal shader: {}", path.filename().string()), path);
+        return nullptr;
+    }
+
+    auto spShader = std::make_shared<metal::MetalShader>(nullptr);
+    spShader->path = path;
+    spShader->stage = stage;
+    spShader->entryPointName = entryPointName;
+    spShader->mslSource = source;
+
+    if (!compile_msl_library(ctx, scene, *spShader))
+    {
+        metal::metal_shader_destroy(ctx, *spShader);
+        return nullptr;
+    }
+
+    scene.shaderStages[path] = spShader;
+    return spShader;
 }
 
 } // namespace
@@ -425,6 +468,7 @@ std::shared_ptr<MetalShader> metal_shader_create(MetalContext& ctx, MetalScene& 
     }
 
     auto spShader = std::make_shared<MetalShader>(&shader);
+    spShader->path = shader.path;
     spShader->stage = stage_from_path(shader.path);
 
     auto outPath = fs::temp_directory_path() / "vklive";
@@ -462,6 +506,11 @@ std::shared_ptr<MetalShader> metal_shader_create(MetalContext& ctx, MetalScene& 
 
     scene.shaderStages[shader.path] = spShader;
     return spShader;
+}
+
+std::shared_ptr<MetalShader> metal_shader_create_native_ray(MetalContext& ctx, MetalScene& scene, const fs::path& path)
+{
+    return create_native_metal_shader(ctx, scene, path, MetalShaderStage::RayCompute, "vklive_ray_trace");
 }
 
 void metal_shader_destroy(MetalContext& ctx, MetalShader& shader)

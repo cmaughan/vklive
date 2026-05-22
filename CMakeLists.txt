@@ -434,6 +434,11 @@ add_test(
 )
 
 add_test(
+    NAME vklive_scene_tests_ray_metal_kernel
+    COMMAND vklive_scene_tests ${CMAKE_CURRENT_LIST_DIR}/run_tree/projects/ray_tracer default.scenegraph ray_metal
+)
+
+add_test(
     NAME vklive_app_command_line_tests
     COMMAND vklive_app_command_line_tests
 )
@@ -512,13 +517,15 @@ if(VKLIVE_ENABLE_METAL)
             ${CMAKE_SOURCE_DIR}/tests/content/render_parity/metal_as
             metal)
 
-    add_test(NAME vklive_render_parity_ray_tracer_metal_diagnostic
+    add_test(NAME vklive_render_parity_ray_tracer_metal
         COMMAND vklive_render_parity_harness
             $<TARGET_FILE:Rezonality>
             ${CMAKE_SOURCE_DIR}/run_tree/projects/ray_tracer
             metal
-            3
-            "Metal can build acceleration structures for build_as models, but Vulkan ray shader stages (.rgen/.rmiss/.rchit) cannot be translated to Metal; native Metal ray shaders and dispatch are required.")
+            0
+            ""
+            --record-one-frame
+            --allow-metal-raytracing-unsupported)
 
 endif()
 

@@ -68,6 +68,7 @@ extern "C" {
 #define T_RAY_CLOSEST_HIT "closest_hit"
 #define T_RAY_INTERSECTION "intersection"
 #define T_RAY_CALLABLE "callable"
+#define T_METAL_RAY "metal_ray"
 
 #include <moodycamel/concurrentqueue.h>
 
@@ -184,6 +185,7 @@ void scene_init_parser()
     ADD_PARSER(closest_hit, T_RAY_CLOSEST_HIT);
     ADD_PARSER(intersection, T_RAY_INTERSECTION);
     ADD_PARSER(callable, T_RAY_CALLABLE);
+    ADD_PARSER(metal_ray, T_METAL_RAY);
 
     ADD_PARSER(path_id, T_PATH);
     ADD_PARSER(build_as, T_BUILD_AS);
@@ -242,6 +244,7 @@ callable         : "callable" ':' <path_name> ;
 closest_hit      : "closest_hit" ':' <path_name> ;
 any_hit          : "any_hit" ':' <path_name> ;
 intersection     : "intersection" ':' <path_name> ;
+metal_ray        : "metal_ray" ':' <path_name> ;
 post_2d          : "post_2d" ':' <path_name> ;
 surface          : "surface" ':' <ident> '{' (<comment> | <path> | <clear> | <format> | <scale> | <size>)* '}';
 environment      : "environment" ':' <ident> '{' (<comment> | <path> | <format> | <scale> | <size>)* '}';
@@ -251,13 +254,13 @@ camera           : "camera" ':' <ident> '{' (<comment> | <position> | <look_at> 
 ray_group_general : "ray_group_general" ':' <ident> '{' (<ray_gen> | <miss> | <callable>) '}';
 ray_group_triangles : "ray_group_triangles" ':' <ident> '{' (<closest_hit> | <any_hit>)* '}';
 ray_group_procedural : "ray_group_procedural" ':' <ident> '{' <intersection> (<closest_hit> | <any_hit>)* '}';
-geometry         : "geometry" ':' <ident> '{' (<path> | <model_ref> | <scale> | <build_as> | <uv_origin> | <flip_uv_y> | <ray_group_general> | <ray_group_triangles> | <ray_group_procedural> | <vs> | <fs> | <gs> | <comment>)* '}';
+geometry         : "geometry" ':' <ident> '{' (<path> | <model_ref> | <scale> | <build_as> | <uv_origin> | <flip_uv_y> | <metal_ray> | <ray_group_general> | <ray_group_triangles> | <ray_group_procedural> | <vs> | <fs> | <gs> | <comment>)* '}';
 disable          : '!' ;
 pass             : <disable>? "pass" ':' <ident> '{' (<script> | <entry> | <geometry> | <targets> | <samplers> | <camera_id> | <comment> | <clear>)* '}'; 
 scenegraph       : /^/ (<comment> | <surface> | <environment> | <model> | <camera>)* (<comment> | <pass> )* <post_2d>? /$/ ;
     )",
         path_name, path_id, comment, ident, bool_id, flt, vector, ident_array, build_as, flip_uv_y, uv_origin, scale, size, clear, format,
-        samplers, targets, vs, gs, fs, script, entry, surface, environment, model_ref, model, camera, camera_id, position, look_at, field_of_view, near_far, post_2d, geometry, disable, pass, ray_group_general, ray_group_triangles, ray_group_procedural, ray_gen, miss, any_hit, closest_hit, intersection, callable, parser.pSceneGraph, nullptr);
+        samplers, targets, vs, gs, fs, script, entry, surface, environment, model_ref, model, camera, camera_id, position, look_at, field_of_view, near_far, post_2d, geometry, disable, pass, ray_group_general, ray_group_triangles, ray_group_procedural, ray_gen, miss, any_hit, closest_hit, intersection, callable, metal_ray, parser.pSceneGraph, nullptr);
 }
 
 void scene_destroy_parser()
@@ -927,7 +930,21 @@ std::shared_ptr<Scene> scene_build(const fs::path& root, const fs::path& sceneGr
                         }
                     }
 
-                    if (spPass->shaders.empty())
+                    auto metalRayEntries = childrenOf(pGeometryNode, T_METAL_RAY);
+                    for (auto& pMetalRayEntry : metalRayEntries)
+                    {
+                        setPassType(PassType::RayTracing, pGeometryNode->state.row);
+                        auto pPathNode = getChild(pMetalRayEntry, T_PATH_NAME);
+                        auto metalRayPath = root / pPathNode->contents;
+                        if (!fs::exists(metalRayPath))
+                        {
+                            AddMessage(*spScene, std::string("Metal ray shader missing: " + metalRayPath.filename().string()), MessageSeverity::Error, pPathNode->state.row, pPathNode->state.col);
+                            continue;
+                        }
+                        spPass->metalRayKernel = metalRayPath;
+                    }
+
+                    if (spPass->shaders.empty() && spPass->metalRayKernel.empty())
                     {
                         AddMessage(*spScene, fmt::format("No shaders in geometry: {}", pGeomNameNode->contents), MessageSeverity::Error, pGeomNameNode->state.row);
                         continue;
@@ -1242,7 +1259,7 @@ bool scene_is_shader(const fs::path& f)
         return true;
     }
 
-    if (f.extension() == ".vert" || f.extension() == ".frag" || f.extension() == ".geom")
+    if (f.extension() == ".vert" || f.extension() == ".frag" || f.extension() == ".geom" || f.extension() == ".metal")
     {
         return true;
     }

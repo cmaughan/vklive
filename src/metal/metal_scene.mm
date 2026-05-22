@@ -36,6 +36,11 @@ bool metal_shader_extension_supported(const fs::path& path)
     return path.extension() == ".vert" || path.extension() == ".frag";
 }
 
+bool metal_native_ray_extension_supported(const fs::path& path)
+{
+    return path.extension() == ".metal";
+}
+
 bool metal_ray_shader_extension(const fs::path& path)
 {
     return path.extension() == ".rgen" || path.extension() == ".rmiss" || path.extension() == ".rchit";
@@ -47,10 +52,24 @@ bool metal_validate_pass(Scene& scene, Pass& pass)
 
     if (pass.passType == PassType::RayTracing)
     {
-        report_metal_scene_error(scene,
-            fmt::format("Metal pass '{}' is a ray tracing pass. Metal can build acceleration structures for build_as models, but Vulkan ray shader stages (.rgen/.rmiss/.rchit) cannot be translated to Metal; native Metal ray shaders and dispatch are required.",
-                pass.name));
-        return false;
+        if (pass.metalRayKernel.empty())
+        {
+            report_metal_scene_error(scene,
+                fmt::format("Metal pass '{}' is a ray tracing pass. Metal can build acceleration structures for build_as models, but Vulkan ray shader stages (.rgen/.rmiss/.rchit) cannot be translated to Metal; native Metal ray shaders and dispatch are required.",
+                    pass.name));
+            return false;
+        }
+        if (!metal_native_ray_extension_supported(pass.metalRayKernel))
+        {
+            report_metal_scene_error(scene, fmt::format("Metal pass '{}' native ray kernel '{}' must use a .metal source file.", pass.name, pass.metalRayKernel.filename().string()), pass.metalRayKernel);
+            return false;
+        }
+        if (!fs::exists(pass.metalRayKernel))
+        {
+            report_metal_scene_error(scene, fmt::format("Metal pass '{}' native ray kernel '{}' is missing.", pass.name, pass.metalRayKernel.filename().string()), pass.metalRayKernel);
+            return false;
+        }
+        return true;
     }
 
     for (auto& shaderPath : pass.shaders)
@@ -196,7 +215,31 @@ std::shared_ptr<MetalScene> metal_scene_create(MetalContext& ctx, Scene& scene)
 
     for (auto& [_, pShader] : scene.shaders)
     {
+        if (pShader && metal_ray_shader_extension(pShader->path))
+        {
+            continue;
+        }
+
         if (pShader && !metal_shader_create(ctx, *spMetalScene, *pShader))
+        {
+            metal_scene_destroy_resources(ctx, *spMetalScene);
+            return nullptr;
+        }
+    }
+
+    for (auto& spPass : scene.passes)
+    {
+        if (!spPass || spPass->metalRayKernel.empty())
+        {
+            continue;
+        }
+
+        if (spMetalScene->shaderStages.find(spPass->metalRayKernel) != spMetalScene->shaderStages.end())
+        {
+            continue;
+        }
+
+        if (!metal_shader_create_native_ray(ctx, *spMetalScene, spPass->metalRayKernel))
         {
             metal_scene_destroy_resources(ctx, *spMetalScene);
             return nullptr;

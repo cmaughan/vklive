@@ -20,6 +20,7 @@ enum class MetalShaderStage
 {
     Vertex,
     Fragment,
+    RayCompute,
 };
 
 struct MetalShaderResourceBinding
@@ -37,10 +38,12 @@ struct MetalShader
 {
     explicit MetalShader(Shader* pS)
         : pShader(pS)
+        , path(pS ? pS->path : fs::path())
     {
     }
 
     Shader* pShader = nullptr;
+    fs::path path;
     MetalShaderStage stage = MetalShaderStage::Vertex;
     ShaderBindingSets bindingSets;
     std::string mslSource;
@@ -53,6 +56,7 @@ struct MetalShader
 };
 
 std::shared_ptr<MetalShader> metal_shader_create(MetalContext& ctx, MetalScene& scene, Shader& shader);
+std::shared_ptr<MetalShader> metal_shader_create_native_ray(MetalContext& ctx, MetalScene& scene, const fs::path& path);
 void metal_shader_destroy(MetalContext& ctx, MetalShader& shader);
 
 } // namespace metal

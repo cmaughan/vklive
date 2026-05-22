@@ -18,6 +18,7 @@ pass: TracePass {
     geometry : shape {
         path: cornell-box.obj
         build_as : true
+        metal_ray: rt_trace.metal
         
         ray_group_general : default {
             ray_gen: rt_gen.rgen
@@ -40,5 +41,4 @@ pass: Copy {
         fs: copy.frag
     }
 }
-
 

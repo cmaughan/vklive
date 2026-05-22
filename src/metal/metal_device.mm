@@ -165,6 +165,7 @@ std::set<std::string> MetalDevice::ShaderFileExtensions()
 {
     return std::set<std::string>{
         ".frag",
+        ".metal",
         ".vert",
     };
 }
