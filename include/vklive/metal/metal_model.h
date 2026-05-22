@@ -60,9 +60,14 @@ struct MetalModel : Model
     Geometry* pGeometry = nullptr;
     void* vertexBuffer = nullptr;
     void* indexBuffer = nullptr;
+    void* bottomLevelAccelerationStructure = nullptr;
+    void* topLevelAccelerationStructure = nullptr;
+    void* accelerationScratchBuffer = nullptr;
+    void* accelerationInstanceBuffer = nullptr;
     std::string debugName;
     uint32_t vertexStride = 0;
     bool staged = false;
+    bool accelerationStructuresBuilt = false;
 
     void* materialsBuffer = nullptr;
     std::vector<MetalGpuMaterial> gpuMaterials;

@@ -11,6 +11,7 @@
 #include <zest/file/runtree.h>
 
 #include <vklive/metal/metal_context.h>
+#include <vklive/metal/metal_model_as.h>
 #include <vklive/metal/metal_scene.h>
 #include <vklive/metal/metal_surface.h>
 #include <vklive/scene.h>
@@ -289,7 +290,17 @@ bool metal_model_stage(metal::MetalContext& ctx, metal::MetalScene& scene, metal
     retain_obj(model.vertexBuffer, vertexBuffer);
     retain_obj(model.indexBuffer, indexBuffer);
     model.staged = true;
-    return metal_model_prepare_materials(ctx, scene, model);
+    if (!metal_model_prepare_materials(ctx, scene, model))
+    {
+        return false;
+    }
+
+    if (model.createInfo.buildAS && !metal_model_build_acceleration_structures(ctx, scene, model))
+    {
+        return false;
+    }
+
+    return true;
 }
 
 } // namespace
@@ -343,6 +354,10 @@ void metal_model_destroy(MetalContext& ctx, MetalModel& model)
     (void)ctx;
     release_obj(model.vertexBuffer);
     release_obj(model.indexBuffer);
+    release_obj(model.bottomLevelAccelerationStructure);
+    release_obj(model.topLevelAccelerationStructure);
+    release_obj(model.accelerationScratchBuffer);
+    release_obj(model.accelerationInstanceBuffer);
     release_obj(model.materialsBuffer);
     for (auto& texture : model.materialTextures)
     {
@@ -361,6 +376,7 @@ void metal_model_destroy(MetalContext& ctx, MetalModel& model)
     model.emissiveTextures.clear();
     model.occlusionTextures.clear();
     model.staged = false;
+    model.accelerationStructuresBuilt = false;
     model.vertexStride = 0;
 }
 

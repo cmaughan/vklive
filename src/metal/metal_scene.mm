@@ -36,14 +36,21 @@ bool metal_shader_extension_supported(const fs::path& path)
     return path.extension() == ".vert" || path.extension() == ".frag";
 }
 
+bool metal_ray_shader_extension(const fs::path& path)
+{
+    return path.extension() == ".rgen" || path.extension() == ".rmiss" || path.extension() == ".rchit";
+}
+
 bool metal_validate_pass(Scene& scene, Pass& pass)
 {
     bool valid = true;
 
     if (pass.passType == PassType::RayTracing)
     {
-        report_metal_scene_error(scene, fmt::format("Metal does not support ray tracing pass '{}' yet.", pass.name));
-        valid = false;
+        report_metal_scene_error(scene,
+            fmt::format("Metal pass '{}' is a ray tracing pass. Metal can build acceleration structures for build_as models, but Vulkan ray shader stages (.rgen/.rmiss/.rchit) cannot be translated to Metal; native Metal ray shaders and dispatch are required.",
+                pass.name));
+        return false;
     }
 
     for (auto& shaderPath : pass.shaders)
@@ -98,7 +105,7 @@ bool metal_validate_scene(Scene& scene)
 
     for (auto& [_, spShader] : scene.shaders)
     {
-        if (spShader && !metal_shader_extension_supported(spShader->path))
+        if (spShader && !metal_shader_extension_supported(spShader->path) && !metal_ray_shader_extension(spShader->path))
         {
             report_metal_scene_error(scene, fmt::format("Metal does not support shader stage '{}'. Only .vert and .frag shaders are accepted.", spShader->path.filename().string()), spShader->path);
             valid = false;

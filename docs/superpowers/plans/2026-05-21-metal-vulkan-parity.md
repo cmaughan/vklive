@@ -977,21 +977,20 @@ git commit -m "feat: enable Metal ImGui viewports"
 
 ---
 
-### Task 9: Implement Metal Ray Tracing Equivalent
+### Task 9a: Add Metal Acceleration-Structure Foundation And Precise Diagnostics
 
 **Files:**
 - Create: `include/vklive/metal/metal_model_as.h`
 - Create: `src/metal/metal_model_as.mm`
-- Create: `include/vklive/metal/metal_raytrace.h`
-- Create: `src/metal/metal_raytrace.mm`
-- Modify: `include/vklive/metal/metal_context.h`
 - Modify: `include/vklive/metal/metal_model.h`
-- Modify: `include/vklive/metal/metal_pass.h`
 - Modify: `src/metal/metal_model.mm`
-- Modify: `src/metal/metal_pass.mm`
-- Modify: `src/metal/metal_shader.mm`
-- Test: `tests/render_parity_harness.cpp`
+- Modify: `src/metal/metal_scene.mm`
+- Create: `tests/content/render_parity/metal_as/default.scenegraph`
+- Create: `tests/content/render_parity/metal_as/metal_as.vert`
+- Create: `tests/content/render_parity/metal_as/metal_as.frag`
 - Modify: `CMakeLists.txt`
+
+Direct `.rgen`/`.rmiss`/`.rchit` SPIR-V to native Metal ray functions is not supported by the current SPIRV-Cross MSL path. This task therefore builds the reusable acceleration-structure foundation and keeps ray passes rejected with a precise diagnostic instead of claiming false ray-tracing parity.
 
 - [ ] **Step 1: Add Metal acceleration-structure fields**
 
@@ -1001,14 +1000,78 @@ Add to `MetalModel`:
 void* bottomLevelAccelerationStructure = nullptr;
 void* topLevelAccelerationStructure = nullptr;
 void* accelerationScratchBuffer = nullptr;
+void* accelerationInstanceBuffer = nullptr;
 bool accelerationStructuresBuilt = false;
 ```
 
 - [ ] **Step 2: Build BLAS/TLAS for `buildAS` models**
 
-Create `metal_model_as_build(MetalContext& ctx, MetalModel& model)` in `src/metal/metal_model_as.mm`. Use `MTLAccelerationStructureTriangleGeometryDescriptor` with the staged vertex and index buffers, then build compacted acceleration structures with `MTLAccelerationStructureCommandEncoder`.
+Create `metal_model_build_acceleration_structures(MetalContext& ctx, MetalScene& scene, MetalModel& model)` in `src/metal/metal_model_as.mm`. Use `MTLAccelerationStructureTriangleGeometryDescriptor` with the staged vertex and index buffers, then build a BLAS and one-instance identity TLAS with `MTLAccelerationStructureCommandEncoder`.
 
-- [ ] **Step 3: Add ray shader compilation path**
+- [ ] **Step 3: Gate support and report precise diagnostics**
+
+Guard the AS build with `@available(macOS 11.0, *)` and `[device supportsRaytracing]`. Unsupported macOS/device combinations must not crash or block ordinary raster rendering.
+
+Keep `PassType::RayTracing` rejected in `metal_validate_pass`, but replace the generic rejection cascade with one precise error:
+
+```text
+Metal can build acceleration structures for build_as models, but Vulkan ray shader stages (.rgen/.rmiss/.rchit) cannot be translated to Metal; native Metal ray shaders and dispatch are required.
+```
+
+- [ ] **Step 4: Verify foundation and diagnostic**
+
+Add:
+
+```cmake
+add_test(NAME vklive_render_parity_metal_as_metal
+    COMMAND vklive_render_parity_harness
+        $<TARGET_FILE:Rezonality>
+        ${CMAKE_SOURCE_DIR}/tests/content/render_parity/metal_as
+        metal)
+
+add_test(NAME vklive_render_parity_ray_tracer_metal_diagnostic
+    COMMAND vklive_render_parity_harness
+        $<TARGET_FILE:Rezonality>
+        ${CMAKE_SOURCE_DIR}/run_tree/projects/ray_tracer
+        metal
+        3
+        "Metal can build acceleration structures for build_as models, but Vulkan ray shader stages (.rgen/.rmiss/.rchit) cannot be translated to Metal; native Metal ray shaders and dispatch are required.")
+```
+
+Run:
+
+```sh
+cmake --build build --config Debug
+ctest --test-dir build --output-on-failure -R 'vklive_render_parity_metal_as_metal|vklive_render_parity_ray_tracer_metal_diagnostic'
+```
+
+- [ ] **Step 5: Commit**
+
+```sh
+git add include/vklive/metal/metal_model.h include/vklive/metal/metal_model_as.h src/metal/metal_model.mm src/metal/metal_model_as.mm src/metal/metal_scene.mm tests/content/render_parity/metal_as CMakeLists.txt docs/superpowers/plans/2026-05-21-metal-vulkan-parity.md
+git commit -m "feat: add Metal acceleration structure foundation"
+```
+
+---
+
+### Task 9b: Implement Native Metal Ray Shader And Dispatch Path
+
+**Files:**
+- Create: `include/vklive/metal/metal_raytrace.h`
+- Create: `src/metal/metal_raytrace.mm`
+- Modify: `include/vklive/metal/metal_context.h`
+- Modify: `include/vklive/metal/metal_model.h`
+- Modify: `include/vklive/metal/metal_pass.h`
+- Modify: `src/metal/metal_pass.mm`
+- Modify: `src/metal/metal_shader.mm`
+- Test: `tests/render_parity_harness.cpp`
+- Modify: `CMakeLists.txt`
+
+- [ ] **Step 1: Choose the native Metal ray shader input**
+
+Do not depend on SPIRV-Cross to translate Vulkan ray shader stages. Either add explicit `.metal` ray shader support for ray passes or define a small VkLive-native ray shader input that can generate Metal ray functions intentionally.
+
+- [ ] **Step 2: Add ray shader compilation path**
 
 Extend `MetalShaderStage` to include:
 
@@ -1021,9 +1084,9 @@ Intersection,
 Callable
 ```
 
-For ray stages, compile SPIR-V as today, then route through a Metal ray shader translation helper. If SPIRV-Cross cannot emit valid Metal ray functions for a shader, report a scene error naming the shader and required rewrite.
+For native Metal ray shaders, compile Metal functions into visible/intersection functions or compute kernels as required. If a project still uses Vulkan `.rgen`/`.rmiss`/`.rchit`, report a scene error naming the shader and the required rewrite path.
 
-- [ ] **Step 4: Add Metal ray dispatch**
+- [ ] **Step 3: Add Metal ray dispatch**
 
 Create `metal_raytrace_draw(MetalContext& ctx, MetalPass& pass, const MetalPassTargets& targets)` that:
 
@@ -1032,7 +1095,7 @@ Create `metal_raytrace_draw(MetalContext& ctx, MetalPass& pass, const MetalPassT
 - Binds TLAS resources.
 - Dispatches ray work over `targets.size.x` by `targets.size.y`.
 
-- [ ] **Step 5: Route `PassType::RayTracing`**
+- [ ] **Step 4: Route `PassType::RayTracing`**
 
 Permit `PassType::RayTracing` in `metal_validate_pass`. In `metal_pass_draw`, branch:
 
@@ -1046,7 +1109,7 @@ if (pass.pass.passType == PassType::RayTracing)
 }
 ```
 
-- [ ] **Step 6: Verify ray tracer sample**
+- [ ] **Step 5: Verify ray tracer sample**
 
 Run:
 
@@ -1067,7 +1130,7 @@ add_test(NAME vklive_render_parity_ray_tracer_metal
 
 Expected: ray tracer scene produces a default color output on Metal.
 
-- [ ] **Step 7: Commit**
+- [ ] **Step 6: Commit**
 
 ```sh
 git add include/vklive/metal/metal_model_as.h src/metal/metal_model_as.mm include/vklive/metal/metal_raytrace.h src/metal/metal_raytrace.mm include/vklive/metal/metal_context.h include/vklive/metal/metal_model.h include/vklive/metal/metal_pass.h src/metal/metal_model.mm src/metal/metal_pass.mm src/metal/metal_shader.mm CMakeLists.txt

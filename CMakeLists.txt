@@ -202,6 +202,7 @@ set(METAL_OBJCXX_SOURCES
     src/metal/metal_imgui.mm
     src/metal/metal_imgui_texture.mm
     src/metal/metal_model.mm
+    src/metal/metal_model_as.mm
     src/metal/metal_nanovg.mm
     src/metal/metal_pass.mm
     src/metal/metal_scene.mm
@@ -219,6 +220,7 @@ set(METAL_SOURCES
     include/vklive/metal/metal_imgui.h
     include/vklive/metal/metal_imgui_texture.h
     include/vklive/metal/metal_model.h
+    include/vklive/metal/metal_model_as.h
     include/vklive/metal/metal_nanovg.h
     include/vklive/metal/metal_pass.h
     include/vklive/metal/metal_scene.h
@@ -503,6 +505,20 @@ if(VKLIVE_ENABLE_METAL)
             0
             ""
             --record-one-frame)
+
+    add_test(NAME vklive_render_parity_metal_as_metal
+        COMMAND vklive_render_parity_harness
+            $<TARGET_FILE:Rezonality>
+            ${CMAKE_SOURCE_DIR}/tests/content/render_parity/metal_as
+            metal)
+
+    add_test(NAME vklive_render_parity_ray_tracer_metal_diagnostic
+        COMMAND vklive_render_parity_harness
+            $<TARGET_FILE:Rezonality>
+            ${CMAKE_SOURCE_DIR}/run_tree/projects/ray_tracer
+            metal
+            3
+            "Metal can build acceleration structures for build_as models, but Vulkan ray shader stages (.rgen/.rmiss/.rchit) cannot be translated to Metal; native Metal ray shaders and dispatch are required.")
 
 endif()
 

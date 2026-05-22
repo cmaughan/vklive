@@ -1,0 +1,9 @@
+pass: MetalAS {
+    clear: (0.0, 0.0, 0.0, 1.0)
+    geometry: background {
+        path: screen_rect
+        build_as: true
+        vs: metal_as.vert
+        fs: metal_as.frag
+    }
+}
