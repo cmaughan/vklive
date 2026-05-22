@@ -34,6 +34,7 @@ struct MetalContext : DeviceContext
 
 void context_init(MetalContext& ctx);
 void context_destroy(MetalContext& ctx);
+glm::vec2 context_drawable_scale(MetalContext& ctx);
 void context_validate_drawable_size(MetalContext& ctx);
 bool context_begin_frame(MetalContext& ctx);
 bool context_present(MetalContext& ctx);

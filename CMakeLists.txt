@@ -296,6 +296,7 @@ set(APP_SOURCES
     app/src/config.cpp
     app/src/controller.cpp
     app/src/editor.cpp
+    app/src/editor_font.cpp
     app/src/main.cpp
     app/src/window_render.cpp
     app/src/window_render_sizing.cpp
@@ -308,6 +309,7 @@ set(APP_SOURCES
     app/include/app/config.h
     app/include/app/controller.h
     app/include/app/editor.h
+    app/include/app/editor_font.h
     app/include/app/menu.h
     app/include/app/project.h
     app/include/app/window_sequencer.h
@@ -405,6 +407,12 @@ target_include_directories(vklive_window_render_sizing_tests PRIVATE
     ${CMAKE_BINARY_DIR}
     ${CMAKE_CURRENT_LIST_DIR}/app/include)
 
+add_executable(vklive_editor_font_tests tests/editor_font_tests.cpp app/src/editor_font.cpp)
+target_link_libraries(vklive_editor_font_tests PRIVATE vklive)
+target_include_directories(vklive_editor_font_tests PRIVATE
+    ${CMAKE_BINARY_DIR}
+    ${CMAKE_CURRENT_LIST_DIR}/app/include)
+
 add_executable(vklive_render_parity_harness tests/render_parity_harness.cpp)
 target_link_libraries(vklive_render_parity_harness PRIVATE reproc++)
 
@@ -460,6 +468,11 @@ add_test(
 add_test(
     NAME vklive_window_render_sizing_tests
     COMMAND vklive_window_render_sizing_tests
+)
+
+add_test(
+    NAME vklive_editor_font_tests
+    COMMAND vklive_editor_font_tests
 )
 
 if(VKLIVE_ENABLE_METAL)

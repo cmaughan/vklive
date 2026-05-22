@@ -60,9 +60,11 @@ void imgui_init(MetalContext& ctx, const std::string& iniPath, bool viewports)
     }
 
     auto imguiFontPath = Zest::runtree_find_path("fonts/Cousine-Regular.ttf");
-    const float fontScale = std::max(ctx.vdpi, 1.0f);
-    io.Fonts->AddFontFromFileTTF(imguiFontPath.string().c_str(), 16.0f * fontScale);
-    io.FontGlobalScale = 1.0f / fontScale;
+    const auto drawableScale = context_drawable_scale(ctx);
+    ImFontConfig fontConfig;
+    fontConfig.RasterizerDensity = std::max(drawableScale.y, 1.0f);
+    io.Fonts->AddFontFromFileTTF(imguiFontPath.string().c_str(), 16.0f, &fontConfig);
+    io.FontGlobalScale = 1.0f;
 
     auto device = bridge<id<MTLDevice>>(ctx.device);
     if (!ImGui_ImplMetal_Init(device))

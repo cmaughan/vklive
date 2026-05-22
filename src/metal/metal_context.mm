@@ -42,6 +42,29 @@ void retain_obj(void*& storage, id object)
 namespace metal
 {
 
+glm::vec2 context_drawable_scale(MetalContext& ctx)
+{
+    if (!ctx.window)
+    {
+        return glm::vec2(1.0f);
+    }
+
+    int width = 0;
+    int height = 0;
+    int windowWidth = 0;
+    int windowHeight = 0;
+    SDL_Metal_GetDrawableSize(ctx.window, &width, &height);
+    SDL_GetWindowSize(ctx.window, &windowWidth, &windowHeight);
+    if (windowWidth <= 0 || windowHeight <= 0 || width <= 0 || height <= 0)
+    {
+        return glm::vec2(1.0f);
+    }
+
+    return glm::vec2(
+        static_cast<float>(width) / static_cast<float>(windowWidth),
+        static_cast<float>(height) / static_cast<float>(windowHeight));
+}
+
 void context_validate_drawable_size(MetalContext& ctx)
 {
     if (!ctx.window || !ctx.metalLayer)
@@ -57,11 +80,10 @@ void context_validate_drawable_size(MetalContext& ctx)
     SDL_GetWindowSize(ctx.window, &windowWidth, &windowHeight);
     auto layer = bridge<CAMetalLayer*>(ctx.metalLayer);
     layer.drawableSize = CGSizeMake(width, height);
+    const auto drawableScale = context_drawable_scale(ctx);
     if (windowWidth > 0 && windowHeight > 0 && width > 0 && height > 0)
     {
-        ctx.hdpi = static_cast<float>(width) / static_cast<float>(windowWidth);
-        ctx.vdpi = static_cast<float>(height) / static_cast<float>(windowHeight);
-        layer.contentsScale = std::max<CGFloat>(ctx.hdpi, ctx.vdpi);
+        layer.contentsScale = std::max<CGFloat>(drawableScale.x, drawableScale.y);
     }
 }
 

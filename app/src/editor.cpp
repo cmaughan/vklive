@@ -12,6 +12,7 @@
 // #define ZEP_CONSOLE
 #include "app/config.h"
 #include "app/editor.h"
+#include "app/editor_font.h"
 #include "config_app.h"
 
 #include <vklive/message.h>
@@ -224,7 +225,7 @@ void zep_init(const fs::path& configRoot, const Zep::NVec2f& pixelScale, const Z
 
     auto& display = spZep->GetEditor().GetDisplay();
     auto pImFont = ImGui::GetIO().Fonts[0].Fonts[0];
-    auto pixelHeight = pImFont->FontSize;
+    auto pixelHeight = zep_effective_font_pixel_height(pImFont->FontSize, ImGui::GetIO().FontGlobalScale);
     display.SetFont(ZepTextType::UI, std::make_shared<ZepFont_ImGui>(display, pImFont, int(pixelHeight)));
     display.SetFont(ZepTextType::Text, std::make_shared<ZepFont_ImGui>(display, pImFont, int(pixelHeight)));
     display.SetFont(ZepTextType::Heading1, std::make_shared<ZepFont_ImGui>(display, pImFont, int(pixelHeight * 1.5)));
