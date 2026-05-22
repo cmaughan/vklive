@@ -298,6 +298,7 @@ set(APP_SOURCES
     app/src/editor.cpp
     app/src/main.cpp
     app/src/window_render.cpp
+    app/src/window_render_sizing.cpp
     app/src/window_targets.cpp
     app/src/window_sequencer.cpp
     app/src/menu.cpp
@@ -311,6 +312,7 @@ set(APP_SOURCES
     app/include/app/project.h
     app/include/app/window_sequencer.h
     app/include/app/window_render.h
+    app/include/app/window_render_sizing.h
     app/include/app/window_targets.h
 )
 
@@ -397,6 +399,12 @@ target_include_directories(vklive_app_command_line_tests PRIVATE
     ${CMAKE_BINARY_DIR}
     ${CMAKE_CURRENT_LIST_DIR}/app/include)
 
+add_executable(vklive_window_render_sizing_tests tests/window_render_sizing_tests.cpp app/src/window_render_sizing.cpp)
+target_link_libraries(vklive_window_render_sizing_tests PRIVATE vklive)
+target_include_directories(vklive_window_render_sizing_tests PRIVATE
+    ${CMAKE_BINARY_DIR}
+    ${CMAKE_CURRENT_LIST_DIR}/app/include)
+
 add_executable(vklive_render_parity_harness tests/render_parity_harness.cpp)
 target_link_libraries(vklive_render_parity_harness PRIVATE reproc++)
 
@@ -447,6 +455,11 @@ add_test(
 add_test(
     NAME vklive_app_command_line_tests
     COMMAND vklive_app_command_line_tests
+)
+
+add_test(
+    NAME vklive_window_render_sizing_tests
+    COMMAND vklive_window_render_sizing_tests
 )
 
 if(VKLIVE_ENABLE_METAL)

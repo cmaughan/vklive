@@ -2,6 +2,7 @@
 #import <Metal/Metal.h>
 #import <QuartzCore/CAMetalLayer.h>
 
+#include <algorithm>
 #include <stdexcept>
 #include <vector>
 
@@ -50,9 +51,18 @@ void context_validate_drawable_size(MetalContext& ctx)
 
     int width = 0;
     int height = 0;
+    int windowWidth = 0;
+    int windowHeight = 0;
     SDL_Metal_GetDrawableSize(ctx.window, &width, &height);
+    SDL_GetWindowSize(ctx.window, &windowWidth, &windowHeight);
     auto layer = bridge<CAMetalLayer*>(ctx.metalLayer);
     layer.drawableSize = CGSizeMake(width, height);
+    if (windowWidth > 0 && windowHeight > 0 && width > 0 && height > 0)
+    {
+        ctx.hdpi = static_cast<float>(width) / static_cast<float>(windowWidth);
+        ctx.vdpi = static_cast<float>(height) / static_cast<float>(windowHeight);
+        layer.contentsScale = std::max<CGFloat>(ctx.hdpi, ctx.vdpi);
+    }
 }
 
 void context_init(MetalContext& ctx)

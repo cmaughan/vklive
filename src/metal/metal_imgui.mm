@@ -1,6 +1,7 @@
 #import <Metal/Metal.h>
 #import <QuartzCore/CAMetalLayer.h>
 
+#include <algorithm>
 #include <stdexcept>
 
 #include <SDL2/SDL.h>
@@ -57,6 +58,11 @@ void imgui_init(MetalContext& ctx, const std::string& iniPath, bool viewports)
     {
         throw std::runtime_error("Could not initialize ImGui SDL2 platform backend for Metal");
     }
+
+    auto imguiFontPath = Zest::runtree_find_path("fonts/Cousine-Regular.ttf");
+    const float fontScale = std::max(ctx.vdpi, 1.0f);
+    io.Fonts->AddFontFromFileTTF(imguiFontPath.string().c_str(), 16.0f * fontScale);
+    io.FontGlobalScale = 1.0f / fontScale;
 
     auto device = bridge<id<MTLDevice>>(ctx.device);
     if (!ImGui_ImplMetal_Init(device))

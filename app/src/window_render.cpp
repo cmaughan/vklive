@@ -1,6 +1,7 @@
 #include "app/window_render.h"
 #include "app/menu.h"
 #include "app/editor.h"
+#include "app/window_render_sizing.h"
 
 #include <vklive/python_scripting.h>
 #include <vklive/IDevice.h>
@@ -38,20 +39,22 @@ bool window_render(IDevice* pDevice, Scene& scene, bool background, const std::f
     bool drawn = false;
     if (scene.valid)
     {
-        if (outputSize != scene.lastOutputSize)
+        const auto framebufferScale = glm::vec2(ImGui::GetIO().DisplayFramebufferScale.x, ImGui::GetIO().DisplayFramebufferScale.y);
+        const auto renderSize = window_render_pixel_size(outputSize, framebufferScale);
+        if (renderSize != scene.lastOutputSize)
         {
-            scene.lastOutputSize = outputSize;
+            scene.lastOutputSize = renderSize;
             scene.sceneFlags |= SceneFlags::DefaultTargetResize;
             Scene::GlobalFrameCount = 0;
         }
 
-        auto renderOutput = fnRender(glm::vec2(outputSize.x, outputSize.y), scene);
+        auto renderOutput = fnRender(renderSize, scene);
         if (renderOutput.pSurface)
         {
             scene.sceneFlags &= ~SceneFlags::DefaultTargetResize;
 
             auto border = glm::vec2(0.0f);
-            auto currentSurfaceSize = renderOutput.pSurface->currentSize;
+            auto currentSurfaceSize = window_render_logical_surface_size(renderOutput.pSurface->currentSize, framebufferScale);
             if (currentSurfaceSize.x < outputSize.x)
             {
                 border.x = (outputSize.x - currentSurfaceSize.x) * 0.5f;
@@ -80,7 +83,11 @@ bool window_render(IDevice* pDevice, Scene& scene, bool background, const std::f
             {
                 pDrawList->AddImage(renderOutput.textureId, topLeft, bottomRight);
 
-                scene.targetViewport = glm::vec4(topLeft.x, topLeft.y, std::min(bottomRight.x, maxRect.x), std::min(bottomRight.y, maxRect.y));
+                scene.targetViewport = window_render_pixel_viewport(
+                    glm::vec2(topLeft.x, topLeft.y),
+                    glm::vec2(bottomRight.x, bottomRight.y),
+                    glm::vec2(maxRect.x, maxRect.y),
+                    framebufferScale);
 
                 drawn = true;
             }
