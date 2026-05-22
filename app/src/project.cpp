@@ -15,6 +15,27 @@
 
 IDevice* GetDevice();
 
+namespace
+{
+
+std::set<std::string> project_shader_file_extensions()
+{
+    return {
+        ".frag",
+        ".fs",
+        ".geom",
+        ".gs",
+        ".metal",
+        ".rchit",
+        ".rgen",
+        ".rmiss",
+        ".vert",
+        ".vs",
+    };
+}
+
+} // namespace
+
 bool project_scene_valid(Project* pProject)
 {
     if (!pProject || !pProject->spScene || !pProject->spScene->valid)
@@ -106,10 +127,13 @@ std::shared_ptr<Project> project_load(const fs::path& projectPath, const fs::pat
 std::set<std::string> project_file_extensions()
 {
     auto ext = model_file_extensions();
+    auto shaderExt = project_shader_file_extensions();
+    ext.insert(shaderExt.begin(), shaderExt.end());
+    ext.insert(".mtl");
     if (GetDevice())
     {
-        auto shaderExt = GetDevice()->ShaderFileExtensions();
-        ext.insert(shaderExt.begin(), shaderExt.end());
+        auto deviceShaderExt = GetDevice()->ShaderFileExtensions();
+        ext.insert(deviceShaderExt.begin(), deviceShaderExt.end());
     }
     ext.insert(".scenegraph");
     ext.insert(".toml");
@@ -159,6 +183,20 @@ bool project_copy(Project& project, const fs::path& destPath, std::string& error
                 sourcePaths.insert(fs::canonical(p));
             }
         }
+
+        for (auto& spPass : project.spScene->passes)
+        {
+            if (!spPass || spPass->metalRayKernel.empty())
+            {
+                continue;
+            }
+
+            auto p = root / spPass->metalRayKernel;
+            if (fs::exists(p))
+            {
+                sourcePaths.insert(fs::canonical(p));
+            }
+        }
         
         for (auto& geom : project.spScene->models)
         {
@@ -201,4 +239,3 @@ bool project_copy(Project& project, const fs::path& destPath, std::string& error
     }
     return ok;
 }
-

@@ -413,6 +413,18 @@ target_include_directories(vklive_editor_font_tests PRIVATE
     ${CMAKE_BINARY_DIR}
     ${CMAKE_CURRENT_LIST_DIR}/app/include)
 
+add_executable(vklive_project_copy_tests tests/project_copy_tests.cpp app/src/project.cpp)
+target_link_libraries(vklive_project_copy_tests PRIVATE vklive)
+target_include_directories(vklive_project_copy_tests PRIVATE
+    ${CMAKE_BINARY_DIR}
+    ${CMAKE_CURRENT_LIST_DIR}/app/include)
+
+add_executable(vklive_zep_syntax_tests tests/zep_syntax_tests.cpp)
+target_link_libraries(vklive_zep_syntax_tests PRIVATE Zep::Zep)
+target_include_directories(vklive_zep_syntax_tests PRIVATE
+    ${CMAKE_BINARY_DIR}
+    ${CMAKE_CURRENT_SOURCE_DIR}/zep/include)
+
 add_executable(vklive_render_parity_harness tests/render_parity_harness.cpp)
 target_link_libraries(vklive_render_parity_harness PRIVATE reproc++)
 
@@ -473,6 +485,16 @@ add_test(
 add_test(
     NAME vklive_editor_font_tests
     COMMAND vklive_editor_font_tests
+)
+
+add_test(
+    NAME vklive_project_copy_tests
+    COMMAND vklive_project_copy_tests ${CMAKE_CURRENT_LIST_DIR}
+)
+
+add_test(
+    NAME vklive_zep_syntax_tests
+    COMMAND vklive_zep_syntax_tests
 )
 
 if(VKLIVE_ENABLE_METAL)

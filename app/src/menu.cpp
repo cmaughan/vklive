@@ -220,12 +220,25 @@ bool menu_show()
                 auto spScene = g_Controller.spCurrentProject->spScene;
                 // Assets->shader.vs
                 uint32_t items = 0;
-                if (!spScene->shaders.empty())
+                std::set<fs::path> shaderFiles;
+                for (auto& [shaderPath, shader] : spScene->shaders)
+                {
+                    (void)shader;
+                    shaderFiles.insert(shaderPath);
+                }
+                for (auto& spPass : spScene->passes)
+                {
+                    if (spPass && !spPass->metalRayKernel.empty())
+                    {
+                        shaderFiles.insert(spPass->metalRayKernel);
+                    }
+                }
+
+                if (!shaderFiles.empty())
                 {
                     if (ImGui::BeginMenu("Shaders"))
                     {
-                        std::vector<fs::path> files;
-                        for (auto& [shaderPath, shader] : spScene->shaders)
+                        for (auto& shaderPath : shaderFiles)
                         {
                             items++;
                             if (ImGui::MenuItem(shaderPath.filename().string().c_str()))
