@@ -861,7 +861,7 @@ namespace ImSequencer
 #endif
 */
 
-/*
+#if 0
 //
 // ImSequencer interface
 //
@@ -1092,3 +1092,4 @@ struct MySequence : public ImSequencer::SequenceInterface
 };
 
 */
+#endif

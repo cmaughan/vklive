@@ -1,5 +1,15 @@
 cmake_minimum_required(VERSION 3.15)
 
+if(POLICY CMP0156)
+    cmake_policy(SET CMP0156 NEW)
+endif()
+if(POLICY CMP0179)
+    cmake_policy(SET CMP0179 NEW)
+endif()
+if(POLICY CMP0177)
+    cmake_policy(SET CMP0177 NEW)
+endif()
+
 set(CMAKE_POLICY_DEFAULT_CMP0077 NEW)
 
 set(CMAKE_CXX_STANDARD 20)
@@ -56,7 +66,13 @@ find_package(clipp CONFIG REQUIRED) # Commandline parser for command line argume
 find_package(fmt CONFIG REQUIRED) # String formatting library
 find_package(reproc++ REQUIRED) # Process launch library for loading shader compiler binary
 find_package(SDL2 CONFIG REQUIRED) # SDL UI library for creating windows, etc.
-find_package(unofficial-concurrentqueue REQUIRED) # Concurrent lock/free queue for thread interactions
+find_package(concurrentqueue CONFIG QUIET) # Concurrent lock/free queue for thread interactions
+if(NOT TARGET concurrentqueue::concurrentqueue)
+    find_package(unofficial-concurrentqueue CONFIG REQUIRED)
+    add_library(concurrentqueue::concurrentqueue INTERFACE IMPORTED)
+    set_target_properties(concurrentqueue::concurrentqueue PROPERTIES
+        INTERFACE_LINK_LIBRARIES unofficial::concurrentqueue::concurrentqueue)
+endif()
 find_path(VKLIVE_MOODYCAMEL_INCLUDE_DIR "moodycamel/concurrentqueue.h")
 if(NOT VKLIVE_MOODYCAMEL_INCLUDE_DIR)
     find_path(VKLIVE_LEGACY_CONCURRENTQUEUE_INCLUDE_DIR "concurrentqueue/concurrentqueue.h")
@@ -65,7 +81,7 @@ if(NOT VKLIVE_MOODYCAMEL_INCLUDE_DIR)
         file(MAKE_DIRECTORY "${VKLIVE_CONCURRENTQUEUE_COMPAT_INCLUDE_DIR}/moodycamel")
         file(WRITE "${VKLIVE_CONCURRENTQUEUE_COMPAT_INCLUDE_DIR}/moodycamel/concurrentqueue.h"
             "#pragma once\n#include <concurrentqueue/concurrentqueue.h>\n")
-        target_include_directories(unofficial::concurrentqueue::concurrentqueue INTERFACE
+        target_include_directories(concurrentqueue::concurrentqueue INTERFACE
             "${VKLIVE_CONCURRENTQUEUE_COMPAT_INCLUDE_DIR}")
     endif()
 endif()
@@ -652,7 +668,7 @@ target_link_libraries(Rezonality
     PRIVATE
         $<TARGET_NAME_IF_EXISTS:SDL2::SDL2main>
         $<IF:$<TARGET_EXISTS:SDL2::SDL2>,SDL2::SDL2,SDL2::SDL2-static>
-        unofficial::concurrentqueue::concurrentqueue
+        concurrentqueue::concurrentqueue
         clipp::clipp
         ${VKLIVE_NFD_TARGET}
         unofficial::spirv-reflect

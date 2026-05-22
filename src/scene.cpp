@@ -1,4 +1,5 @@
 #include <algorithm>
+#include <cstring>
 #include <fmt/format.h>
 #include <iostream>
 #include <sstream>
@@ -627,7 +628,7 @@ std::shared_ptr<Scene> scene_build(const fs::path& root, const fs::path& sceneGr
                 auto pCameraNameNode = getChild(pCameraNode, T_IDENT);
 
                 std::shared_ptr<Camera> spCamera;
-                if (pCameraNameNode->contents == "default_camera")
+                if (std::strcmp(pCameraNameNode->contents, "default_camera") == 0)
                 {
                     spCamera = spDefaultCamera;
                 }
