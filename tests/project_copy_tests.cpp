@@ -1,6 +1,8 @@
 #include <cstdlib>
 #include <filesystem>
+#include <fstream>
 #include <iostream>
+#include <iterator>
 #include <memory>
 #include <set>
 #include <string>
@@ -63,6 +65,17 @@ bool require(bool condition, const std::string& message)
     return true;
 }
 
+std::string read_text_file(const fs::path& path)
+{
+    std::ifstream stream(path, std::ios::binary);
+    if (!stream)
+    {
+        return {};
+    }
+
+    return std::string(std::istreambuf_iterator<char>(stream), std::istreambuf_iterator<char>());
+}
+
 } // namespace
 
 IDevice* GetDevice()
@@ -81,7 +94,12 @@ int main(int argc, char** argv)
     bool ok = true;
     const fs::path sourceRoot = argv[1];
     const fs::path rayProjectRoot = sourceRoot / "run_tree/projects/ray_tracer";
+    const std::string metalRayShader = read_text_file(rayProjectRoot / "rt_trace.metal");
     Zest::runtree_init(sourceRoot.string().c_str(), sourceRoot.string().c_str());
+
+    ok &= require(!metalRayShader.empty(), "Metal ray template shader should be readable");
+    ok &= require(metalRayShader.find("const float2 ndc = uv * 2.0f - 1.0f;") != std::string::npos, "Metal ray template should use Vulkan-parity unflipped NDC coordinates");
+    ok &= require(metalRayShader.find("(1.0f - uv.y)") == std::string::npos, "Metal ray template should not invert uv.y before writing to the renderer target");
 
     FakeDevice vulkanDevice({
         ".fs",

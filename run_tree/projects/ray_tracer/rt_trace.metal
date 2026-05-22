@@ -64,7 +64,7 @@ kernel void vklive_ray_trace(texture2d<float, access::write> outImage [[texture(
     }
 
     const float2 uv = (float2(tid) + 0.5f) / float2(width, height);
-    const float2 ndc = float2(uv.x * 2.0f - 1.0f, (1.0f - uv.y) * 2.0f - 1.0f);
+    const float2 ndc = uv * 2.0f - 1.0f;
     const float4 viewTarget = ubo.projectionInverse * float4(ndc, 1.0f, 1.0f);
     const float3 viewDirection = normalize(viewTarget.xyz / viewTarget.w);
     const float3 worldDirection = normalize((ubo.viewInverse * float4(viewDirection, 0.0f)).xyz);
