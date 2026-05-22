@@ -57,8 +57,26 @@ find_package(fmt CONFIG REQUIRED) # String formatting library
 find_package(reproc++ REQUIRED) # Process launch library for loading shader compiler binary
 find_package(SDL2 CONFIG REQUIRED) # SDL UI library for creating windows, etc.
 find_package(unofficial-concurrentqueue REQUIRED) # Concurrent lock/free queue for thread interactions
+find_path(VKLIVE_MOODYCAMEL_INCLUDE_DIR "moodycamel/concurrentqueue.h")
+if(NOT VKLIVE_MOODYCAMEL_INCLUDE_DIR)
+    find_path(VKLIVE_LEGACY_CONCURRENTQUEUE_INCLUDE_DIR "concurrentqueue/concurrentqueue.h")
+    if(VKLIVE_LEGACY_CONCURRENTQUEUE_INCLUDE_DIR)
+        set(VKLIVE_CONCURRENTQUEUE_COMPAT_INCLUDE_DIR "${CMAKE_BINARY_DIR}/generated/concurrentqueue_compat")
+        file(MAKE_DIRECTORY "${VKLIVE_CONCURRENTQUEUE_COMPAT_INCLUDE_DIR}/moodycamel")
+        file(WRITE "${VKLIVE_CONCURRENTQUEUE_COMPAT_INCLUDE_DIR}/moodycamel/concurrentqueue.h"
+            "#pragma once\n#include <concurrentqueue/concurrentqueue.h>\n")
+        target_include_directories(unofficial::concurrentqueue::concurrentqueue INTERFACE
+            "${VKLIVE_CONCURRENTQUEUE_COMPAT_INCLUDE_DIR}")
+    endif()
+endif()
 find_package(tinyfiledialogs CONFIG REQUIRED) # File dialogs that look OS specific and more standard
-find_package(nfd CONFIG REQUIRED) # File dialogs that look OS specific and more standard
+find_package(nfd CONFIG QUIET) # nativefiledialog-extended
+if(TARGET nfd::nfd)
+    set(VKLIVE_NFD_TARGET nfd::nfd)
+else()
+    find_package(unofficial-nativefiledialog CONFIG REQUIRED) # nativefiledialog
+    set(VKLIVE_NFD_TARGET unofficial::nativefiledialog::nfd)
+endif()
 find_package(unofficial-spirv-reflect CONFIG REQUIRED)
 #find_package(VulkanMemoryAllocator CONFIG REQUIRED)
 find_package(gli CONFIG REQUIRED)
@@ -636,7 +654,7 @@ target_link_libraries(Rezonality
         $<IF:$<TARGET_EXISTS:SDL2::SDL2>,SDL2::SDL2,SDL2::SDL2-static>
         unofficial::concurrentqueue::concurrentqueue
         clipp::clipp
-        nfd::nfd
+        ${VKLIVE_NFD_TARGET}
         unofficial::spirv-reflect
         gli
         Zing::Zing

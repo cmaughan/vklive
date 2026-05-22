@@ -2,6 +2,8 @@
 #include <nfd.h>
 #include <fmt/format.h>
 
+#include <cstdlib>
+
 #include <zest/logger/logger.h>
 #include <zest/string/string_utils.h>
 
@@ -18,6 +20,29 @@ enum class BoxRet
     No = 0,
     Yes = 1,
 }; /* 0 for cancel/no , 1 for ok/yes , 2 for no in yesnocancel */
+
+namespace
+{
+
+nfdresult_t pick_folder(nfdchar_t** outPath, const nfdchar_t* defaultPath)
+{
+#if defined(NFD_INTERFACE_VERSION)
+    return NFD_PickFolder(outPath, defaultPath);
+#else
+    return NFD_PickFolder(defaultPath, outPath);
+#endif
+}
+
+void free_nfd_path(nfdchar_t* path)
+{
+#if defined(NFD_INTERFACE_VERSION)
+    NFD_FreePath(path);
+#else
+    std::free(path);
+#endif
+}
+
+}
 
 void controller_load_project(const fs::path& projectPath)
 {
@@ -42,11 +67,11 @@ fs::path controller_open_project()
         appConfig.last_folder_path = fs::path(); 
     }
 
-    NFD_PickFolder(&pszPath, docPath.string().c_str());
+    pick_folder(&pszPath, docPath.string().c_str());
     if (pszPath)
     {
         fs::path p(pszPath);
-        NFD_FreePath(pszPath);
+        free_nfd_path(pszPath);
         if (fs::exists(p) && fs::is_directory(p))
         {
             if (fs::exists(p.parent_path()))
@@ -71,11 +96,11 @@ fs::path controller_save_project_as()
 
     fs::create_directories(docPath);
     nfdchar_t* pszPath = nullptr;
-    NFD_PickFolder(&pszPath, docPath.string().c_str());
+    pick_folder(&pszPath, docPath.string().c_str());
     if (pszPath)
     {
         auto p = fs::path(pszPath);
-        NFD_FreePath(pszPath);
+        free_nfd_path(pszPath);
         if (fs::equivalent(p, g_Controller.spCurrentProject->rootPath) || !fs::is_directory(p))
         {
             // Already there.  empty path to say we didn't save
