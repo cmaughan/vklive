@@ -11,6 +11,7 @@
 #include <vklive/metal/metal_context.h>
 #include <vklive/metal/metal_device.h>
 #include <vklive/metal/metal_imgui.h>
+#include <vklive/metal/metal_nanovg.h>
 #include <vklive/metal/metal_scene.h>
 #include <vklive/scene.h>
 
@@ -51,11 +52,13 @@ MetalDevice::MetalDevice(SDL_Window* pWindow, const std::string& iniPath, bool v
 
     context_init(ctx);
     imgui_init(ctx, iniPath, viewports);
+    metal_nanovg_init(ctx);
 }
 
 MetalDevice::~MetalDevice()
 {
     context_wait_idle(ctx);
+    metal_nanovg_destroy(ctx);
     imgui_shutdown(ctx);
     context_destroy(ctx);
 

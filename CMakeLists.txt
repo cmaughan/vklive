@@ -202,6 +202,7 @@ set(METAL_OBJCXX_SOURCES
     src/metal/metal_imgui.mm
     src/metal/metal_imgui_texture.mm
     src/metal/metal_model.mm
+    src/metal/metal_nanovg.mm
     src/metal/metal_pass.mm
     src/metal/metal_scene.mm
     src/metal/metal_shader.mm
@@ -218,6 +219,7 @@ set(METAL_SOURCES
     include/vklive/metal/metal_imgui.h
     include/vklive/metal/metal_imgui_texture.h
     include/vklive/metal/metal_model.h
+    include/vklive/metal/metal_nanovg.h
     include/vklive/metal/metal_pass.h
     include/vklive/metal/metal_scene.h
     include/vklive/metal/metal_shader.h
@@ -483,6 +485,15 @@ if(VKLIVE_ENABLE_METAL)
             $<TARGET_FILE:Rezonality>
             ${CMAKE_SOURCE_DIR}/run_tree/projects/pbr_robot
             metal)
+
+    add_test(NAME vklive_render_parity_scripted_metal
+        COMMAND vklive_render_parity_harness
+            $<TARGET_FILE:Rezonality>
+            ${CMAKE_SOURCE_DIR}/tests/content/render_parity/scripted
+            metal
+            0
+            ""
+            --record-one-frame)
 
 endif()
 

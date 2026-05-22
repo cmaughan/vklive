@@ -16,6 +16,15 @@ namespace metal
 struct MetalContext;
 struct MetalScene;
 
+struct MetalPassTargets
+{
+    std::vector<MetalSurface*> colors;
+    std::vector<uint32_t> colorFormats;
+    MetalSurface* depth = nullptr;
+    glm::uvec2 size = glm::uvec2(0);
+    uint32_t depthFormat = 0;
+};
+
 struct MetalPass
 {
     MetalPass(MetalScene& s, Pass& p)

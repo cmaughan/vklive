@@ -45,11 +45,6 @@ bool metal_validate_pass(Scene& scene, Pass& pass)
         report_metal_scene_error(scene, fmt::format("Metal does not support ray tracing pass '{}' yet.", pass.name));
         valid = false;
     }
-    else if (pass.passType == PassType::Scripted)
-    {
-        report_metal_scene_error(scene, fmt::format("Metal does not support scripted pass '{}' yet.", pass.name));
-        valid = false;
-    }
 
     for (auto& shaderPath : pass.shaders)
     {

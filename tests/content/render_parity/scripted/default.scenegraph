@@ -1,0 +1,4 @@
+pass: ScriptedShapes {
+    clear: (0.02, 0.03, 0.04, 1.0)
+    script: scripted_shapes.py, draw
+}

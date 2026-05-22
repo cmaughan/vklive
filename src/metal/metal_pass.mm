@@ -14,9 +14,11 @@
 #include <vklive/camera.h>
 #include <vklive/metal/metal_context.h>
 #include <vklive/metal/metal_model.h>
+#include <vklive/metal/metal_nanovg.h>
 #include <vklive/metal/metal_pass.h>
 #include <vklive/metal/metal_scene.h>
 #include <vklive/metal/metal_shader.h>
+#include <vklive/python_scripting.h>
 #include <vklive/scene.h>
 #include <vklive/validation.h>
 
@@ -389,16 +391,7 @@ MTLVertexDescriptor* metal_vertex_descriptor(const VertexLayout& layout)
     return descriptor;
 }
 
-struct MetalPassTargets
-{
-    std::vector<metal::MetalSurface*> colors;
-    std::vector<MTLPixelFormat> colorFormats;
-    metal::MetalSurface* depth = nullptr;
-    glm::uvec2 size = glm::uvec2(0);
-    MTLPixelFormat depthFormat = MTLPixelFormatInvalid;
-};
-
-bool metal_pass_prepare_targets(metal::MetalContext& ctx, metal::MetalPass& pass, const glm::uvec2& renderSize, MetalPassTargets& targets)
+bool metal_pass_prepare_targets(metal::MetalContext& ctx, metal::MetalPass& pass, const glm::uvec2& renderSize, metal::MetalPassTargets& targets)
 {
     auto passTargets = pass.pass.targets;
     if (passTargets.empty())
@@ -443,7 +436,7 @@ bool metal_pass_prepare_targets(metal::MetalContext& ctx, metal::MetalPass& pass
                 return false;
             }
             targets.depth = pMetalSurface;
-            targets.depthFormat = pixelFormat;
+            targets.depthFormat = static_cast<uint32_t>(pixelFormat);
         }
         else
         {
@@ -466,7 +459,7 @@ bool metal_pass_prepare_targets(metal::MetalContext& ctx, metal::MetalPass& pass
                 return false;
             }
             targets.colors.push_back(pMetalSurface);
-            targets.colorFormats.push_back(pixelFormat);
+            targets.colorFormats.push_back(static_cast<uint32_t>(pixelFormat));
         }
     }
 
@@ -586,7 +579,7 @@ void metal_pass_reset_pipeline(metal::MetalPass& pass)
     pass.depthPixelFormat = 0;
 }
 
-bool metal_pass_ensure_pipeline(metal::MetalContext& ctx, metal::MetalPass& pass, const BasicPassShaders& shaders, const MetalPassTargets& targets)
+bool metal_pass_ensure_pipeline(metal::MetalContext& ctx, metal::MetalPass& pass, const BasicPassShaders& shaders, const metal::MetalPassTargets& targets)
 {
     if (targets.colorFormats.empty())
     {
@@ -604,10 +597,10 @@ bool metal_pass_ensure_pipeline(metal::MetalContext& ctx, metal::MetalPass& pass
     colorPixelFormats.reserve(targets.colorFormats.size());
     for (const auto colorFormat : targets.colorFormats)
     {
-        colorPixelFormats.push_back(static_cast<uint32_t>(colorFormat));
+        colorPixelFormats.push_back(colorFormat);
     }
 
-    auto depthPixelFormat = static_cast<uint32_t>(targets.depthFormat);
+    auto depthPixelFormat = targets.depthFormat;
     if (pass.renderPipelineState && pass.colorPixelFormats == colorPixelFormats && pass.depthPixelFormat == depthPixelFormat)
     {
         return true;
@@ -631,7 +624,7 @@ bool metal_pass_ensure_pipeline(metal::MetalContext& ctx, metal::MetalPass& pass
     descriptor.rasterSampleCount = 1;
     for (NSUInteger i = 0; i < targets.colorFormats.size(); ++i)
     {
-        descriptor.colorAttachments[i].pixelFormat = targets.colorFormats[i];
+        descriptor.colorAttachments[i].pixelFormat = static_cast<MTLPixelFormat>(targets.colorFormats[i]);
         descriptor.colorAttachments[i].blendingEnabled = YES;
         descriptor.colorAttachments[i].sourceRGBBlendFactor = MTLBlendFactorSourceAlpha;
         descriptor.colorAttachments[i].destinationRGBBlendFactor = MTLBlendFactorOneMinusSourceAlpha;
@@ -643,7 +636,7 @@ bool metal_pass_ensure_pipeline(metal::MetalContext& ctx, metal::MetalPass& pass
 
     if (targets.depth)
     {
-        descriptor.depthAttachmentPixelFormat = targets.depthFormat;
+        descriptor.depthAttachmentPixelFormat = static_cast<MTLPixelFormat>(targets.depthFormat);
     }
 
     NSError* error = nil;
@@ -707,7 +700,7 @@ struct MetalPassUBO
     MetalPassChannel iChannel[4];
 };
 
-bool metal_pass_update_uniforms(metal::MetalContext& ctx, metal::MetalPass& pass, const MetalPassTargets& targets)
+bool metal_pass_update_uniforms(metal::MetalContext& ctx, metal::MetalPass& pass, const metal::MetalPassTargets& targets)
 {
     auto device = bridge<id<MTLDevice>>(ctx.device);
     if (!device)
@@ -1053,7 +1046,7 @@ bool metal_pass_bind_material_argument_buffer(metal::MetalContext& ctx, id<MTLRe
     return true;
 }
 
-bool metal_pass_encode_draw(metal::MetalContext& ctx, metal::MetalPass& pass, const BasicPassShaders& shaders, const MetalPassTargets& targets)
+bool metal_pass_encode_draw(metal::MetalContext& ctx, metal::MetalPass& pass, const BasicPassShaders& shaders, const metal::MetalPassTargets& targets)
 {
     auto sampledSurfaces = metal_pass_sampled_surfaces(ctx, pass);
 
@@ -1232,9 +1225,14 @@ bool metal_pass_encode_draw(metal::MetalContext& ctx, metal::MetalPass& pass, co
 
 bool metal_pass_supported(metal::MetalPass& pass)
 {
+    if (pass.pass.passType == PassType::Scripted)
+    {
+        return true;
+    }
+
     if (pass.pass.passType != PassType::Standard)
     {
-        report_pass_error(pass, fmt::format("Metal pass '{}' has unsupported pass type. Basic Metal raster rendering only supports standard passes.", pass.pass.name));
+        report_pass_error(pass, fmt::format("Metal pass '{}' has unsupported pass type. Metal rendering supports standard raster and scripted passes.", pass.pass.name));
         pass.reportedUnsupportedFeatures = true;
         return false;
     }
@@ -1280,6 +1278,32 @@ bool metal_pass_draw(MetalContext& ctx, MetalPass& pass, const glm::uvec2& rende
     {
         validation_set_shaders({});
         return false;
+    }
+
+    if (pass.pass.passType == PassType::Scripted)
+    {
+        MetalPassTargets targets;
+        const bool ok = metal_pass_prepare_targets(ctx, pass, renderSize, targets) &&
+            metal_nanovg_begin(ctx, pass, targets) &&
+            ([&]() {
+                python_run_pass(ctx.vg, pass.pass, targets.size);
+                return true;
+            })() &&
+            metal_nanovg_end(ctx, pass);
+
+        if (ok)
+        {
+            for (auto* color : targets.colors)
+            {
+                if (color && color->pSurface)
+                {
+                    color->pSurface->rendered = true;
+                }
+            }
+        }
+
+        validation_set_shaders({});
+        return ok && !validation_get_error_state() && pass.pass.scene.valid;
     }
 
     BasicPassShaders shaders;

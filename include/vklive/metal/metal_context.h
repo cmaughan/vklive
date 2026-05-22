@@ -7,6 +7,7 @@
 #include <vklive/IDevice.h>
 
 struct Scene;
+struct NVGcontext;
 
 namespace metal
 {
@@ -23,6 +24,8 @@ struct MetalContext : DeviceContext
     void* currentDrawable = nullptr;
     void* frameCommandBuffer = nullptr;
     void* lastCommandBuffer = nullptr;
+    void* metalNanovg = nullptr;
+    NVGcontext* vg = nullptr;
 
     std::shared_ptr<MetalImGuiTexture> spFontTexture;
     std::mutex metalSceneMutex;
