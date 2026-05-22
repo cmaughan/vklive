@@ -403,6 +403,13 @@ void ImGui_ImplMetal_DestroyDeviceObjects()
 
 #if TARGET_OS_OSX
 #import <Cocoa/Cocoa.h>
+
+static NSWindow* ImGui_ImplMetal_GetWindow(ImGuiViewport* viewport)
+{
+    void* handle = viewport->PlatformHandleRaw ? viewport->PlatformHandleRaw : viewport->PlatformHandle;
+    IM_ASSERT(handle != nullptr);
+    return (__bridge NSWindow*)handle;
+}
 #endif
 
 //--------------------------------------------------------------------------------------------------------
@@ -428,16 +435,13 @@ static void ImGui_ImplMetal_CreateWindow(ImGuiViewport* viewport)
 
     // PlatformHandleRaw should always be a NSWindow*, whereas PlatformHandle might be a higher-level handle (e.g. GLFWWindow*, SDL_Window*).
     // Some back-ends will leave PlatformHandleRaw == 0, in which case we assume PlatformHandle will contain the NSWindow*.
-    void* handle = viewport->PlatformHandleRaw ? viewport->PlatformHandleRaw : viewport->PlatformHandle;
-    IM_ASSERT(handle != nullptr);
-
     id<MTLDevice> device = bd->SharedMetalContext.device;
     CAMetalLayer* layer = [CAMetalLayer layer];
     layer.device = device;
     layer.framebufferOnly = YES;
     layer.pixelFormat = bd->SharedMetalContext.framebufferDescriptor.colorPixelFormat;
 #if TARGET_OS_OSX
-    NSWindow* window = (__bridge NSWindow*)handle;
+    NSWindow* window = ImGui_ImplMetal_GetWindow(viewport);
     NSView* view = window.contentView;
     view.layer = layer;
     view.wantsLayer = YES;
@@ -445,7 +449,7 @@ static void ImGui_ImplMetal_CreateWindow(ImGuiViewport* viewport)
     data->MetalLayer = layer;
     data->CommandQueue = [device newCommandQueue];
     data->RenderPassDescriptor = [[MTLRenderPassDescriptor alloc] init];
-    data->Handle = handle;
+    data->Handle = viewport->PlatformHandleRaw ? viewport->PlatformHandleRaw : viewport->PlatformHandle;
 }
 
 static void ImGui_ImplMetal_DestroyWindow(ImGuiViewport* viewport)
@@ -472,8 +476,7 @@ static void ImGui_ImplMetal_RenderWindow(ImGuiViewport* viewport, void*)
     ImGuiViewportDataMetal* data = (ImGuiViewportDataMetal*)viewport->RendererUserData;
 
 #if TARGET_OS_OSX
-    void* handle = viewport->PlatformHandleRaw ? viewport->PlatformHandleRaw : viewport->PlatformHandle;
-    NSWindow* window = (__bridge NSWindow*)handle;
+    NSWindow* window = ImGui_ImplMetal_GetWindow(viewport);
 
     // Always render the first frame, regardless of occlusionState, to avoid an initial flicker
     if ((window.occlusionState & NSWindowOcclusionStateVisible) == 0 && !data->FirstFrame)
@@ -488,7 +491,7 @@ static void ImGui_ImplMetal_RenderWindow(ImGuiViewport* viewport, void*)
     if (data->MetalLayer.contentsScale != viewport->DpiScale)
     {
         data->MetalLayer.contentsScale = viewport->DpiScale;
-        data->MetalLayer.drawableSize = MakeScaledSize(window.frame.size, viewport->DpiScale);
+        data->MetalLayer.drawableSize = MakeScaledSize(window.contentView.bounds.size, viewport->DpiScale);
     }
     viewport->DrawData->FramebufferScale = ImVec2(viewport->DpiScale, viewport->DpiScale);
 #endif
@@ -500,8 +503,8 @@ static void ImGui_ImplMetal_RenderWindow(ImGuiViewport* viewport, void*)
     MTLRenderPassDescriptor* renderPassDescriptor = data->RenderPassDescriptor;
     renderPassDescriptor.colorAttachments[0].texture = drawable.texture;
     renderPassDescriptor.colorAttachments[0].clearColor = MTLClearColorMake(0, 0, 0, 0);
-    if ((viewport->Flags & ImGuiViewportFlags_NoRendererClear) == 0)
-        renderPassDescriptor.colorAttachments[0].loadAction = MTLLoadActionClear;
+    renderPassDescriptor.colorAttachments[0].loadAction = (viewport->Flags & ImGuiViewportFlags_NoRendererClear) ? MTLLoadActionLoad : MTLLoadActionClear;
+    renderPassDescriptor.colorAttachments[0].storeAction = MTLStoreActionStore;
 
     id <MTLCommandBuffer> commandBuffer = [data->CommandQueue commandBuffer];
     id <MTLRenderCommandEncoder> renderEncoder = [commandBuffer renderCommandEncoderWithDescriptor:renderPassDescriptor];

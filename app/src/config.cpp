@@ -40,6 +40,7 @@ void config_load(const fs::path& path)
         
         appConfig.draw_on_background = tbl["settings"]["draw_on_background"].value_or(false);
         appConfig.transparent_editor = tbl["settings"]["transparent_editor"].value_or(false);
+        appConfig.viewports = tbl["settings"]["viewports"].value_or(false);
 
         auto pAnalysisTable = tbl["settings"]["audio_analysis"].as_table();
         auto pDeviceTable = tbl["settings"]["audio_device"].as_table();
@@ -72,6 +73,7 @@ void config_save(const fs::path& path)
 
     settings.insert_or_assign("draw_on_background", appConfig.draw_on_background);
     settings.insert_or_assign("transparent_editor", appConfig.transparent_editor);
+    settings.insert_or_assign("viewports", appConfig.viewports);
 
     settings.insert_or_assign("last_folder_path", appConfig.last_folder_path.string());
 

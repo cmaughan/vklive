@@ -269,6 +269,7 @@ int main(int argc, char** argv)
     {
         appConfig.renderer = commandLineOptions.renderer;
     }
+    const bool activeViewports = appConfig.viewports || commandLineOptions.viewports;
     const auto activeBackend = device_resolve_backend(appConfig.renderer);
     if (commandLineOptions.smokeTest)
     {
@@ -292,7 +293,7 @@ int main(int argc, char** argv)
     Zest::timer_restart(Zest::globalTimer);
 
     // Main device
-    g_pDevice = device_create(activeBackend, init_sdl_window(activeBackend), imSettingsPath, appConfig.viewports);
+    g_pDevice = device_create(activeBackend, init_sdl_window(activeBackend), imSettingsPath, activeViewports);
 
     Zing::audio_init(nullptr);
 
@@ -415,7 +416,7 @@ int main(int argc, char** argv)
             {
                 g_pDevice->DestroyScene(*g_Controller.spCurrentProject->spScene.get());
             }
-            g_pDevice = device_create(activeBackend, init_sdl_window(activeBackend), imSettingsPath, appConfig.viewports);
+            g_pDevice = device_create(activeBackend, init_sdl_window(activeBackend), imSettingsPath, activeViewports);
 
             // Remember we were lost
             g_pDevice->Context().deviceState = DeviceState::WasLost;

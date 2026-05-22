@@ -15,6 +15,7 @@ struct AppCommandLineOptions
     bool smokeTest = false;
     bool startupFrameTest = false;
     bool recordOneFrame = false;
+    bool viewports = false;
     bool help = false;
 };
 

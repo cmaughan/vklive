@@ -14,7 +14,6 @@
 #include <vklive/metal/metal_context.h>
 #include <vklive/metal/metal_imgui.h>
 #include <vklive/metal/metal_imgui_texture.h>
-#include <vklive/validation.h>
 
 namespace
 {
@@ -42,11 +41,17 @@ void imgui_init(MetalContext& ctx, const std::string& iniPath, bool viewports)
     io.ConfigFlags |= ImGuiConfigFlags_DockingEnable;
     if (viewports)
     {
-        // TODO: wire Metal renderer callbacks for secondary platform windows.
-        validation_error("Metal renderer does not support Dear ImGui multi-viewports yet; continuing with the main window only.");
+        io.ConfigFlags |= ImGuiConfigFlags_ViewportsEnable;
     }
 
     ImGui::StyleColorsDark();
+
+    ImGuiStyle& style = ImGui::GetStyle();
+    if (io.ConfigFlags & ImGuiConfigFlags_ViewportsEnable)
+    {
+        style.WindowRounding = 0.0f;
+        style.Colors[ImGuiCol_WindowBg].w = 1.0f;
+    }
 
     if (!ImGui_ImplSDL2_InitForMetal(ctx.window))
     {

@@ -15,7 +15,7 @@ int main(int argc, char** argv)
 {
     if (argc < 3)
     {
-        std::cerr << "usage: render_parity_harness <Rezonality> <project> [renderer] [expected-exit-code] [expected-output-substring] [--record-one-frame]\n";
+        std::cerr << "usage: render_parity_harness <Rezonality> <project> [renderer] [expected-exit-code] [expected-output-substring] [--record-one-frame] [--viewports]\n";
         return EXIT_FAILURE;
     }
 
@@ -45,11 +45,17 @@ int main(int argc, char** argv)
     }
 
     bool recordOneFrame = false;
+    bool viewports = false;
     for (int i = argIndex; i < argc; ++i)
     {
         if (std::string(argv[i]) == "--record-one-frame")
         {
             recordOneFrame = true;
+            continue;
+        }
+        if (std::string(argv[i]) == "--viewports")
+        {
+            viewports = true;
             continue;
         }
 
@@ -94,6 +100,10 @@ int main(int argc, char** argv)
         command.push_back("--record-one-frame");
         std::error_code removeError;
         fs::remove(runTree / "renders" / "Frame_00001.png", removeError);
+    }
+    if (viewports)
+    {
+        command.push_back("--viewports");
     }
 
     constexpr uint32_t ProcessWaitMilliseconds = 20000;

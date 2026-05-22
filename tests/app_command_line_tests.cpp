@@ -107,6 +107,19 @@ int main()
     ok &= require(recordOneFrameOptions.startupFrameTest, "record-one-frame startup-frame flag not parsed");
     ok &= require(recordOneFrameOptions.recordOneFrame, "record-one-frame flag not parsed");
 
+    const char* viewportsArgv[] = {
+        "Rezonality.exe",
+        "--renderer",
+        "metal",
+        "--viewports"
+    };
+    AppCommandLineOptions viewportsOptions;
+    std::string viewportsError;
+    bool viewportsOk = app_parse_command_line(static_cast<int>(std::size(viewportsArgv)), const_cast<char**>(viewportsArgv), viewportsOptions, viewportsError);
+    ok &= require(viewportsOk, "viewports parser failed: " + viewportsError);
+    ok &= require(viewportsOptions.renderer == RenderBackend::Metal, "viewports renderer not parsed");
+    ok &= require(viewportsOptions.viewports, "viewports flag not parsed");
+
     const char* macPersistenceArgv[] = {
         "Rezonality.exe",
         "-ApplePersistenceIgnoreState",
