@@ -15,15 +15,47 @@ int main(int argc, char** argv)
 {
     if (argc < 3)
     {
-        std::cerr << "usage: render_parity_harness <Rezonality> <project> [renderer] [expected-exit-code] [expected-output-substring]\n";
+        std::cerr << "usage: render_parity_harness <Rezonality> <project> [renderer] [expected-exit-code] [expected-output-substring] [--record-one-frame]\n";
         return EXIT_FAILURE;
     }
 
     const fs::path app = argv[1];
     const fs::path project = argv[2];
-    const std::string renderer = argc >= 4 ? argv[3] : "metal";
-    const int expectedStatus = argc >= 5 ? std::atoi(argv[4]) : 0;
-    const std::string expectedOutput = argc >= 6 ? argv[5] : std::string();
+    auto isFlag = [](const char* arg) {
+        return arg && std::string(arg).rfind("--", 0) == 0;
+    };
+
+    int argIndex = 3;
+    std::string renderer = "metal";
+    if (argIndex < argc && !isFlag(argv[argIndex]))
+    {
+        renderer = argv[argIndex++];
+    }
+
+    int expectedStatus = 0;
+    if (argIndex < argc && !isFlag(argv[argIndex]))
+    {
+        expectedStatus = std::atoi(argv[argIndex++]);
+    }
+
+    std::string expectedOutput;
+    if (argIndex < argc && !isFlag(argv[argIndex]))
+    {
+        expectedOutput = argv[argIndex++];
+    }
+
+    bool recordOneFrame = false;
+    for (int i = argIndex; i < argc; ++i)
+    {
+        if (std::string(argv[i]) == "--record-one-frame")
+        {
+            recordOneFrame = true;
+            continue;
+        }
+
+        std::cerr << "unknown render parity harness option: " << argv[i] << "\n";
+        return EXIT_FAILURE;
+    }
 
     if (!fs::exists(app))
     {
@@ -36,7 +68,18 @@ int main(int argc, char** argv)
         return EXIT_FAILURE;
     }
 
-    const std::vector<std::string> command = {
+    auto runTree = project.parent_path().parent_path();
+    const auto bundleRunTree = app.parent_path().parent_path() / "Resources" / "run_tree";
+    if (fs::exists(bundleRunTree))
+    {
+        runTree = bundleRunTree;
+    }
+    else if (fs::exists(app.parent_path() / "run_tree"))
+    {
+        runTree = app.parent_path() / "run_tree";
+    }
+
+    std::vector<std::string> command = {
         app.string(),
         "-ApplePersistenceIgnoreState",
         "YES",
@@ -46,6 +89,12 @@ int main(int argc, char** argv)
         project.string(),
         "--startup-frame-test"
     };
+    if (recordOneFrame)
+    {
+        command.push_back("--record-one-frame");
+        std::error_code removeError;
+        fs::remove(runTree / "renders" / "Frame_00001.png", removeError);
+    }
 
     constexpr uint32_t ProcessWaitMilliseconds = 20000;
     constexpr uint32_t KillProcessMilliseconds = 2000;
@@ -99,6 +148,22 @@ int main(int argc, char** argv)
         std::cerr << output;
         std::cerr << "render parity output did not contain expected text: " << expectedOutput << "\n";
         return EXIT_FAILURE;
+    }
+    if (recordOneFrame)
+    {
+        const auto recordingPath = runTree / "renders" / "Frame_00001.png";
+        if (!fs::exists(recordingPath))
+        {
+            std::cerr << output;
+            std::cerr << "render parity recording did not create: " << recordingPath << "\n";
+            return EXIT_FAILURE;
+        }
+        if (fs::file_size(recordingPath) == 0)
+        {
+            std::cerr << output;
+            std::cerr << "render parity recording created an empty file: " << recordingPath << "\n";
+            return EXIT_FAILURE;
+        }
     }
 
     return EXIT_SUCCESS;

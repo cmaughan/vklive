@@ -2,8 +2,10 @@
 #include <cstdint>
 #include <exception>
 #include <mutex>
+#include <system_error>
 
 #include <fmt/format.h>
+#include <lodepng.h>
 
 #include <zest/time/timer.h>
 
@@ -397,13 +399,47 @@ RenderOutput metal_scene_get_output(MetalContext& ctx, MetalScene& metalScene)
 
 void metal_scene_write_to_file(MetalContext& ctx, MetalScene& metalScene, const fs::path& path)
 {
-    (void)ctx;
-    (void)path;
-
-    if (metalScene.pScene && !metalScene.reportedCaptureUnsupported)
+    if (!metalScene.pScene)
     {
-        metalScene.reportedCaptureUnsupported = true;
-        report_metal_scene_error(*metalScene.pScene, "Metal render capture is not implemented yet.");
+        return;
+    }
+
+    if (!metalScene.defaultTarget)
+    {
+        metalScene.pScene->recording = false;
+        return;
+    }
+
+    auto itrTarget = metalScene.surfaces.find(metalScene.defaultTarget);
+    if (itrTarget == metalScene.surfaces.end() || !itrTarget->second)
+    {
+        metalScene.pScene->recording = false;
+        return;
+    }
+
+    std::vector<uint8_t> pixels;
+    glm::uvec2 size(0);
+    if (!metal_surface_read_rgba8(ctx, *itrTarget->second, pixels, size))
+    {
+        report_metal_scene_error(*metalScene.pScene, "Metal render capture failed to read the default target.");
+        metalScene.pScene->recording = false;
+        return;
+    }
+
+    std::error_code createError;
+    fs::create_directories(path, createError);
+    if (createError)
+    {
+        report_metal_scene_error(*metalScene.pScene, fmt::format("Metal render capture failed to create '{}': {}", path.string(), createError.message()));
+        metalScene.pScene->recording = false;
+        return;
+    }
+
+    const auto fileName = path / fmt::format("Frame_{:05}.png", metalScene.pScene->GlobalFrameCount);
+    const auto encodeError = lodepng::encode(fileName.string(), pixels.data(), size.x, size.y, LCT_RGBA);
+    if (encodeError != 0)
+    {
+        report_metal_scene_error(*metalScene.pScene, fmt::format("Metal render capture failed to write '{}': {}", fileName.string(), lodepng_error_text(encodeError)));
         metalScene.pScene->recording = false;
     }
 }

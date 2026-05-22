@@ -5,6 +5,7 @@
 #include <functional>
 #include <memory>
 #include <string>
+#include <vector>
 
 #include <glm/glm.hpp>
 #include <zest/file/file.h>
@@ -96,5 +97,6 @@ bool metal_surface_ensure_target(MetalContext& ctx, MetalScene& scene, MetalSurf
 bool metal_surface_create_from_file(MetalContext& ctx, MetalSurface& surface, const fs::path& path, bool flipY = false, MetalSurfaceFormat ldrFormat = MetalSurfaceFormat::RGBA8Unorm);
 bool metal_surface_create_from_memory(MetalContext& ctx, MetalSurface& surface, const fs::path& sourceName, const char* data, size_t dataSize, bool flipY = false, MetalSurfaceFormat ldrFormat = MetalSurfaceFormat::RGBA8Unorm);
 bool metal_surface_update_from_audio(MetalContext& ctx, MetalSurface& surface);
+bool metal_surface_read_rgba8(MetalContext& ctx, MetalSurface& surface, std::vector<uint8_t>& pixels, glm::uvec2& size);
 
 } // namespace metal

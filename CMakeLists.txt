@@ -451,6 +451,15 @@ if(VKLIVE_ENABLE_METAL)
             ${CMAKE_SOURCE_DIR}/run_tree/projects/simple
             metal)
 
+    add_test(NAME vklive_render_parity_simple_record_metal
+        COMMAND vklive_render_parity_harness
+            $<TARGET_FILE:Rezonality>
+            ${CMAKE_SOURCE_DIR}/run_tree/projects/simple
+            metal
+            0
+            ""
+            --record-one-frame)
+
     add_test(NAME vklive_render_parity_default_metal
         COMMAND vklive_render_parity_harness
             $<TARGET_FILE:Rezonality>

@@ -199,6 +199,20 @@ void copy_scene_errors_to_zep(Scene& scene)
     scene.warnings.clear();
 }
 
+void configure_record_one_frame(Scene& scene)
+{
+    if (!commandLineOptions.recordOneFrame)
+    {
+        return;
+    }
+
+    Scene::GlobalFrameCount = 0;
+    Scene::GlobalElapsedSeconds = 0.0;
+    scene.recording = true;
+    scene.pause = false;
+    scene.maxRecordFrame = 2;
+}
+
 } // namespace
 
 int main(int argc, char** argv)
@@ -515,6 +529,7 @@ int main(int argc, char** argv)
 
                 // Copy the new one
                 g_Controller.spCurrentProject = spNewProject;
+                configure_record_one_frame(*g_Controller.spCurrentProject->spScene);
 
                 // Back to a normal rendering state (see device lost comments)
                 g_pDevice->Context().deviceState = DeviceState::Normal;

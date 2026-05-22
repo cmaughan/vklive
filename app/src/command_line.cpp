@@ -5,7 +5,7 @@
 std::string app_command_line_help()
 {
     return R"(Usage:
-  Rezonality [--project <dir>] [--scenegraph <file>] [--renderer <auto|vulkan|metal>] [--smoke-test] [--startup-frame-test]
+  Rezonality [--project <dir>] [--scenegraph <file>] [--renderer <auto|vulkan|metal>] [--smoke-test] [--startup-frame-test] [--record-one-frame]
 
 Options:
   --project <dir>                 Load a project directory for this launch.
@@ -13,6 +13,7 @@ Options:
   --renderer <auto|vulkan|metal>  Select the graphics backend for this launch.
   --smoke-test                    Start and exit immediately after command-line parsing.
   --startup-frame-test            Initialize the renderer, draw one app frame, then exit.
+  --record-one-frame              With --startup-frame-test, write one PNG frame to run_tree/renders.
 )";
 }
 
@@ -72,6 +73,11 @@ bool app_parse_command_line(int argc, char** argv, AppCommandLineOptions& option
         }
         else if (arg == "--startup-frame-test")
         {
+            options.startupFrameTest = true;
+        }
+        else if (arg == "--record-one-frame")
+        {
+            options.recordOneFrame = true;
             options.startupFrameTest = true;
         }
         else if (arg == "-ApplePersistenceIgnoreState")

@@ -16,7 +16,7 @@ bool require(bool condition, const std::string& message)
     }
     return true;
 }
-}
+} // namespace
 
 int main()
 {
@@ -94,6 +94,18 @@ int main()
     ok &= require(startupFrameOk, "startup-frame parser failed: " + startupFrameError);
     ok &= require(startupFrameOptions.renderer == RenderBackend::Metal, "startup-frame renderer not parsed");
     ok &= require(startupFrameOptions.startupFrameTest, "startup-frame flag not parsed");
+
+    const char* recordOneFrameArgv[] = {
+        "Rezonality.exe",
+        "--startup-frame-test",
+        "--record-one-frame"
+    };
+    AppCommandLineOptions recordOneFrameOptions;
+    std::string recordOneFrameError;
+    bool recordOneFrameOk = app_parse_command_line(static_cast<int>(std::size(recordOneFrameArgv)), const_cast<char**>(recordOneFrameArgv), recordOneFrameOptions, recordOneFrameError);
+    ok &= require(recordOneFrameOk, "record-one-frame parser failed: " + recordOneFrameError);
+    ok &= require(recordOneFrameOptions.startupFrameTest, "record-one-frame startup-frame flag not parsed");
+    ok &= require(recordOneFrameOptions.recordOneFrame, "record-one-frame flag not parsed");
 
     const char* macPersistenceArgv[] = {
         "Rezonality.exe",

@@ -14,6 +14,7 @@ struct AppCommandLineOptions
     bool rendererSpecified = false;
     bool smokeTest = false;
     bool startupFrameTest = false;
+    bool recordOneFrame = false;
     bool help = false;
 };
 

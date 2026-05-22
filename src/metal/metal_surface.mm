@@ -97,6 +97,11 @@ bool metal_surface_size_valid(const glm::uvec2& size)
     return size.x != 0 && size.y != 0;
 }
 
+NSUInteger align_to(NSUInteger value, NSUInteger alignment)
+{
+    return ((value + alignment - 1) / alignment) * alignment;
+}
+
 NSString* ns_string(const std::string& string)
 {
     return [NSString stringWithUTF8String:string.c_str()];
@@ -414,6 +419,80 @@ void metal_surface_create_sampler(MetalContext& ctx, MetalSurface& surface)
 
     id<MTLSamplerState> sampler = [device newSamplerStateWithDescriptor:descriptor];
     retain_obj(surface.sampler, sampler);
+}
+
+bool metal_surface_read_rgba8(MetalContext& ctx, MetalSurface& surface, std::vector<uint8_t>& pixels, glm::uvec2& size)
+{
+    pixels.clear();
+    size = glm::uvec2(0);
+
+    auto texture = bridge<id<MTLTexture>>(surface.texture);
+    auto device = bridge<id<MTLDevice>>(ctx.device);
+    auto commandQueue = bridge<id<MTLCommandQueue>>(ctx.commandQueue);
+    if (!texture || !device || !commandQueue || !metal_surface_size_valid(surface.size))
+    {
+        return false;
+    }
+
+    if (surface.format != MetalSurfaceFormat::RGBA8Unorm && surface.format != MetalSurfaceFormat::RGBA8Unorm_sRGB)
+    {
+        return false;
+    }
+
+    constexpr NSUInteger BytesPerPixel = 4;
+    constexpr NSUInteger RowAlignment = 256;
+    const NSUInteger width = static_cast<NSUInteger>(surface.size.x);
+    const NSUInteger height = static_cast<NSUInteger>(surface.size.y);
+    const NSUInteger tightBytesPerRow = width * BytesPerPixel;
+    const NSUInteger bufferBytesPerRow = align_to(tightBytesPerRow, RowAlignment);
+    const NSUInteger bufferSize = bufferBytesPerRow * height;
+
+    id<MTLBuffer> readbackBuffer = [device newBufferWithLength:bufferSize options:MTLResourceStorageModeShared];
+    if (!readbackBuffer)
+    {
+        return false;
+    }
+    readbackBuffer.label = ns_string(surface.debugName + ":Readback");
+
+    id<MTLCommandBuffer> commandBuffer = [commandQueue commandBuffer];
+    if (!commandBuffer)
+    {
+        return false;
+    }
+    commandBuffer.label = ns_string(surface.debugName + ":ReadbackCommand");
+
+    id<MTLBlitCommandEncoder> blitEncoder = [commandBuffer blitCommandEncoder];
+    if (!blitEncoder)
+    {
+        return false;
+    }
+
+    [blitEncoder copyFromTexture:texture
+                     sourceSlice:0
+                     sourceLevel:0
+                    sourceOrigin:MTLOriginMake(0, 0, 0)
+                      sourceSize:MTLSizeMake(width, height, 1)
+                        toBuffer:readbackBuffer
+               destinationOffset:0
+          destinationBytesPerRow:bufferBytesPerRow
+        destinationBytesPerImage:bufferBytesPerRow * height];
+    [blitEncoder endEncoding];
+    [commandBuffer commit];
+    [commandBuffer waitUntilCompleted];
+
+    if (commandBuffer.status == MTLCommandBufferStatusError)
+    {
+        return false;
+    }
+
+    pixels.resize(static_cast<size_t>(tightBytesPerRow * height));
+    const auto* src = static_cast<const uint8_t*>([readbackBuffer contents]);
+    for (NSUInteger y = 0; y < height; ++y)
+    {
+        std::memcpy(pixels.data() + (static_cast<size_t>(y) * tightBytesPerRow), src + (y * bufferBytesPerRow), tightBytesPerRow);
+    }
+    size = surface.size;
+    return true;
 }
 
 bool metal_surface_create_from_memory(MetalContext& ctx, MetalSurface& surface, const fs::path& sourceName, const char* data, size_t dataSize, bool flipY, MetalSurfaceFormat ldrFormat)
