@@ -59,6 +59,7 @@ dr latest --clean
 ```
 
 This runs `git reset --hard` and `git clean -fdx` inside submodules before pulling their branch heads. Treat it as a deliberate cleanup command: it removes uncommitted submodule changes and untracked files inside submodules.
+The clean pass runs before the recursive pull/update steps, so it can recover from nested submodules that were created by a newer branch head and then block checkout of the parent-recorded commit.
 
 ## What Gets Pulled
 
@@ -70,9 +71,12 @@ This runs `git reset --hard` and `git clean -fdx` inside submodules before pulli
 4. Syncs and initializes submodules recursively.
 5. Checks out each branch-configured submodule to its configured branch.
 6. Pulls each branch-configured submodule with `--ff-only`.
-7. Prints recursive submodule status.
+7. Initializes child submodules inside the updated submodule worktrees.
+8. Re-runs the branch-head pass so child submodules with branch settings also land on their latest branch heads.
+9. Prints recursive submodule status.
 
 The branch configuration comes from each `.gitmodules` file. In practice this keeps `zep`, `libs/zing`, nested `libs/zing/libs/zest`, `vcpkg`, and other branch-configured submodules from silently sitting on stale detached commits.
+If a submodule still names an old branch such as `master` but the remote has moved to `main`, the helper falls back to the remote HEAD and prints the branch it used.
 
 ## What Gets Pushed
 

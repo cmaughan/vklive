@@ -22,10 +22,38 @@ GIT_DEFAULTS = (
 )
 
 SUBMODULE_BRANCH_SYNC_SCRIPT = r"""
-branch="$(git config -f "$toplevel/.gitmodules" "submodule.$name.branch" 2>/dev/null || true)"
-if [ -n "$branch" ]; then
+configured_branch="$(git config -f "$toplevel/.gitmodules" "submodule.$name.branch" 2>/dev/null || true)"
+branch=""
+if [ -n "$configured_branch" ]; then
     git fetch origin --prune
-    git checkout "$branch"
+fi
+if [ -n "$configured_branch" ] && git show-ref --verify --quiet "refs/remotes/origin/$configured_branch"; then
+    branch="$configured_branch"
+elif [ -n "$configured_branch" ]; then
+    git remote set-head origin -a >/dev/null 2>&1 || true
+    remote_head="$(git symbolic-ref --quiet --short refs/remotes/origin/HEAD 2>/dev/null || true)"
+    branch="${remote_head#origin/}"
+    if [ -z "$branch" ]; then
+        for candidate in main master; do
+            if git show-ref --verify --quiet "refs/remotes/origin/$candidate"; then
+                branch="$candidate"
+                break
+            fi
+        done
+    fi
+    if [ -z "$branch" ]; then
+        branch="$(git for-each-ref --format='%(refname:short)' refs/remotes/origin | grep -v '^origin/HEAD$' | sed 's#^origin/##' | head -n 1)"
+    fi
+    if [ -n "$configured_branch" ] && [ -n "$branch" ]; then
+        echo "Configured branch '$configured_branch' is unavailable for $name; using origin/$branch"
+    fi
+fi
+if [ -n "$branch" ]; then
+    if git show-ref --verify --quiet "refs/heads/$branch"; then
+        git checkout "$branch"
+    else
+        git checkout -B "$branch" "origin/$branch"
+    fi
     git pull --ff-only origin "$branch"
 fi
 """.strip()
@@ -62,6 +90,7 @@ fi
 """.strip()
 
 SUBMODULE_CLEAN_SCRIPT = "git reset --hard && git clean -fdx"
+SUBMODULE_CHILD_UPDATE_SCRIPT = "git submodule sync --recursive && git submodule update --init --recursive --jobs 8"
 
 
 def repo_root() -> pathlib.Path:
@@ -245,14 +274,20 @@ def sync_repo(root: pathlib.Path, clean: bool = False, dry_run: bool = False) ->
 
     commands = [
         ["git", "fetch", "--recurse-submodules=on-demand", "--prune"],
-        ["git", "pull", "--ff-only", "--recurse-submodules=on-demand"],
-        ["git", "submodule", "sync", "--recursive"],
-        ["git", "submodule", "update", "--init", "--recursive", "--jobs", "8"],
     ]
     if clean:
         commands.append(git_foreach(SUBMODULE_CLEAN_SCRIPT))
     commands.extend(
         [
+            ["git", "pull", "--ff-only", "--recurse-submodules=on-demand"],
+            ["git", "submodule", "sync", "--recursive"],
+            ["git", "submodule", "update", "--init", "--recursive", "--jobs", "8"],
+        ]
+    )
+    commands.extend(
+        [
+            git_foreach(SUBMODULE_BRANCH_SYNC_SCRIPT),
+            git_foreach(SUBMODULE_CHILD_UPDATE_SCRIPT),
             git_foreach(SUBMODULE_BRANCH_SYNC_SCRIPT),
             ["git", "submodule", "status", "--recursive"],
         ]
