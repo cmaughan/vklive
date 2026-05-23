@@ -1,7 +1,7 @@
 [submodule "zep"]
 	path = zep
 	url = https://github.com/Rezonality/zep
-	branch = codex/metal-syntax
+	branch = master
 [submodule "vcpkg"]
 	path = vcpkg
 	url = https://github.com/Microsoft/vcpkg.git
