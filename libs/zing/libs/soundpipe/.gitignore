@@ -1,0 +1,9 @@
+*.o
+*.a
+*.wav
+*.raw
+*.swp
+*.dSYM
+.DS_Store
+docs
+*.html

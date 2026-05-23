@@ -4,6 +4,9 @@
 
 # User-specific files
 .cache/**/*
+compile_commands.json
+/vcpkg/
+**/vcpkg/
 __pycache__/
 **/__pycache__/
 build_llvm

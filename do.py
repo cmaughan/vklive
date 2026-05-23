@@ -1,8 +1,11 @@
 #!/usr/bin/env python3
 from __future__ import annotations
 
+import os
 import pathlib
+import platform
 import shlex
+import shutil
 import subprocess
 import sys
 from types import SimpleNamespace
@@ -11,86 +14,12 @@ from types import SimpleNamespace
 CONFIGS = {
     "debug": "Debug",
     "release": "Release",
+    "relwithdebinfo": "RelWithDebInfo",
+    "reldbg": "RelWithDebInfo",
 }
 
-GIT_DEFAULTS = (
-    ("submodule.recurse", "true"),
-    ("fetch.recurseSubmodules", "on-demand"),
-    ("status.submoduleSummary", "true"),
-    ("diff.submodule", "log"),
-    ("push.recurseSubmodules", "check"),
-)
-
-SUBMODULE_BRANCH_SYNC_SCRIPT = r"""
-configured_branch="$(git config -f "$toplevel/.gitmodules" "submodule.$name.branch" 2>/dev/null || true)"
-branch=""
-if [ -n "$configured_branch" ]; then
-    git fetch origin --prune
-fi
-if [ -n "$configured_branch" ] && git show-ref --verify --quiet "refs/remotes/origin/$configured_branch"; then
-    branch="$configured_branch"
-elif [ -n "$configured_branch" ]; then
-    git remote set-head origin -a >/dev/null 2>&1 || true
-    remote_head="$(git symbolic-ref --quiet --short refs/remotes/origin/HEAD 2>/dev/null || true)"
-    branch="${remote_head#origin/}"
-    if [ -z "$branch" ]; then
-        for candidate in main master; do
-            if git show-ref --verify --quiet "refs/remotes/origin/$candidate"; then
-                branch="$candidate"
-                break
-            fi
-        done
-    fi
-    if [ -z "$branch" ]; then
-        branch="$(git for-each-ref --format='%(refname:short)' refs/remotes/origin | grep -v '^origin/HEAD$' | sed 's#^origin/##' | head -n 1)"
-    fi
-    if [ -n "$configured_branch" ] && [ -n "$branch" ]; then
-        echo "Configured branch '$configured_branch' is unavailable for $name; using origin/$branch"
-    fi
-fi
-if [ -n "$branch" ]; then
-    if git show-ref --verify --quiet "refs/heads/$branch"; then
-        git checkout "$branch"
-    else
-        git checkout -B "$branch" "origin/$branch"
-    fi
-    git pull --ff-only origin "$branch"
-fi
-""".strip()
-
-SUBMODULE_PUSH_SCRIPT = r"""
-branch="$(git symbolic-ref --quiet --short HEAD 2>/dev/null || true)"
-url="$(git remote get-url origin 2>/dev/null || true)"
-case "$url" in
-    *github.com/Rezonality/*|*github.com:Rezonality/*)
-        can_push=1
-        ;;
-    *)
-        can_push=0
-        ;;
-esac
-if [ -n "$branch" ] && [ "$can_push" -eq 1 ]; then
-    git push -u origin "$branch"
-elif [ -n "$branch" ]; then
-    echo "Skipping third-party submodule $name on $branch ($url)"
-else
-    echo "Skipping detached submodule $name at $(git rev-parse --short HEAD)"
-fi
-""".strip()
-
-SUBMODULE_STATUS_SCRIPT = r"""
-git status --short --branch
-branch="$(git symbolic-ref --quiet --short HEAD 2>/dev/null || true)"
-if [ -n "$branch" ]; then
-    upstream="$(git rev-parse --abbrev-ref --symbolic-full-name @{u} 2>/dev/null || true)"
-    if [ -n "$upstream" ]; then
-        git rev-list --left-right --count HEAD...@{u}
-    fi
-fi
-""".strip()
-
-SUBMODULE_CLEAN_SCRIPT = "git reset --hard && git clean -fdx"
-SUBMODULE_CHILD_UPDATE_SCRIPT = "git submodule sync --recursive && git submodule update --init --recursive --jobs 8"
+VCPKG_REPOSITORY = "https://github.com/microsoft/vcpkg.git"
+VCPKG_BASELINE = "38d91be5efb2f21fbef4a3c53295002823747431"
 
 
 def repo_root() -> pathlib.Path:
@@ -99,24 +28,23 @@ def repo_root() -> pathlib.Path:
 
 def help_text() -> str:
     return """Usage:
-  dr run [debug|release] [-- app-args...]
-  dr sync [--clean] [--dry-run]
-  dr latest [--clean] [--dry-run]
-  dr submodules [--dry-run]
-  dr gitconfig [--global] [--dry-run]
-  dr push [--dry-run]
-  dr publish [--dry-run]
+  dr doctor
+  dr setup
+  dr config [debug|release|relwithdebinfo] [-- cmake-args...]
+  dr build [debug|release|relwithdebinfo]
+  dr test [debug|release|relwithdebinfo] [-- ctest-args...]
+  dr run [debug|release|relwithdebinfo] [-- app-args...]
+  dr sync
+  dr push
+  dr clean [debug|release|relwithdebinfo]
 
 Examples:
-  dr run          Configure, build, and run Debug
-  dr run debug    Configure, build, and run Debug
-  dr run release  Configure, build, and run Release
+  dr doctor       Check CMake, Ninja, compiler cache, and vcpkg discovery
+  dr setup        Bootstrap an ignored local vcpkg checkout if needed
+  dr config       Configure Debug with Ninja and expose compile_commands.json
+  dr build        Build Debug without reconfiguring
   dr run release -- --project run_tree/projects/pbr_robot --scenegraph uv_debug.scenegraph
-  dr run release --project run_tree/projects/pbr_robot --scenegraph uv_debug.scenegraph
-  dr sync         Pull the parent repo and recursively update submodules
-  dr sync --clean Reset and clean submodule worktrees before pulling branch heads
-  dr submodules   Show recursive submodule status and ahead/behind counts
-  dr push         Push submodule branches first, then push this repo
+  dr test debug -- -R zep
 """
 
 
@@ -128,122 +56,161 @@ def parse_args(args: list[str]) -> SimpleNamespace:
     command = args[0].lower()
     rest = args[1:]
 
-    if command in {"sync", "latest"}:
-        clean = False
-        dry_run = False
-        for arg in rest:
-            if arg == "--clean":
-                clean = True
-            elif arg == "--dry-run":
-                dry_run = True
+    if command == "latest":
+        command = "sync"
+    elif command == "configure":
+        command = "config"
+    elif command == "publish":
+        command = "push"
+
+    if command in {"doctor", "setup", "sync", "push"}:
+        if rest:
+            _unexpected(rest[0])
+        return SimpleNamespace(command=command)
+
+    if command == "config":
+        config, remaining = parse_config(rest)
+        cmake_args: list[str] = []
+        if remaining:
+            if remaining[0] == "--":
+                cmake_args = remaining[1:]
             else:
-                print(f"Unexpected argument: {arg}\n")
-                print(help_text())
-                raise SystemExit(2)
-        return SimpleNamespace(command="sync", clean=clean, dry_run=dry_run)
+                _unexpected(remaining[0])
+        return SimpleNamespace(command=command, config=config, cmake_args=cmake_args)
 
-    if command in {"push", "publish"}:
-        dry_run = False
-        for arg in rest:
-            if arg == "--dry-run":
-                dry_run = True
+    if command in {"build", "clean"}:
+        config, remaining = parse_config(rest)
+        if remaining:
+            _unexpected(remaining[0])
+        return SimpleNamespace(command=command, config=config)
+
+    if command == "test":
+        config, remaining = parse_config(rest)
+        ctest_args = []
+        if remaining:
+            if remaining[0] == "--":
+                ctest_args = remaining[1:]
             else:
-                print(f"Unexpected argument: {arg}\n")
-                print(help_text())
-                raise SystemExit(2)
-        return SimpleNamespace(command="push", dry_run=dry_run)
+                _unexpected(remaining[0])
+        return SimpleNamespace(command=command, config=config, ctest_args=ctest_args)
 
-    if command in {"submodules", "status"}:
-        dry_run = False
-        for arg in rest:
-            if arg == "--dry-run":
-                dry_run = True
+    if command == "run":
+        config, remaining = parse_config(rest, allow_leading_option=True)
+        app_args: list[str] = []
+        if remaining:
+            if remaining[0] == "--":
+                app_args = remaining[1:]
+            elif remaining[0].startswith("--"):
+                app_args = remaining
             else:
-                print(f"Unexpected argument: {arg}\n")
-                print(help_text())
-                raise SystemExit(2)
-        return SimpleNamespace(command="submodules", dry_run=dry_run)
+                _unexpected(remaining[0])
+        return SimpleNamespace(command=command, config=config, app_args=app_args)
 
-    if command == "gitconfig":
-        global_scope = False
-        dry_run = False
-        for arg in rest:
-            if arg == "--global":
-                global_scope = True
-            elif arg == "--dry-run":
-                dry_run = True
-            else:
-                print(f"Unexpected argument: {arg}\n")
-                print(help_text())
-                raise SystemExit(2)
-        return SimpleNamespace(command="gitconfig", global_scope=global_scope, dry_run=dry_run)
+    print(f"Unknown command: {args[0]}\n")
+    print(help_text())
+    raise SystemExit(2)
 
-    if command != "run":
-        print(f"Unknown command: {args[0]}\n")
-        print(help_text())
-        raise SystemExit(2)
 
-    config = "Debug"
-    app_args: list[str] = []
-    if rest:
-        mode = rest[0].lower()
-        if mode in CONFIGS:
-            config = CONFIGS[mode]
-            rest = rest[1:]
-        elif rest[0] != "--":
-            if rest[0].startswith("--"):
-                app_args = rest
-                rest = []
-            else:
-                print(f"Unknown build mode: {rest[0]}\n")
-                print(help_text())
-                raise SystemExit(2)
+def parse_config(args: list[str], allow_leading_option: bool = False) -> tuple[str, list[str]]:
+    if not args:
+        return "Debug", []
 
-    if rest:
-        if rest[0] == "--":
-            app_args = rest[1:]
-        elif rest[0].startswith("--"):
-            app_args = rest
-        else:
-            print(f"Unexpected argument: {rest[0]}\n")
-            print(help_text())
-            raise SystemExit(2)
+    mode = args[0].lower()
+    if mode in CONFIGS:
+        return CONFIGS[mode], args[1:]
 
-    return SimpleNamespace(command=command, config=config, app_args=app_args)
+    if allow_leading_option and args[0].startswith("--"):
+        return "Debug", args
+
+    print(f"Unknown build mode: {args[0]}\n")
+    print(help_text())
+    raise SystemExit(2)
+
+
+def _unexpected(arg: str) -> None:
+    print(f"Unexpected argument: {arg}\n")
+    print(help_text())
+    raise SystemExit(2)
+
+
+def preset_name(config: str) -> str:
+    for key, value in CONFIGS.items():
+        if value == config and key != "reldbg":
+            return key
+    raise ValueError(f"Unknown config: {config}")
+
+
+def build_dir(root: pathlib.Path, config: str) -> pathlib.Path:
+    return root / "build" / preset_name(config)
 
 
 def exe_path(root: pathlib.Path, config: str) -> pathlib.Path:
+    directory = build_dir(root, config)
     if sys.platform.startswith("win"):
-        return root / "build" / config / "Rezonality.exe"
+        return directory / "Rezonality.exe"
 
-    bundle_exe = root / "build" / "Rezonality.app" / "Contents" / "MacOS" / "Rezonality"
-    if bundle_exe.exists():
+    bundle_exe = directory / "Rezonality.app" / "Contents" / "MacOS" / "Rezonality"
+    if sys.platform == "darwin" and bundle_exe.exists():
         return bundle_exe
-    return root / "build" / "Rezonality"
+    return directory / "Rezonality"
 
 
-def configure_command(root: pathlib.Path, config: str) -> list[str]:
+def triplet() -> str:
+    machine = platform.machine().lower()
     if sys.platform.startswith("win"):
-        return ["cmd", "/c", str(root / "config.bat")]
-    return ["bash", str(root / "config.sh"), config]
+        return "x64-windows-static-md"
+    if sys.platform == "darwin":
+        return "arm64-osx" if machine == "arm64" else "x64-osx"
+    return "x64-linux"
+
+
+def vcpkg_roots(root: pathlib.Path) -> list[pathlib.Path]:
+    roots: list[pathlib.Path] = []
+    if os.environ.get("VCPKG_ROOT"):
+        roots.append(pathlib.Path(os.environ["VCPKG_ROOT"]))
+    roots.extend(
+        [
+            root / "vcpkg",
+            root / ".cache" / "vcpkg",
+        ]
+    )
+    return roots
+
+
+def vcpkg_toolchain(root: pathlib.Path) -> pathlib.Path | None:
+    for candidate in vcpkg_roots(root):
+        toolchain = candidate / "scripts" / "buildsystems" / "vcpkg.cmake"
+        if toolchain.exists():
+            return toolchain
+    return None
+
+
+def configure_command(root: pathlib.Path, config: str, cmake_args: list[str] | None = None) -> list[str]:
+    command = [
+        "cmake",
+        "--preset",
+        preset_name(config),
+        "-DCMAKE_EXPORT_COMPILE_COMMANDS=ON",
+        f"-DVCPKG_TARGET_TRIPLET={triplet()}",
+    ]
+    toolchain = vcpkg_toolchain(root)
+    if toolchain is not None:
+        command.append(f"-DCMAKE_TOOLCHAIN_FILE={toolchain}")
+    if cmake_args:
+        command.extend(cmake_args)
+    return command
 
 
 def build_command(root: pathlib.Path, config: str) -> list[str]:
-    if sys.platform.startswith("win"):
-        return ["cmd", "/c", str(root / "build.bat"), config]
-    return ["bash", str(root / "build.sh"), config]
+    return ["cmake", "--build", str(build_dir(root, config)), "--config", config, "--parallel"]
+
+
+def test_command(root: pathlib.Path, config: str, ctest_args: list[str]) -> list[str]:
+    return ["ctest", "--test-dir", str(build_dir(root, config)), "--output-on-failure", *ctest_args]
 
 
 def command_text(command: list[str]) -> str:
     return " ".join(shlex.quote(str(part)) for part in command)
-
-
-def shell_lines(script: str) -> str:
-    return "\n".join(line.rstrip() for line in script.splitlines() if line.strip())
-
-
-def git_foreach(script: str) -> list[str]:
-    return ["git", "submodule", "foreach", "--recursive", shell_lines(script)]
 
 
 def run(command: list[str], cwd: pathlib.Path, dry_run: bool = False) -> int:
@@ -261,64 +228,42 @@ def run_commands(commands: list[list[str]], cwd: pathlib.Path, dry_run: bool = F
     return 0
 
 
-def configure_git_defaults(root: pathlib.Path, global_scope: bool = False, dry_run: bool = False) -> int:
-    scope = "--global" if global_scope else "--local"
-    commands = [["git", "config", scope, key, value] for key, value in GIT_DEFAULTS]
-    return run_commands(commands, root, dry_run=dry_run)
+def expose_compile_commands(root: pathlib.Path, directory: pathlib.Path) -> None:
+    source = directory / "compile_commands.json"
+    if not source.exists():
+        return
+
+    destination = root / "compile_commands.json"
+    if destination.exists() or destination.is_symlink():
+        destination.unlink()
+
+    try:
+        os.symlink(source, destination)
+    except OSError:
+        shutil.copy2(source, destination)
 
 
-def sync_repo(root: pathlib.Path, clean: bool = False, dry_run: bool = False) -> int:
-    rc = configure_git_defaults(root, dry_run=dry_run)
-    if rc != 0:
-        return rc
-
-    commands = [
-        ["git", "fetch", "--recurse-submodules=on-demand", "--prune"],
-    ]
-    if clean:
-        commands.append(git_foreach(SUBMODULE_CLEAN_SCRIPT))
-    commands.extend(
-        [
-            ["git", "pull", "--ff-only", "--recurse-submodules=on-demand"],
-            ["git", "submodule", "sync", "--recursive"],
-            ["git", "submodule", "update", "--init", "--recursive", "--jobs", "8"],
-        ]
-    )
-    commands.extend(
-        [
-            git_foreach(SUBMODULE_BRANCH_SYNC_SCRIPT),
-            git_foreach(SUBMODULE_CHILD_UPDATE_SCRIPT),
-            git_foreach(SUBMODULE_BRANCH_SYNC_SCRIPT),
-            ["git", "submodule", "status", "--recursive"],
-        ]
-    )
-    return run_commands(commands, root, dry_run=dry_run)
+def configure(root: pathlib.Path, config: str, cmake_args: list[str] | None = None) -> int:
+    rc = run(configure_command(root, config, cmake_args), root)
+    if rc == 0:
+        expose_compile_commands(root, build_dir(root, config))
+    return rc
 
 
-def show_submodules(root: pathlib.Path, dry_run: bool = False) -> int:
-    commands = [
-        ["git", "status", "--short", "--branch"],
-        ["git", "submodule", "status", "--recursive"],
-        git_foreach(SUBMODULE_STATUS_SCRIPT),
-    ]
-    return run_commands(commands, root, dry_run=dry_run)
+def build(root: pathlib.Path, config: str) -> int:
+    return run(build_command(root, config), root)
 
 
-def push_all(root: pathlib.Path, dry_run: bool = False) -> int:
-    commands = [
-        ["git", "submodule", "status", "--recursive"],
-        git_foreach(SUBMODULE_PUSH_SCRIPT),
-        ["git", "push", "--recurse-submodules=check"],
-    ]
-    return run_commands(commands, root, dry_run=dry_run)
+def test(root: pathlib.Path, config: str, ctest_args: list[str]) -> int:
+    return run(test_command(root, config, ctest_args), root)
 
 
 def run_project(root: pathlib.Path, config: str, app_args: list[str]) -> int:
-    rc = run(configure_command(root, config), root)
+    rc = configure(root, config)
     if rc != 0:
         return rc
 
-    rc = run(build_command(root, config), root)
+    rc = build(root, config)
     if rc != 0:
         return rc
 
@@ -330,19 +275,93 @@ def run_project(root: pathlib.Path, config: str, app_args: list[str]) -> int:
     return run([str(exe), *app_args], root)
 
 
+def doctor(root: pathlib.Path) -> int:
+    commands = [
+        ["cmake", "--version"],
+        ["ninja", "--version"],
+    ]
+    rc = run_commands(commands, root)
+    if rc != 0:
+        return rc
+
+    cache_tool = shutil.which("ccache") or shutil.which("sccache")
+    if cache_tool:
+        run([cache_tool, "--version"], root)
+    else:
+        print("No compiler cache found; install ccache or sccache for faster rebuilds.")
+
+    toolchain = vcpkg_toolchain(root)
+    if toolchain:
+        print(f"Using vcpkg toolchain: {toolchain}")
+    else:
+        print("No vcpkg toolchain found. Run `python3 do.py setup` or set VCPKG_ROOT.", file=sys.stderr)
+        return 1
+
+    return 0
+
+
+def setup(root: pathlib.Path) -> int:
+    if vcpkg_toolchain(root) is not None:
+        print(f"vcpkg already available: {vcpkg_toolchain(root)}")
+        return 0
+
+    checkout = root / ".cache" / "vcpkg"
+    checkout.parent.mkdir(parents=True, exist_ok=True)
+    rc = run(["git", "clone", VCPKG_REPOSITORY, str(checkout)], root)
+    if rc != 0:
+        return rc
+
+    rc = run(["git", "checkout", VCPKG_BASELINE], checkout)
+    if rc != 0:
+        return rc
+
+    bootstrap = "bootstrap-vcpkg.bat" if sys.platform.startswith("win") else "./bootstrap-vcpkg.sh"
+    return run([bootstrap, "-disableMetrics"], checkout)
+
+
+def sync_repo(root: pathlib.Path) -> int:
+    return run_commands(
+        [
+            ["git", "fetch", "--prune"],
+            ["git", "pull", "--ff-only"],
+        ],
+        root,
+    )
+
+
+def push_repo(root: pathlib.Path) -> int:
+    return run(["git", "push"], root)
+
+
+def clean(root: pathlib.Path, config: str) -> int:
+    directory = build_dir(root, config)
+    if directory.exists():
+        shutil.rmtree(directory)
+        print(f"Removed {directory}")
+    return 0
+
+
 def main() -> int:
     parsed = parse_args(sys.argv[1:])
     root = repo_root()
+    if parsed.command == "doctor":
+        return doctor(root)
+    if parsed.command == "setup":
+        return setup(root)
+    if parsed.command == "config":
+        return configure(root, parsed.config, parsed.cmake_args)
+    if parsed.command == "build":
+        return build(root, parsed.config)
+    if parsed.command == "test":
+        return test(root, parsed.config, parsed.ctest_args)
     if parsed.command == "run":
         return run_project(root, parsed.config, parsed.app_args)
     if parsed.command == "sync":
-        return sync_repo(root, clean=parsed.clean, dry_run=parsed.dry_run)
-    if parsed.command == "submodules":
-        return show_submodules(root, dry_run=parsed.dry_run)
-    if parsed.command == "gitconfig":
-        return configure_git_defaults(root, global_scope=parsed.global_scope, dry_run=parsed.dry_run)
+        return sync_repo(root)
     if parsed.command == "push":
-        return push_all(root, dry_run=parsed.dry_run)
+        return push_repo(root)
+    if parsed.command == "clean":
+        return clean(root, parsed.config)
     print(f"Unknown command: {parsed.command}", file=sys.stderr)
     return 2
 

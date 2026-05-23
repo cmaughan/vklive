@@ -1,14 +1,8 @@
 @echo off
 setlocal
 
-set "ROOT_DIR=%~dp0."
-set "BUILD_DIR=%ROOT_DIR%\build"
+set "CONFIG=%~1"
+if "%CONFIG%"=="" set "CONFIG=debug"
 
-if not exist "%BUILD_DIR%" (
-    mkdir "%BUILD_DIR%"
-    if errorlevel 1 exit /b %errorlevel%
-)
-
-cmake -S "%ROOT_DIR%" -B "%BUILD_DIR%" -G "Visual Studio 17 2022"
+python do.py config %CONFIG%
 exit /b %errorlevel%
-

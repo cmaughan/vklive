@@ -1,0 +1,17 @@
+option(VKLIVE_ENABLE_COMPILER_CACHE "Use ccache or sccache when available" ON)
+
+if(VKLIVE_ENABLE_COMPILER_CACHE)
+    find_program(VKLIVE_COMPILER_CACHE ccache)
+    if(NOT VKLIVE_COMPILER_CACHE)
+        find_program(VKLIVE_COMPILER_CACHE sccache)
+    endif()
+
+    if(VKLIVE_COMPILER_CACHE)
+        message(STATUS "Using compiler cache: ${VKLIVE_COMPILER_CACHE}")
+        set(CMAKE_C_COMPILER_LAUNCHER "${VKLIVE_COMPILER_CACHE}" CACHE STRING "C compiler launcher" FORCE)
+        set(CMAKE_CXX_COMPILER_LAUNCHER "${VKLIVE_COMPILER_CACHE}" CACHE STRING "CXX compiler launcher" FORCE)
+        set(CMAKE_OBJCXX_COMPILER_LAUNCHER "${VKLIVE_COMPILER_CACHE}" CACHE STRING "ObjC++ compiler launcher" FORCE)
+    else()
+        message(STATUS "No compiler cache found; install ccache or sccache for faster rebuilds")
+    endif()
+endif()

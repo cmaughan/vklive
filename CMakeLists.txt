@@ -14,7 +14,7 @@ set(CMAKE_POLICY_DEFAULT_CMP0077 NEW)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
-set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON CACHE BOOL "Generate compile_commands.json")
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 set_property(GLOBAL PROPERTY USE_FOLDERS ON)
 
@@ -25,16 +25,36 @@ set_directory_properties(PROPERTIES COMPILE_DEFINITIONS_DEBUG "_DEBUG")
 list(INSERT CMAKE_MODULE_PATH 0 ${CMAKE_CURRENT_LIST_DIR}/cmake)
 include(${CMAKE_CURRENT_LIST_DIR}/cmake/utils.cmake)
 
-if (WIN32)
-    set(VCPKG_TARGET_TRIPLET x64-windows-static-md)
+if(NOT DEFINED VCPKG_TARGET_TRIPLET)
+    if(WIN32)
+        set(VCPKG_TARGET_TRIPLET x64-windows-static-md)
+    elseif(APPLE)
+        if(CMAKE_HOST_SYSTEM_PROCESSOR STREQUAL "arm64")
+            set(VCPKG_TARGET_TRIPLET arm64-osx)
+        else()
+            set(VCPKG_TARGET_TRIPLET x64-osx)
+        endif()
+    else()
+        set(VCPKG_TARGET_TRIPLET x64-linux)
+    endif()
 endif()
 
-set(CMAKE_TOOLCHAIN_FILE ${CMAKE_CURRENT_SOURCE_DIR}/vcpkg/scripts/buildsystems/vcpkg.cmake CACHE STRING "Vcpkg toolchain file")
+if(NOT DEFINED CMAKE_TOOLCHAIN_FILE)
+    if(DEFINED ENV{VCPKG_ROOT} AND EXISTS "$ENV{VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake")
+        set(CMAKE_TOOLCHAIN_FILE "$ENV{VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake" CACHE STRING "Vcpkg toolchain file")
+    elseif(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/vcpkg/scripts/buildsystems/vcpkg.cmake")
+        set(CMAKE_TOOLCHAIN_FILE "${CMAKE_CURRENT_SOURCE_DIR}/vcpkg/scripts/buildsystems/vcpkg.cmake" CACHE STRING "Vcpkg toolchain file")
+    elseif(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/.cache/vcpkg/scripts/buildsystems/vcpkg.cmake")
+        set(CMAKE_TOOLCHAIN_FILE "${CMAKE_CURRENT_SOURCE_DIR}/.cache/vcpkg/scripts/buildsystems/vcpkg.cmake" CACHE STRING "Vcpkg toolchain file")
+    endif()
+endif()
 
-set(APP_NAME ${PROJECT_NAME})
+set(APP_NAME Rezonality)
 set(REZONALITY_ROOT ${CMAKE_CURRENT_LIST_DIR})
 
 project(Rezonality VERSION 0.1.0.0)
+
+include(${CMAKE_CURRENT_LIST_DIR}/cmake/CompilerCache.cmake)
 
 if(APPLE)
     option(VKLIVE_ENABLE_METAL "Build the Metal renderer" ON)
@@ -173,7 +193,7 @@ endif()
 # Set this to use a lib instead of the single header build
 set (ZEP_LIB 1)
 if (DEFINED ZEP_LIB)
-    add_subdirectory(zep/src)
+    add_subdirectory(libs/zep/src)
 else()
     add_definitions(-DZEP_SINGLE_HEADER=1)
 endif()
@@ -457,7 +477,7 @@ add_executable(vklive_zep_syntax_tests tests/zep_syntax_tests.cpp)
 target_link_libraries(vklive_zep_syntax_tests PRIVATE Zep::Zep)
 target_include_directories(vklive_zep_syntax_tests PRIVATE
     ${CMAKE_BINARY_DIR}
-    ${CMAKE_CURRENT_SOURCE_DIR}/zep/include)
+    ${CMAKE_CURRENT_SOURCE_DIR}/libs/zep/include)
 
 add_executable(vklive_render_parity_harness tests/render_parity_harness.cpp)
 target_link_libraries(vklive_render_parity_harness PRIVATE reproc++)
@@ -470,7 +490,7 @@ add_executable(vklive_zep_imgui_input_tests tests/zep_imgui_input_tests.cpp)
 target_link_libraries(vklive_zep_imgui_input_tests PRIVATE Zep::Zep Zing::Zing)
 target_include_directories(vklive_zep_imgui_input_tests PRIVATE
     ${CMAKE_BINARY_DIR}
-    ${CMAKE_CURRENT_SOURCE_DIR}/zep/include)
+    ${CMAKE_CURRENT_SOURCE_DIR}/libs/zep/include)
 
 add_executable(vklive_zest_file_tests tests/zest_file_tests.cpp)
 target_link_libraries(vklive_zest_file_tests PRIVATE Zest::Zest)
@@ -655,7 +675,7 @@ add_executable(Rezonality ${OS_BUNDLE} ${APP_SOURCES} ${CLIP_SOURCE} ${META_FILE
 target_include_directories(Rezonality
     PRIVATE
     ${CMAKE_BINARY_DIR}
-    ${CMAKE_CURRENT_SOURCE_DIR}/zep/include
+    ${CMAKE_CURRENT_SOURCE_DIR}/libs/zep/include
     ${CMAKE_CURRENT_LIST_DIR}/app/include
     ${CMAKE_CURRENT_LIST_DIR}/libs
     ${STB_INCLUDE_DIRS}

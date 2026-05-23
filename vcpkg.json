@@ -1,0 +1,33 @@
+{
+  "name": "vklive",
+  "version-string": "0.1.0",
+  "builtin-baseline": "38d91be5efb2f21fbef4a3c53295002823747431",
+  "dependencies": [
+    "ableton-link",
+    "assimp",
+    "clipp",
+    "concurrentqueue",
+    "cppcodec",
+    "fmt",
+    "gli",
+    "glm",
+    "lodepng",
+    "minizip",
+    "nativefiledialog-extended",
+    "portaudio",
+    "range-v3",
+    "reproc",
+    {
+      "name": "sdl2",
+      "features": [
+        "vulkan"
+      ]
+    },
+    "spirv-cross",
+    "spirv-reflect",
+    "stb",
+    "tinydir",
+    "tinyfiledialogs",
+    "tsl-ordered-map"
+  ]
+}

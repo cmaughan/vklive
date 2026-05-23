@@ -1,15 +1,8 @@
 @echo off
 setlocal
 
-set "ROOT_DIR=%~dp0."
-set "BUILD_DIR=%ROOT_DIR%\build"
 set "CONFIG=%~1"
-if "%CONFIG%"=="" set "CONFIG=Debug"
+if "%CONFIG%"=="" set "CONFIG=debug"
 
-if not exist "%BUILD_DIR%\CMakeCache.txt" (
-    echo Build directory is not configured. Run config.bat first.
-    exit /b 1
-)
-
-cmake --build "%BUILD_DIR%" --config "%CONFIG%"
+python do.py build %CONFIG%
 exit /b %errorlevel%

@@ -1,101 +1,123 @@
-# Dependency And Submodule Workflow
+# Dependency And Build Workflow
 
-VkLive uses several submodules, including nested submodules inside Zing and Zep. The preferred personal workflow is to use `do.py` through the `dr` alias, or call `python3 do.py` directly.
+VkLive is now the integration point for Rezonality's live-coding stack. The owned libraries are normal source directories in this repo, not git submodules:
+
+- `libs/zep`
+- `libs/zest`
+- `libs/zing`
+
+Small third-party libraries that are awkward to package may live as static source snapshots. Standard package dependencies are installed through vcpkg manifest mode.
+
+## Snapshot Provenance
+
+The first snapshot import used these source commits:
+
+| Library | Snapshot Path | Source Commit |
+| --- | --- | --- |
+| Zep | `libs/zep` | `7aa7ed940d5c889dc6b27a2529a740c0bb2ad6af` |
+| Zing | `libs/zing` | `4c2e7729484335171148c0468d51bda9d7fc0983` |
+| Zest | `libs/zest` | `39d1a10b623d3415409d570b42f9efb0cf4f9377` |
+| libremidi | `libs/zing/libs/remidi` | `95584d139f19f3128cb95bd279cdfa6191e77a5f` |
+| TinySoundFont | `libs/zing/libs/tsf` | `fbc913531b85f5707f49115110bb86b1cd583885` |
+
+`libs/rccp` and `libs/nanovg_vulkan` were removed from the live source tree because the current build does not reference them.
 
 ## Daily Commands
 
-Get the latest parent repo and submodule branch heads:
+Use `do.py` directly, or the `dr` alias if your shell defines it:
 
 ```sh
-dr latest
+python3 do.py doctor
+python3 do.py setup
+python3 do.py config debug
+python3 do.py build debug
+python3 do.py test debug
+python3 do.py run debug
 ```
 
-Equivalent direct form:
+Short forms default to Debug:
+
+```sh
+python3 do.py config
+python3 do.py build
+python3 do.py run
+```
+
+`config` uses CMake presets and Ninja. It also exposes the configured build database at the repo root:
+
+```text
+compile_commands.json
+```
+
+That root file is generated editor state and is intentionally ignored by git. Vim LSP, clangd, and similar tools should pick it up from there.
+
+## Getting Latest And Pushing
+
+There are no submodules to synchronize. The helper commands are root-repo only:
 
 ```sh
 python3 do.py sync
-```
-
-Inspect the recursive submodule state:
-
-```sh
-dr submodules
-```
-
-Push Rezonality-owned submodule branches first, then push VkLive:
-
-```sh
-dr publish
-```
-
-Equivalent direct form:
-
-```sh
 python3 do.py push
 ```
 
-Install the safer Git defaults globally on a machine:
+`sync` runs:
 
 ```sh
-dr gitconfig --global
+git fetch --prune
+git pull --ff-only
 ```
 
-`dr sync` also installs these defaults locally in the repo:
+`push` runs:
 
 ```sh
-submodule.recurse true
-fetch.recurseSubmodules on-demand
-status.submoduleSummary true
-diff.submodule log
-push.recurseSubmodules check
+git push
 ```
 
-## Cleaning Diverged Submodules
+## vcpkg
 
-If submodules drift because generated files, untracked files, or local experiments are in the way, run:
+The repo no longer tracks vcpkg as a submodule. Dependency versions are described by `vcpkg.json`.
+
+Discovery order for the vcpkg toolchain is:
+
+1. `VCPKG_ROOT`
+2. local ignored `vcpkg/`
+3. local ignored `.cache/vcpkg/`
+
+For a fresh checkout, run:
 
 ```sh
-dr latest --clean
+python3 do.py setup
 ```
 
-This runs `git reset --hard` and `git clean -fdx` inside submodules before pulling their branch heads. Treat it as a deliberate cleanup command: it removes uncommitted submodule changes and untracked files inside submodules.
-The clean pass runs before the recursive pull/update steps, so it can recover from nested submodules that were created by a newer branch head and then block checkout of the parent-recorded commit.
+That bootstraps a local ignored vcpkg checkout under `.cache/vcpkg` if no usable vcpkg is already available.
 
-## What Gets Pulled
+## CMake Presets
 
-`dr latest` does this:
+The standard build directories are:
 
-1. Sets safer local Git defaults for recursive submodule work.
-2. Fetches the parent repo with `--recurse-submodules=on-demand`.
-3. Pulls the parent branch with `--ff-only`.
-4. Syncs and initializes submodules recursively.
-5. Checks out each branch-configured submodule to its configured branch.
-6. Pulls each branch-configured submodule with `--ff-only`.
-7. Initializes child submodules inside the updated submodule worktrees.
-8. Re-runs the branch-head pass so child submodules with branch settings also land on their latest branch heads.
-9. Prints recursive submodule status.
+```text
+build/debug
+build/release
+build/relwithdebinfo
+```
 
-The branch configuration comes from each `.gitmodules` file. In practice this keeps `zep`, `libs/zing`, nested `libs/zing/libs/zest`, `vcpkg`, and other branch-configured submodules from silently sitting on stale detached commits.
-If a submodule still names an old branch such as `master` but the remote has moved to `main`, the helper falls back to the remote HEAD and prints the branch it used.
+The presets use Ninja and set `CMAKE_EXPORT_COMPILE_COMMANDS=ON`.
 
-## What Gets Pushed
+Renderer-specific configuration can be passed through `do.py config`:
 
-`dr publish` does this:
+```sh
+python3 do.py config debug -- -DVKLIVE_ENABLE_METAL=ON -DVKLIVE_ENABLE_VULKAN=OFF
+python3 do.py config release -- -DVKLIVE_ENABLE_METAL=OFF -DVKLIVE_ENABLE_VULKAN=ON
+```
 
-1. Prints recursive submodule status.
-2. Pushes submodules whose `origin` remote is under `github.com/Rezonality`.
-3. Skips third-party submodules such as Microsoft/vcpkg and external audio/GL libraries.
-4. Pushes VkLive with `--recurse-submodules=check`.
+## Legacy Scripts
 
-That last check is important: the parent push fails if it points at a submodule commit that is not available from a remote. This avoids publishing a VkLive commit that nobody else can sync.
+The shell and batch wrappers remain for muscle memory:
 
-## Dependency Classes
+```sh
+./prebuild.sh
+./config.sh Debug
+./build.sh Debug
+```
 
-Use these mental buckets:
-
-- **Primary app repo:** `vklive`
-- **Active Rezonality source deps:** `zep`, `libs/zing`, `libs/zing/libs/zest`
-- **Mostly external or frozen deps:** `libs/rccp`, `libs/nanovg_vulkan`, nested GL/audio libraries
-- **Package tooling:** root `vcpkg` and nested standalone `vcpkg` copies
-
-For normal personal work, update everything with `dr latest`, make changes, commit any submodule work in that submodule, commit the parent pointer in VkLive, then run `dr publish`.
+They delegate to `do.py`. Prefer `do.py` for new workflow documentation.

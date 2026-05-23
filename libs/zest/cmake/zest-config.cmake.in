@@ -1,0 +1,8 @@
+@PACKAGE_INIT@
+
+set_and_check(ZEST_INCLUDE_DIR "@PACKAGE_MUTILS_INCLUDE_DIR@")
+set_and_check(ZEST_LIB_DIR "@PACKAGE_MUTILS_LIB_DIR@")
+
+if(NOT TARGET Zest::Zest)
+    include(${CMAKE_CURRENT_LIST_DIR}/zest-targets.cmake)
+endif()
