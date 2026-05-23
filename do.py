@@ -20,6 +20,7 @@ CONFIGS = {
 
 VCPKG_REPOSITORY = "https://github.com/microsoft/vcpkg.git"
 VCPKG_BASELINE = "38d91be5efb2f21fbef4a3c53295002823747431"
+_BUILD_ENVIRONMENT: dict[str, str] | None = None
 
 
 def repo_root() -> pathlib.Path:
@@ -180,12 +181,96 @@ def vcpkg_roots(root: pathlib.Path) -> list[pathlib.Path]:
     return roots
 
 
+def vcpkg_executable_name() -> str:
+    return "vcpkg.exe" if sys.platform.startswith("win") else "vcpkg"
+
+
+def vcpkg_executable(root: pathlib.Path) -> pathlib.Path | None:
+    executable_name = vcpkg_executable_name()
+    for candidate in vcpkg_roots(root):
+        executable = candidate / executable_name
+        if executable.exists():
+            return executable
+    return None
+
+
 def vcpkg_toolchain(root: pathlib.Path) -> pathlib.Path | None:
     for candidate in vcpkg_roots(root):
         toolchain = candidate / "scripts" / "buildsystems" / "vcpkg.cmake"
         if toolchain.exists():
             return toolchain
     return None
+
+
+def vcpkg_root_from_toolchain(toolchain: pathlib.Path) -> pathlib.Path:
+    return toolchain.parents[2]
+
+
+def bootstrap_command(checkout: pathlib.Path) -> list[str]:
+    if sys.platform.startswith("win"):
+        return ["cmd", "/c", str(checkout / "bootstrap-vcpkg.bat"), "-disableMetrics"]
+    return [str(checkout / "bootstrap-vcpkg.sh"), "-disableMetrics"]
+
+
+def cmake_cache_value(root: pathlib.Path, config: str, name: str) -> str | None:
+    cache = build_dir(root, config) / "CMakeCache.txt"
+    if not cache.exists():
+        return None
+
+    for line in cache.read_text(encoding="utf-8", errors="ignore").splitlines():
+        key, separator, value = line.partition("=")
+        if separator and key.split(":", 1)[0] == name:
+            return value
+    return None
+
+
+def configured_toolchain(root: pathlib.Path, config: str) -> str | None:
+    return cmake_cache_value(root, config, "CMAKE_TOOLCHAIN_FILE")
+
+
+def same_path(left: str | None, right: pathlib.Path) -> bool:
+    if left is None:
+        return False
+    return os.path.normcase(os.path.abspath(left)) == os.path.normcase(os.path.abspath(right))
+
+
+def configure_inputs(root: pathlib.Path) -> list[pathlib.Path]:
+    return [
+        root / "CMakeLists.txt",
+        root / "CMakePresets.json",
+        root / "vcpkg.json",
+        root / "vcpkg-configuration.json",
+    ]
+
+
+def needs_configure(root: pathlib.Path, config: str, cmake_args: list[str] | None = None) -> bool:
+    if cmake_args:
+        return True
+
+    directory = build_dir(root, config)
+    cache = directory / "CMakeCache.txt"
+    if not cache.exists():
+        return True
+    if not (directory / "build.ninja").exists():
+        return True
+
+    if cmake_cache_value(root, config, "CMAKE_GENERATOR") != "Ninja":
+        return True
+    if cmake_cache_value(root, config, "VCPKG_TARGET_TRIPLET") != triplet():
+        return True
+    if cmake_cache_value(root, config, "VCPKG_MANIFEST_FEATURES") != default_vcpkg_manifest_features():
+        return True
+
+    toolchain = vcpkg_toolchain(root)
+    if toolchain is not None and not same_path(configured_toolchain(root, config), toolchain):
+        return True
+
+    cache_time = cache.stat().st_mtime
+    for input_file in configure_inputs(root):
+        if input_file.exists() and input_file.stat().st_mtime > cache_time:
+            return True
+
+    return False
 
 
 def configure_command(root: pathlib.Path, config: str, cmake_args: list[str] | None = None) -> list[str]:
@@ -200,7 +285,7 @@ def configure_command(root: pathlib.Path, config: str, cmake_args: list[str] | N
     if not has_cmake_define(cmake_args, "VCPKG_MANIFEST_FEATURES"):
         command.append(f"-DVCPKG_MANIFEST_FEATURES={default_vcpkg_manifest_features()}")
     toolchain = vcpkg_toolchain(root)
-    if toolchain is not None:
+    if toolchain is not None and not same_path(configured_toolchain(root, config), toolchain):
         command.append(f"-DCMAKE_TOOLCHAIN_FILE={toolchain}")
     command.extend(cmake_args)
     return command
@@ -223,15 +308,84 @@ def test_command(root: pathlib.Path, config: str, ctest_args: list[str]) -> list
     return ["ctest", "--test-dir", str(build_dir(root, config)), "--output-on-failure", *ctest_args]
 
 
+def find_vcvars64() -> pathlib.Path | None:
+    if not sys.platform.startswith("win"):
+        return None
+
+    program_files_x86 = os.environ.get("ProgramFiles(x86)", r"C:\Program Files (x86)")
+    vswhere = pathlib.Path(program_files_x86) / "Microsoft Visual Studio" / "Installer" / "vswhere.exe"
+    if vswhere.exists():
+        result = subprocess.run(
+            [
+                str(vswhere),
+                "-latest",
+                "-products",
+                "*",
+                "-requires",
+                "Microsoft.VisualStudio.Component.VC.Tools.x86.x64",
+                "-property",
+                "installationPath",
+            ],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        if result.returncode == 0:
+            install_path = result.stdout.strip().splitlines()
+            if install_path:
+                candidate = pathlib.Path(install_path[0]) / "VC" / "Auxiliary" / "Build" / "vcvars64.bat"
+                if candidate.exists():
+                    return candidate
+
+    program_files = pathlib.Path(os.environ.get("ProgramFiles", r"C:\Program Files"))
+    for edition in ("Community", "Professional", "Enterprise", "BuildTools", "Preview"):
+        candidate = program_files / "Microsoft Visual Studio" / "2022" / edition / "VC" / "Auxiliary" / "Build" / "vcvars64.bat"
+        if candidate.exists():
+            return candidate
+
+    return None
+
+
+def build_environment() -> dict[str, str] | None:
+    global _BUILD_ENVIRONMENT
+
+    if not sys.platform.startswith("win"):
+        return None
+    if _BUILD_ENVIRONMENT is not None:
+        return _BUILD_ENVIRONMENT
+
+    vcvars = find_vcvars64()
+    if vcvars is None:
+        return None
+
+    result = subprocess.run(
+        ["cmd", "/d", "/c", "call", str(vcvars), ">nul", "&&", "set"],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if result.returncode != 0:
+        return None
+
+    environment = os.environ.copy()
+    for line in result.stdout.splitlines():
+        key, separator, value = line.partition("=")
+        if separator:
+            environment[key] = value
+
+    _BUILD_ENVIRONMENT = environment
+    return _BUILD_ENVIRONMENT
+
+
 def command_text(command: list[str]) -> str:
     return " ".join(shlex.quote(str(part)) for part in command)
 
 
-def run(command: list[str], cwd: pathlib.Path, dry_run: bool = False) -> int:
+def run(command: list[str], cwd: pathlib.Path, dry_run: bool = False, env: dict[str, str] | None = None) -> int:
     print("> " + command_text(command))
     if dry_run:
         return 0
-    return subprocess.run(command, cwd=cwd, check=False).returncode
+    return subprocess.run(command, cwd=cwd, check=False, env=env).returncode
 
 
 def run_commands(commands: list[list[str]], cwd: pathlib.Path, dry_run: bool = False) -> int:
@@ -258,24 +412,27 @@ def expose_compile_commands(root: pathlib.Path, directory: pathlib.Path) -> None
 
 
 def configure(root: pathlib.Path, config: str, cmake_args: list[str] | None = None) -> int:
-    rc = run(configure_command(root, config, cmake_args), root)
+    rc = run(configure_command(root, config, cmake_args), root, env=build_environment())
     if rc == 0:
         expose_compile_commands(root, build_dir(root, config))
     return rc
 
 
 def build(root: pathlib.Path, config: str) -> int:
-    return run(build_command(root, config), root)
+    return run(build_command(root, config), root, env=build_environment())
 
 
 def test(root: pathlib.Path, config: str, ctest_args: list[str]) -> int:
-    return run(test_command(root, config, ctest_args), root)
+    return run(test_command(root, config, ctest_args), root, env=build_environment())
 
 
 def run_project(root: pathlib.Path, config: str, app_args: list[str]) -> int:
-    rc = configure(root, config)
-    if rc != 0:
-        return rc
+    if needs_configure(root, config):
+        rc = configure(root, config)
+        if rc != 0:
+            return rc
+    else:
+        expose_compile_commands(root, build_dir(root, config))
 
     rc = build(root, config)
     if rc != 0:
@@ -305,8 +462,12 @@ def doctor(root: pathlib.Path) -> int:
         print("No compiler cache found; install ccache or sccache for faster rebuilds.")
 
     toolchain = vcpkg_toolchain(root)
+    executable = vcpkg_executable(root)
     if toolchain:
         print(f"Using vcpkg toolchain: {toolchain}")
+        if not executable:
+            print("vcpkg checkout is present but not bootstrapped. Run `python3 do.py setup`.", file=sys.stderr)
+            return 1
     else:
         print("No vcpkg toolchain found. Run `python3 do.py setup` or set VCPKG_ROOT.", file=sys.stderr)
         return 1
@@ -315,9 +476,16 @@ def doctor(root: pathlib.Path) -> int:
 
 
 def setup(root: pathlib.Path) -> int:
-    if vcpkg_toolchain(root) is not None:
-        print(f"vcpkg already available: {vcpkg_toolchain(root)}")
+    toolchain = vcpkg_toolchain(root)
+    executable = vcpkg_executable(root)
+    if toolchain is not None and executable is not None:
+        print(f"vcpkg already available: {toolchain}")
         return 0
+
+    if toolchain is not None:
+        checkout = vcpkg_root_from_toolchain(toolchain)
+        print(f"Bootstrapping existing vcpkg checkout: {checkout}")
+        return run(bootstrap_command(checkout), checkout)
 
     checkout = root / ".cache" / "vcpkg"
     checkout.parent.mkdir(parents=True, exist_ok=True)
@@ -329,8 +497,7 @@ def setup(root: pathlib.Path) -> int:
     if rc != 0:
         return rc
 
-    bootstrap = "bootstrap-vcpkg.bat" if sys.platform.startswith("win") else "./bootstrap-vcpkg.sh"
-    return run([bootstrap, "-disableMetrics"], checkout)
+    return run(bootstrap_command(checkout), checkout)
 
 
 def sync_repo(root: pathlib.Path) -> int:

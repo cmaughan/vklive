@@ -2,7 +2,7 @@
 // Left half samples engine UVs with model texture-origin correction. Right half flips V for comparison.
 
 camera: default_camera {
-    position: (0.0, -1.25, 6.0)
+    position: (0.0, -2.25, 6.0)
     look_at: (0.0, -1.25, 0.0)
     field_of_view: 45.0
     near_far: (0.01, 50.0)

@@ -84,6 +84,7 @@ endif()
 find_package(assimp CONFIG REQUIRED) # Asset import for loading models
 find_package(clipp CONFIG REQUIRED) # Commandline parser for command line arguments
 find_package(fmt CONFIG REQUIRED) # String formatting library
+find_package(glm CONFIG REQUIRED) # Vector math headers
 find_package(reproc++ REQUIRED) # Process launch library for loading shader compiler binary
 find_package(SDL2 CONFIG REQUIRED) # SDL UI library for creating windows, etc.
 find_package(concurrentqueue CONFIG QUIET) # Concurrent lock/free queue for thread interactions
@@ -346,12 +347,16 @@ endif()
 set(APP_CORE_SOURCES
     app/src/command_line.cpp
     app/src/editor_font.cpp
+    app/src/nodegraph_theme.cpp
     app/src/project.cpp
+    app/src/window_nodegraph.cpp
     app/src/window_render_sizing.cpp
 
     app/include/app/command_line.h
     app/include/app/editor_font.h
+    app/include/app/nodegraph_theme.h
     app/include/app/project.h
+    app/include/app/window_nodegraph.h
     app/include/app/window_render_sizing.h
 )
 
@@ -443,8 +448,52 @@ target_include_directories(vklive
         ${TSL_ORDERED_MAP_INCLUDE_DIRS}
     )
 
+set(NODEGRAPH_ROOT ${CMAKE_CURRENT_LIST_DIR}/libs/nodegraph)
+set(NODEGRAPH_SOURCES
+    ${NODEGRAPH_ROOT}/src/canvas.cpp
+    ${NODEGRAPH_ROOT}/src/canvas_imgui.cpp
+    ${NODEGRAPH_ROOT}/src/widgets/layout.cpp
+    ${NODEGRAPH_ROOT}/src/widgets/node.cpp
+    ${NODEGRAPH_ROOT}/src/widgets/widget.cpp
+    ${NODEGRAPH_ROOT}/src/widgets/widget_knob.cpp
+    ${NODEGRAPH_ROOT}/src/widgets/widget_label.cpp
+    ${NODEGRAPH_ROOT}/src/widgets/widget_slider.cpp
+    ${NODEGRAPH_ROOT}/src/widgets/widget_socket.cpp
+    ${NODEGRAPH_ROOT}/src/widgets/widget_waveslider.cpp
+
+    ${NODEGRAPH_ROOT}/include/nodegraph/canvas.h
+    ${NODEGRAPH_ROOT}/include/nodegraph/canvas_imgui.h
+    ${NODEGRAPH_ROOT}/include/nodegraph/font_texture_bridge.h
+    ${NODEGRAPH_ROOT}/include/nodegraph/fonts.h
+    ${NODEGRAPH_ROOT}/include/nodegraph/IconsFontAwesome5.h
+    ${NODEGRAPH_ROOT}/include/nodegraph/nodegraph.h
+    ${NODEGRAPH_ROOT}/include/nodegraph/theme.h
+    ${NODEGRAPH_ROOT}/include/nodegraph/widgets/layout.h
+    ${NODEGRAPH_ROOT}/include/nodegraph/widgets/node.h
+    ${NODEGRAPH_ROOT}/include/nodegraph/widgets/widget.h
+    ${NODEGRAPH_ROOT}/include/nodegraph/widgets/widget_knob.h
+    ${NODEGRAPH_ROOT}/include/nodegraph/widgets/widget_label.h
+    ${NODEGRAPH_ROOT}/include/nodegraph/widgets/widget_slider.h
+    ${NODEGRAPH_ROOT}/include/nodegraph/widgets/widget_socket.h
+    ${NODEGRAPH_ROOT}/include/nodegraph/widgets/widget_waveslider.h
+    ${NODEGRAPH_ROOT}/include/signals/signals.hpp
+    ${NODEGRAPH_ROOT}/project.natvis
+)
+
+add_library(NodeGraph STATIC ${NODEGRAPH_SOURCES})
+add_library(NodeGraph::NodeGraph ALIAS NodeGraph)
+target_link_libraries(NodeGraph PUBLIC Zing::Zing glm::glm fmt::fmt-header-only)
+target_include_directories(NodeGraph
+    PUBLIC
+        ${NODEGRAPH_ROOT}/include
+    PRIVATE
+        ${CMAKE_BINARY_DIR}
+        ${CMAKE_CURRENT_SOURCE_DIR}/libs
+)
+target_compile_definitions(NodeGraph PRIVATE IMGUI_DISABLE_INCLUDE_IMCONFIG_H GLM_ENABLE_EXPERIMENTAL)
+
 add_library(RezonalityAppCore STATIC ${APP_CORE_SOURCES})
-target_link_libraries(RezonalityAppCore PUBLIC vklive)
+target_link_libraries(RezonalityAppCore PUBLIC vklive NodeGraph)
 target_include_directories(RezonalityAppCore
     PUBLIC
         ${CMAKE_CURRENT_LIST_DIR}/app/include
@@ -505,6 +554,21 @@ target_include_directories(vklive_zep_imgui_input_tests PRIVATE
 add_executable(vklive_zest_file_tests tests/zest_file_tests.cpp)
 target_link_libraries(vklive_zest_file_tests PRIVATE Zest::Zest)
 target_include_directories(vklive_zest_file_tests PRIVATE ${CMAKE_BINARY_DIR})
+
+add_executable(vklive_vulkan_imgui_texture_lifetime_tests tests/vulkan_imgui_texture_lifetime_tests.cpp)
+target_include_directories(vklive_vulkan_imgui_texture_lifetime_tests PRIVATE ${CMAKE_BINARY_DIR})
+
+add_executable(vklive_nodegraph_canvas_tests tests/nodegraph_canvas_tests.cpp)
+target_link_libraries(vklive_nodegraph_canvas_tests PRIVATE NodeGraph)
+target_include_directories(vklive_nodegraph_canvas_tests PRIVATE ${CMAKE_BINARY_DIR})
+
+add_executable(vklive_nodegraph_theme_tests tests/nodegraph_theme_tests.cpp)
+target_link_libraries(vklive_nodegraph_theme_tests PRIVATE RezonalityAppCore)
+target_include_directories(vklive_nodegraph_theme_tests PRIVATE ${CMAKE_BINARY_DIR})
+
+add_executable(vklive_nodegraph_window_tests tests/nodegraph_window_tests.cpp)
+target_link_libraries(vklive_nodegraph_window_tests PRIVATE RezonalityAppCore)
+target_include_directories(vklive_nodegraph_window_tests PRIVATE ${CMAKE_BINARY_DIR})
 
 if(VKLIVE_ENABLE_METAL)
     add_executable(vklive_metal_binding_tests tests/metal_binding_tests.mm)
@@ -671,6 +735,26 @@ add_test(
 add_test(
     NAME vklive_zest_file_tests
     COMMAND vklive_zest_file_tests
+)
+
+add_test(
+    NAME vklive_vulkan_imgui_texture_lifetime_tests
+    COMMAND vklive_vulkan_imgui_texture_lifetime_tests
+)
+
+add_test(
+    NAME vklive_nodegraph_canvas_tests
+    COMMAND vklive_nodegraph_canvas_tests
+)
+
+add_test(
+    NAME vklive_nodegraph_theme_tests
+    COMMAND vklive_nodegraph_theme_tests
+)
+
+add_test(
+    NAME vklive_nodegraph_window_tests
+    COMMAND vklive_nodegraph_window_tests
 )
 
 # App

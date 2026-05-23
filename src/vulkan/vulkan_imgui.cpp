@@ -184,11 +184,14 @@ void imgui_destroy_device_objects(VulkanContext& ctx)
 
     ctx.device.destroyShaderModule(imgui->shaderModuleFrag);
     ctx.device.destroyShaderModule(imgui->shaderModuleVert);
+    ctx.device.freeDescriptorSets(ctx.descriptorPool, imgui->fontDescriptorSet);
     ctx.device.destroyImageView(imgui->fontView);
     ctx.device.destroyImage(imgui->fontImage);
-    ctx.device.freeDescriptorSets(ctx.descriptorPool, imgui->fontDescriptorSet);
     ctx.device.freeMemory(imgui->fontMemory);
     ctx.device.destroySampler(imgui->fontSampler);
+    fonts_destroy(*ctx.spFontContext);
+    ctx.spFontContext.reset();
+    ctx.spFontTexture.reset();
     ctx.device.destroyDescriptorSetLayout(imgui->descriptorSetLayout);
     ctx.device.destroyPipelineLayout(imgui->pipelineLayout);
     ctx.device.destroyPipeline(imgui->pipeline);
@@ -197,13 +200,12 @@ void imgui_destroy_device_objects(VulkanContext& ctx)
     imgui->fontView = nullptr;
     imgui->fontImage = nullptr;
     imgui->fontMemory = nullptr;
+    imgui->fontDescriptorSet = nullptr;
     imgui->fontSampler = nullptr;
     imgui->descriptorSetLayout = nullptr;
     imgui->pipelineLayout = nullptr;
     imgui->pipeline = nullptr;
     imgui->renderPass = nullptr; /* destroyed in the window */
-    
-    fonts_destroy(*ctx.spFontContext);
 }
 
 void imgui_shutdown(VulkanContext& ctx)

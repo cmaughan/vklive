@@ -5,6 +5,8 @@ struct WindowEnables
     bool profiler = false;
     bool targets = false;
     bool sequencer = false;
+    bool nodeGraph = false;
+    bool themeEditor = false;
     bool demoWindow = false;
 };
 

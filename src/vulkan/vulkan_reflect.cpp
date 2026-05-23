@@ -260,6 +260,11 @@ std::string ToStringSpvStorageClass(SpvStorageClass storage_class)
     return "???";
 }
 
+std::string ToStringSpvStorageClass(int storage_class)
+{
+    return ToStringSpvStorageClass(static_cast<SpvStorageClass>(storage_class));
+}
+
 std::string ToStringSpvDim(SpvDim dim)
 {
     switch (dim)
@@ -509,6 +514,11 @@ std::string ToStringSpvBuiltIn(SpvBuiltIn built_in)
     std::stringstream ss;
     ss << "??? (" << built_in << ")";
     return ss.str();
+}
+
+std::string ToStringSpvBuiltIn(int built_in)
+{
+    return ToStringSpvBuiltIn(static_cast<SpvBuiltIn>(built_in));
 }
 
 std::string ToStringSpvImageFormat(SpvImageFormat fmt)

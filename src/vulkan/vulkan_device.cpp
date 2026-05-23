@@ -5,6 +5,7 @@
 #include <vklive/vulkan/vulkan_context.h>
 #include <vklive/vulkan/vulkan_device.h>
 #include <vklive/vulkan/vulkan_imgui.h>
+#include <vklive/vulkan/vulkan_imgui_texture.h>
 #include <vklive/vulkan/vulkan_nanovg.h>
 #include <vklive/vulkan/vulkan_render.h>
 #include <vklive/vulkan/vulkan_scene.h>
@@ -166,6 +167,11 @@ std::vector<RenderTargetView> VulkanDevice::TargetViews(Scene& scene)
 DeviceContext& VulkanDevice::Context()
 {
     return ctx;
+}
+
+Zest::IFontTexture* VulkanDevice::FontTexture()
+{
+    return ctx.spFontTexture.get();
 }
 
 std::set<std::string> VulkanDevice::ShaderFileExtensions()

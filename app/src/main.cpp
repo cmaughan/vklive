@@ -15,6 +15,7 @@
 #include <zest/file/file.h>
 #include <zest/file/runtree.h>
 #include <zest/logger/logger.h>
+#include <zest/settings/settings.h>
 #include <zest/time/timer.h>
 #include <zest/ui/layout_manager.h>
 
@@ -37,7 +38,9 @@
 #include <app/controller.h>
 #include <app/editor.h>
 #include <app/menu.h>
+#include <app/nodegraph_theme.h>
 #include <app/project.h>
+#include <app/window_nodegraph.h>
 #include <app/window_render.h>
 #include <app/window_sequencer.h>
 #include <app/window_targets.h>
@@ -72,6 +75,7 @@ namespace
 {
 
 AppCommandLineOptions commandLineOptions;
+fs::path themeSettingsPath;
 
 bool read_command_line(int argc, char** argv, int& exitCode)
 {
@@ -150,6 +154,8 @@ void register_windows(bool loadPersistentLayouts)
     Zest::layout_manager_register_window("Profiler", "Profiler", &g_WindowEnables.profiler);
     Zest::layout_manager_register_window("Targets", "Targets", &g_WindowEnables.targets);
     Zest::layout_manager_register_window("Sequencer", "Sequencer", &g_WindowEnables.sequencer);
+    Zest::layout_manager_register_window("Node Graph", "Node Graph", &g_WindowEnables.nodeGraph);
+    Zest::layout_manager_register_window("Theme", "Theme", &g_WindowEnables.themeEditor);
     Zest::layout_manager_register_window("Demo Window", "Demo Window", &g_WindowEnables.demoWindow);
 
     if (loadPersistentLayouts)
@@ -261,6 +267,8 @@ int main(int argc, char** argv)
                              .string();
     }
     config_load(settings_path);
+    themeSettingsPath = settings_path.parent_path() / "theme.toml";
+    nodegraph_load_theme_file(themeSettingsPath);
     if (!commandLineOptions.projectRoot.empty())
     {
         appConfig.project_root = fs::absolute(commandLineOptions.projectRoot);
@@ -416,6 +424,7 @@ int main(int argc, char** argv)
             {
                 g_pDevice->DestroyScene(*g_Controller.spCurrentProject->spScene.get());
             }
+            window_nodegraph_shutdown();
             g_pDevice = device_create(activeBackend, init_sdl_window(activeBackend), imSettingsPath, activeViewports);
 
             // Remember we were lost
@@ -654,6 +663,16 @@ int main(int argc, char** argv)
             ImGui::ShowDemoWindow(&g_WindowEnables.demoWindow);
         }
 
+        if (g_WindowEnables.nodeGraph)
+        {
+            window_nodegraph(*g_pDevice);
+        }
+
+        if (g_WindowEnables.themeEditor)
+        {
+            Zest::GlobalSettingsManager::Instance().DrawGUI("Theme", &g_WindowEnables.themeEditor);
+        }
+
         // Show the editor
         zep_show(zepFocusFlags);
         zepFocusFlags = 0;
@@ -733,6 +752,7 @@ int main(int argc, char** argv)
     if (!commandLineOptions.startupFrameTest)
     {
         save_state();
+        nodegraph_save_theme_file(themeSettingsPath);
         config_save(settings_path);
     }
 
@@ -740,6 +760,7 @@ int main(int argc, char** argv)
     {
         g_pDevice->DestroyScene(*g_Controller.spCurrentProject->spScene.get());
     }
+    window_nodegraph_shutdown();
     g_pDevice.reset();
     if (!startupFrameSettingsRoot.empty())
     {

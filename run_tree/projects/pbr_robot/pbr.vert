@@ -41,13 +41,13 @@ void main()
     vec3 rotatedTangent = rotation * inTangent;
     vec3 rotatedBitangent = rotation * inBitangent;
 
-    vec4 worldPos = ubo.model * vec4(rotatedPos, 1.0);
+    vec4 worldPos = ubo.model * vec4(rotatedPos * 1, 1.0);
     mat3 normalMatrix = mat3(transpose(inverse(ubo.model)));
     outWorldPos = worldPos.xyz;
     outNormal = safeNormalize(normalMatrix * rotatedNormal, vec3(0.0, 1.0, 0.0));
     outTangent = safeNormalize(normalMatrix * rotatedTangent, vec3(1.0, 0.0, 0.0));
     outBitangent = safeNormalize(normalMatrix * rotatedBitangent, vec3(0.0, 0.0, 1.0));
-    outColor = max(inColor, vec3(0.04));
+    outColor = max(inColor, vec3(0.44));
     outUV = inUV;
     gl_Position = ubo.projection * ubo.view * worldPos;
 }

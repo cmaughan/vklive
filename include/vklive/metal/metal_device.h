@@ -34,6 +34,7 @@ struct MetalDevice : public IDevice
     virtual std::vector<RenderTargetView> TargetViews(Scene& scene) override;
 
     DeviceContext& Context() override;
+    Zest::IFontTexture* FontTexture() override;
 
     MetalContext ctx;
 };

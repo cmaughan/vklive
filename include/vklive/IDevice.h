@@ -21,6 +21,7 @@ namespace fs = std::filesystem;
 namespace Zest
 {
 struct FontContext;
+struct IFontTexture;
 }
 struct IContextData
 {
@@ -93,4 +94,5 @@ struct IDevice
     virtual std::vector<RenderTargetView> TargetViews(Scene& scene) = 0;
 
     virtual DeviceContext& Context() = 0;
+    virtual Zest::IFontTexture* FontTexture() { return nullptr; }
 };

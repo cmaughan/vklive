@@ -11,6 +11,7 @@
 #include <vklive/metal/metal_context.h>
 #include <vklive/metal/metal_device.h>
 #include <vklive/metal/metal_imgui.h>
+#include <vklive/metal/metal_imgui_texture.h>
 #include <vklive/metal/metal_nanovg.h>
 #include <vklive/metal/metal_scene.h>
 #include <vklive/scene.h>
@@ -159,6 +160,11 @@ std::vector<RenderTargetView> MetalDevice::TargetViews(Scene& scene)
 DeviceContext& MetalDevice::Context()
 {
     return ctx;
+}
+
+Zest::IFontTexture* MetalDevice::FontTexture()
+{
+    return ctx.spFontTexture.get();
 }
 
 std::set<std::string> MetalDevice::ShaderFileExtensions()

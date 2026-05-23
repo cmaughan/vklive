@@ -101,7 +101,7 @@ void main()
     vec3 emissive = vklEmissive(outUV);
     float occlusion = vklOcclusion(outUV);
 
-    vec3 albedo = clamp(baseColor.rgb, vec3(0.0), vec3(1.0));
+    vec3 albedo = clamp(baseColor.rgb, vec3(0.0), vec3(1.0)) * 3;
     float metallic = clamp(metallicRoughness.x, 0.0, 1.0);
     float roughness = clamp(metallicRoughness.y, 0.04, 1.0);
 
@@ -122,8 +122,8 @@ void main()
 
     vec3 reflected = reflect(-v, n);
     vec3 envDiffuse = sampleEnvironment(n) * albedo * occlusion * 0.08;
-    vec3 envSpecular = sampleEnvironment(reflected) * fresnelSchlick(ndotv, f0) * (1.0 - roughness * 0.85) * 0.35;
+    vec3 envSpecular = sampleEnvironment(reflected) * fresnelSchlick(ndotv, f0) * (1.0 - roughness * 0.85) * 0.95;
 
     vec3 color = direct + envDiffuse + envSpecular + emissive;
-    outFragColor = vec4(tonemap(color), 1.0);
+    outFragColor = vec4(tonemap(color), 5.0);
 }

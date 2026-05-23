@@ -10,6 +10,7 @@ class VulkanImGuiTexture : public Zest::IFontTexture
 {
 public:
     VulkanImGuiTexture(VulkanContext& ctx, VkPhysicalDevice physicalDevice, VkDevice device, VkQueue queue, VkDescriptorPool pool);
+    ~VulkanImGuiTexture();
 
     // Texture handling bits using the imgui API
     virtual int UpdateTexture(int image, int x, int y, int w, int h, const unsigned char* data) override;
@@ -36,11 +37,15 @@ private:
         VkDeviceSize memoryAlignment = 4;
         VkCommandPool commandPool = nullptr;
         VkCommandBuffer commandBuffer = nullptr;
+        VkFence uploadFence = nullptr;
         int width = 0;
         int height = 0;
         int textureId = 0;
         bool init = false;
     };
+
+    void DestroyFontInfo(FontInfo& fontInfo);
+    void DestroyAllTextures();
 
     int m_currentTextureId = 1;
     std::map<int, std::shared_ptr<FontInfo>> m_mapFonts;

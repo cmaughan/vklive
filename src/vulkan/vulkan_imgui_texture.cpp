@@ -30,6 +30,87 @@ VulkanImGuiTexture::VulkanImGuiTexture(VulkanContext& ctx, VkPhysicalDevice phys
 {
 }
 
+VulkanImGuiTexture::~VulkanImGuiTexture()
+{
+    if (m_device)
+    {
+        vkDeviceWaitIdle(m_device);
+        DestroyAllTextures();
+    }
+}
+
+void VulkanImGuiTexture::DestroyFontInfo(FontInfo& fontInfo)
+{
+    if (fontInfo.uploadFence)
+    {
+        vkWaitForFences(m_device, 1, &fontInfo.uploadFence, VK_TRUE, UINT64_MAX);
+    }
+    if (fontInfo.descriptorSet)
+    {
+        vkFreeDescriptorSets(m_device, m_pool, 1, &fontInfo.descriptorSet);
+        fontInfo.descriptorSet = nullptr;
+    }
+    if (fontInfo.imageView)
+    {
+        vkDestroyImageView(m_device, fontInfo.imageView, nullptr);
+        fontInfo.imageView = nullptr;
+    }
+    if (fontInfo.image)
+    {
+        vkDestroyImage(m_device, fontInfo.image, nullptr);
+        fontInfo.image = nullptr;
+    }
+    if (fontInfo.memory)
+    {
+        vkFreeMemory(m_device, fontInfo.memory, nullptr);
+        fontInfo.memory = nullptr;
+    }
+    if (fontInfo.sampler)
+    {
+        vkDestroySampler(m_device, fontInfo.sampler, nullptr);
+        fontInfo.sampler = nullptr;
+    }
+    if (fontInfo.uploadBuffer)
+    {
+        vkDestroyBuffer(m_device, fontInfo.uploadBuffer, nullptr);
+        fontInfo.uploadBuffer = nullptr;
+    }
+    if (fontInfo.uploadMemory)
+    {
+        vkFreeMemory(m_device, fontInfo.uploadMemory, nullptr);
+        fontInfo.uploadMemory = nullptr;
+    }
+    if (fontInfo.uploadFence)
+    {
+        vkDestroyFence(m_device, fontInfo.uploadFence, nullptr);
+        fontInfo.uploadFence = nullptr;
+    }
+    if (fontInfo.commandPool)
+    {
+        vkDestroyCommandPool(m_device, fontInfo.commandPool, nullptr);
+        fontInfo.commandPool = nullptr;
+        fontInfo.commandBuffer = nullptr;
+    }
+}
+
+void VulkanImGuiTexture::DestroyAllTextures()
+{
+    for (auto& [id, fontInfo] : m_mapFonts)
+    {
+        DestroyFontInfo(*fontInfo);
+    }
+    m_mapFonts.clear();
+
+    for (auto& [frameIndex, fonts] : m_mapOldFonts)
+    {
+        for (auto& fontInfo : fonts)
+        {
+            DestroyFontInfo(*fontInfo);
+        }
+    }
+    m_mapOldFonts.clear();
+}
+
 int VulkanImGuiTexture::UpdateTexture(int image, int x, int y, int updateWidth, int updateHeight, const unsigned char* data)
 {
     auto itr = m_mapFonts.find(image);
@@ -73,6 +154,12 @@ int VulkanImGuiTexture::UpdateTexture(int image, int x, int y, int updateWidth, 
     err = vkFlushMappedMemoryRanges(m_device, 1, range);
     assert(err == VK_SUCCESS);
     vkUnmapMemory(m_device, textureInfo.uploadMemory);
+
+    err = vkWaitForFences(m_device, 1, &textureInfo.uploadFence, VK_TRUE, UINT64_MAX);
+    assert(err == VK_SUCCESS);
+
+    err = vkResetFences(m_device, 1, &textureInfo.uploadFence);
+    assert(err == VK_SUCCESS);
 
     err = vkResetCommandPool(m_device, textureInfo.commandPool, 0);
     assert(err == VK_SUCCESS);
@@ -127,7 +214,7 @@ int VulkanImGuiTexture::UpdateTexture(int image, int x, int y, int updateWidth, 
     end_info.pCommandBuffers = &textureInfo.commandBuffer;
     assert(err == VK_SUCCESS);
 
-    err = vkQueueSubmit(m_queue, 1, &end_info, VK_NULL_HANDLE);
+    err = vkQueueSubmit(m_queue, 1, &end_info, textureInfo.uploadFence);
     assert(err == VK_SUCCESS);
 
     return image;
@@ -157,43 +244,19 @@ void VulkanImGuiTexture::Flush()
         }
 
         victims.push_back(frameIndex);
-
-        for (auto& spInfo : fonts)
-        {
-            auto& fontInfo = *spInfo;
-            if (fontInfo.imageView)
-            {
-                vkDestroyImageView(m_device, fontInfo.imageView, nullptr);
-            }
-            if (fontInfo.image)
-            {
-                vkDestroyImage(m_device, fontInfo.image, nullptr);
-            }
-            if (fontInfo.memory)
-            {
-                vkFreeMemory(m_device, fontInfo.memory, nullptr);
-            }
-            if (fontInfo.sampler)
-            {
-                vkDestroySampler(m_device, fontInfo.sampler, nullptr);
-            }
-            if (fontInfo.uploadBuffer)
-            {
-                vkDestroyBuffer(m_device, fontInfo.uploadBuffer, nullptr);
-            }
-            if (fontInfo.uploadMemory)
-            {
-                vkFreeMemory(m_device, fontInfo.uploadMemory, nullptr);
-            }
-            // TODO: Use shared or engine command buffer
-            if (fontInfo.commandBuffer)
-            {
-                vkDestroyCommandPool(m_device, fontInfo.commandPool, nullptr);
-            }
-        }
     }
+
+    if (!victims.empty())
+    {
+        vkDeviceWaitIdle(m_device);
+    }
+
     for (auto& victim : victims)
     {
+        for (auto& fontInfo : m_mapOldFonts[victim])
+        {
+            DestroyFontInfo(*fontInfo);
+        }
         m_mapOldFonts.erase(victim);
     }
 }
@@ -343,6 +406,14 @@ int VulkanImGuiTexture::CreateTexture(int width, int height, const unsigned char
         info.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
         info.commandBufferCount = 1;
         err = vkAllocateCommandBuffers(m_device, &info, &spFontInfo->commandBuffer);
+        assert(err == VK_SUCCESS);
+    }
+
+    {
+        VkFenceCreateInfo info = {};
+        info.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
+        info.flags = VK_FENCE_CREATE_SIGNALED_BIT;
+        err = vkCreateFence(m_device, &info, nullptr, &spFontInfo->uploadFence);
         assert(err == VK_SUCCESS);
     }
 
