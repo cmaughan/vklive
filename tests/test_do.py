@@ -97,6 +97,31 @@ class DoScriptTests(unittest.TestCase):
         self.assertIn(f"-DCMAKE_TOOLCHAIN_FILE={toolchain}", calls[0])
         self.assertIn("-DCMAKE_EXPORT_COMPILE_COMMANDS=ON", calls[0])
 
+    def test_config_selects_metal_manifest_feature_on_mac(self):
+        do = load_do_module()
+
+        with mock.patch.object(do.sys, "platform", "darwin"):
+            command = do.configure_command(ROOT, "Debug")
+
+        self.assertIn("-DVCPKG_MANIFEST_FEATURES=metal", command)
+
+    def test_config_selects_vulkan_manifest_feature_off_mac(self):
+        do = load_do_module()
+
+        with mock.patch.object(do.sys, "platform", "linux"):
+            command = do.configure_command(ROOT, "Debug")
+
+        self.assertIn("-DVCPKG_MANIFEST_FEATURES=vulkan", command)
+
+    def test_config_respects_explicit_manifest_features(self):
+        do = load_do_module()
+
+        with mock.patch.object(do.sys, "platform", "darwin"):
+            command = do.configure_command(ROOT, "Debug", ["-DVCPKG_MANIFEST_FEATURES=vulkan"])
+
+        self.assertIn("-DVCPKG_MANIFEST_FEATURES=vulkan", command)
+        self.assertNotIn("-DVCPKG_MANIFEST_FEATURES=metal", command)
+
     def test_config_forwards_explicit_cmake_args_after_separator(self):
         do = load_do_module()
 

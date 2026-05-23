@@ -8,10 +8,10 @@ namespace Zep
 RangeMarker::RangeMarker(ZepBuffer& buffer)
     : m_buffer(buffer)
 {
-    onPreBufferInsert = buffer.sigPreInsert.connect([=](ZepBuffer& buffer, const GlyphIterator& itrStart, const std::string& str) {
+    onPreBufferInsert = buffer.sigPreInsert.connect([this](ZepBuffer& buffer, const GlyphIterator& itrStart, const std::string& str) {
         HandleBufferInsert(buffer, itrStart, str);
     });
-    onPreBufferDelete = buffer.sigPreDelete.connect([=](ZepBuffer& buffer, const GlyphIterator& itrStart, const GlyphIterator itrEnd) {
+    onPreBufferDelete = buffer.sigPreDelete.connect([this](ZepBuffer& buffer, const GlyphIterator& itrStart, const GlyphIterator itrEnd) {
         HandleBufferDelete(buffer, itrStart, itrEnd);
     });
 }

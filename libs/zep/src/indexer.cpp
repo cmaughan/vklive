@@ -231,7 +231,7 @@ void Indexer::Notify(std::shared_ptr<ZepMessage> message)
 
 void Indexer::StartSymbolSearch()
 {
-    GetEditor().GetThreadPool().enqueue([=]() {
+    GetEditor().GetThreadPool().enqueue([this]() {
         for (;;)
         {
             fs::path path;

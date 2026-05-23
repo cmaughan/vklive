@@ -343,32 +343,36 @@ if(VKLIVE_ENABLE_METAL)
     list(APPEND LIB_SOURCES ${METAL_SOURCES})
 endif()
 
+set(APP_CORE_SOURCES
+    app/src/command_line.cpp
+    app/src/editor_font.cpp
+    app/src/project.cpp
+    app/src/window_render_sizing.cpp
+
+    app/include/app/command_line.h
+    app/include/app/editor_font.h
+    app/include/app/project.h
+    app/include/app/window_render_sizing.h
+)
+
 set(APP_SOURCES
     TODO.md
     README.md
-    app/src/command_line.cpp
     app/src/config.cpp
     app/src/controller.cpp
     app/src/editor.cpp
-    app/src/editor_font.cpp
     app/src/main.cpp
     app/src/window_render.cpp
-    app/src/window_render_sizing.cpp
     app/src/window_targets.cpp
     app/src/window_sequencer.cpp
     app/src/menu.cpp
-    app/src/project.cpp
 
-    app/include/app/command_line.h
     app/include/app/config.h
     app/include/app/controller.h
     app/include/app/editor.h
-    app/include/app/editor_font.h
     app/include/app/menu.h
-    app/include/app/project.h
     app/include/app/window_sequencer.h
     app/include/app/window_render.h
-    app/include/app/window_render_sizing.h
     app/include/app/window_targets.h
 )
 
@@ -439,6 +443,16 @@ target_include_directories(vklive
         ${TSL_ORDERED_MAP_INCLUDE_DIRS}
     )
 
+add_library(RezonalityAppCore STATIC ${APP_CORE_SOURCES})
+target_link_libraries(RezonalityAppCore PUBLIC vklive)
+target_include_directories(RezonalityAppCore
+    PUBLIC
+        ${CMAKE_CURRENT_LIST_DIR}/app/include
+    PRIVATE
+        ${CMAKE_BINARY_DIR}
+        ${CMAKE_CURRENT_LIST_DIR}/libs
+)
+
 enable_testing()
 
 add_executable(vklive_model_tests tests/model_inspect.cpp)
@@ -449,29 +463,25 @@ add_executable(vklive_scene_tests tests/scene_inspect.cpp)
 target_link_libraries(vklive_scene_tests PRIVATE vklive unofficial::spirv-reflect)
 target_include_directories(vklive_scene_tests PRIVATE ${CMAKE_BINARY_DIR})
 
-add_executable(vklive_app_command_line_tests tests/app_command_line_tests.cpp app/src/command_line.cpp)
-target_link_libraries(vklive_app_command_line_tests PRIVATE vklive)
+add_executable(vklive_app_command_line_tests tests/app_command_line_tests.cpp)
+target_link_libraries(vklive_app_command_line_tests PRIVATE RezonalityAppCore)
 target_include_directories(vklive_app_command_line_tests PRIVATE
-    ${CMAKE_BINARY_DIR}
-    ${CMAKE_CURRENT_LIST_DIR}/app/include)
+    ${CMAKE_BINARY_DIR})
 
-add_executable(vklive_window_render_sizing_tests tests/window_render_sizing_tests.cpp app/src/window_render_sizing.cpp)
-target_link_libraries(vklive_window_render_sizing_tests PRIVATE vklive)
+add_executable(vklive_window_render_sizing_tests tests/window_render_sizing_tests.cpp)
+target_link_libraries(vklive_window_render_sizing_tests PRIVATE RezonalityAppCore)
 target_include_directories(vklive_window_render_sizing_tests PRIVATE
-    ${CMAKE_BINARY_DIR}
-    ${CMAKE_CURRENT_LIST_DIR}/app/include)
+    ${CMAKE_BINARY_DIR})
 
-add_executable(vklive_editor_font_tests tests/editor_font_tests.cpp app/src/editor_font.cpp)
-target_link_libraries(vklive_editor_font_tests PRIVATE vklive)
+add_executable(vklive_editor_font_tests tests/editor_font_tests.cpp)
+target_link_libraries(vklive_editor_font_tests PRIVATE RezonalityAppCore)
 target_include_directories(vklive_editor_font_tests PRIVATE
-    ${CMAKE_BINARY_DIR}
-    ${CMAKE_CURRENT_LIST_DIR}/app/include)
+    ${CMAKE_BINARY_DIR})
 
-add_executable(vklive_project_copy_tests tests/project_copy_tests.cpp app/src/project.cpp)
-target_link_libraries(vklive_project_copy_tests PRIVATE vklive)
+add_executable(vklive_project_copy_tests tests/project_copy_tests.cpp)
+target_link_libraries(vklive_project_copy_tests PRIVATE RezonalityAppCore)
 target_include_directories(vklive_project_copy_tests PRIVATE
-    ${CMAKE_BINARY_DIR}
-    ${CMAKE_CURRENT_LIST_DIR}/app/include)
+    ${CMAKE_BINARY_DIR})
 
 add_executable(vklive_zep_syntax_tests tests/zep_syntax_tests.cpp)
 target_link_libraries(vklive_zep_syntax_tests PRIVATE Zep::Zep)
@@ -694,6 +704,7 @@ target_link_libraries(Rezonality
         unofficial::spirv-reflect
         gli
         Zing::Zing
+        RezonalityAppCore
     )
 
 if(WIN32)
@@ -744,4 +755,4 @@ endif()
 source_group (vklive//vulkan FILES ${VULKAN_SOURCES})
 source_group (vklive//metal FILES ${METAL_SOURCES})
 source_group (vklive FILES ${VK_SOURCES})
-source_group (app FILES ${APP_SOURCES})
+source_group (app FILES ${APP_SOURCES} ${APP_CORE_SOURCES})

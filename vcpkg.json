@@ -17,17 +17,31 @@
     "portaudio",
     "range-v3",
     "reproc",
-    {
-      "name": "sdl2",
-      "features": [
-        "vulkan"
-      ]
-    },
-    "spirv-cross",
+    "sdl2",
     "spirv-reflect",
     "stb",
     "tinydir",
     "tinyfiledialogs",
     "tsl-ordered-map"
-  ]
+  ],
+  "features": {
+    "metal": {
+      "description": "Dependencies used by the Apple Metal renderer.",
+      "dependencies": [
+        "spirv-cross"
+      ]
+    },
+    "vulkan": {
+      "description": "Dependencies used by the Vulkan renderer.",
+      "dependencies": [
+        {
+          "name": "sdl2",
+          "features": [
+            "vulkan"
+          ]
+        },
+        "vulkan-memory-allocator"
+      ]
+    }
+  }
 }

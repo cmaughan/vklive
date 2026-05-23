@@ -3,7 +3,7 @@ cmake_minimum_required(VERSION 3.10)
 message(STATUS " CMakeLists: Zing")
 
 option(BUILD_TESTS "Build Tests" ON)
-option(ZING_LIBRARY_ONLY "Only build library" OFF)
+option(ZING_LIBRARY_ONLY "Only build library" ON)
 
 # Global Settings
 set(CMAKE_CXX_STANDARD 20)
@@ -47,7 +47,11 @@ add_subdirectory(libs/remidi)
 
 add_subdirectory(src)
 
-if (NOT ${ZING_LIBRARY_ONLY})
-add_subdirectory(app)
-add_subdirectory(tests)
+if(NOT ZING_LIBRARY_ONLY)
+    if(EXISTS ${CMAKE_CURRENT_LIST_DIR}/app/CMakeLists.txt)
+        add_subdirectory(app)
+    endif()
+    if(EXISTS ${CMAKE_CURRENT_LIST_DIR}/tests/CMakeLists.txt)
+        add_subdirectory(tests)
+    endif()
 endif()

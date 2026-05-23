@@ -186,6 +186,7 @@ def vcpkg_toolchain(root: pathlib.Path) -> pathlib.Path | None:
 
 
 def configure_command(root: pathlib.Path, config: str, cmake_args: list[str] | None = None) -> list[str]:
+    cmake_args = cmake_args or []
     command = [
         "cmake",
         "--preset",
@@ -193,12 +194,22 @@ def configure_command(root: pathlib.Path, config: str, cmake_args: list[str] | N
         "-DCMAKE_EXPORT_COMPILE_COMMANDS=ON",
         f"-DVCPKG_TARGET_TRIPLET={triplet()}",
     ]
+    if not has_cmake_define(cmake_args, "VCPKG_MANIFEST_FEATURES"):
+        command.append(f"-DVCPKG_MANIFEST_FEATURES={default_vcpkg_manifest_features()}")
     toolchain = vcpkg_toolchain(root)
     if toolchain is not None:
         command.append(f"-DCMAKE_TOOLCHAIN_FILE={toolchain}")
-    if cmake_args:
-        command.extend(cmake_args)
+    command.extend(cmake_args)
     return command
+
+
+def default_vcpkg_manifest_features() -> str:
+    return "metal" if sys.platform == "darwin" else "vulkan"
+
+
+def has_cmake_define(args: list[str], name: str) -> bool:
+    prefix = f"-D{name}="
+    return any(arg == f"-D{name}" or arg.startswith(prefix) for arg in args)
 
 
 def build_command(root: pathlib.Path, config: str) -> list[str]:

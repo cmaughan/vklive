@@ -453,7 +453,7 @@ void ZepMode::HandleMappedInput(const std::string& input)
     }
 
     // A lambda to check for a pending mode switch after the command
-    auto enteringMode = [=](auto mode) {
+    auto enteringMode = [this, spContext](auto mode) {
         if (m_currentMode != spContext->commandResult.modeSwitch && spContext->commandResult.modeSwitch == mode)
         {
             return true;

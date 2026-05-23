@@ -398,6 +398,8 @@ void audio_process_midi(void* pOutput, uint32_t frameCount)
                 case libremidi::message_type::PITCH_BEND: //pitch wheel modification
                     tsf_channel_set_pitchwheel(tsf, msg.get_channel(), (uint32_t(msg[1]) | uint32_t(msg[2] << 7)));
                     break;
+                default:
+                    break;
             }
             pendingMessage = false;
         }
