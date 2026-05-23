@@ -40,7 +40,31 @@ An audio spectrum analysis; best seen live! This is from a ShaderToy example, pr
 - Low DPI/Mac DPI.  You may not have a good experience on a low DPI setup, and on Mac there are tweaks required too.
 
 ## Build
-Don't forget to pull the submodules (vcpkg for all the libraries I use, Zep for the editor).
+Don't forget to pull the submodules (vcpkg for all the libraries I use, Zep for the editor). The easiest path is the Draxul-style helper:
+
+```
+python do.py sync
+python do.py run debug
+```
+
+If your shell aliases `dr` to `python do.py`, the same commands are:
+
+```
+dr latest
+dr run debug
+```
+
+Useful dependency helpers:
+
+```
+dr submodules        # inspect recursive submodule status
+dr latest --clean    # reset and clean submodule worktrees before pulling
+dr publish           # push Rezonality submodules first, then VkLive
+dr gitconfig --global
+```
+
+See `docs/dependencies.md` for the full submodule workflow.
+
 On Mac I build it with CLion.  On Windows, I usually load the solution into Visual Studio after the config step.
 You will likely need to install the latest Vulkan SDK on your platform (and at time of writing, you definately need the latest)
 
@@ -76,4 +100,3 @@ tinyfiledialogs - File dialogs that look OS specific and more standard
 unofficial-nativefiledialog - File dialogs that look OS specific and more standard
 mpc - The parser used in the scene graph file
 kissfft - For spectrum analysis of audio
-

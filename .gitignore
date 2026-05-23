@@ -4,6 +4,8 @@
 
 # User-specific files
 .cache/**/*
+__pycache__/
+**/__pycache__/
 build_llvm
 1.3*
 package
