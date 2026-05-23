@@ -112,12 +112,4 @@ python3 do.py config release -- -DVKLIVE_ENABLE_METAL=OFF -DVKLIVE_ENABLE_VULKAN
 
 ## Legacy Scripts
 
-The shell and batch wrappers remain for muscle memory:
-
-```sh
-./prebuild.sh
-./config.sh Debug
-./build.sh Debug
-```
-
-They delegate to `do.py`. Prefer `do.py` for new workflow documentation.
+The root shell and batch wrappers were removed. Keep new workflow helpers in `do.py` so setup, build, run, sync, and push behavior stays cross-platform and documented in one place.

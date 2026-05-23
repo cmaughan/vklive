@@ -40,40 +40,36 @@ An audio spectrum analysis; best seen live! This is from a ShaderToy example, pr
 - Low DPI/Mac DPI.  You may not have a good experience on a low DPI setup, and on Mac there are tweaks required too.
 
 ## Build
-Don't forget to pull the submodules (vcpkg for all the libraries I use, Zep for the editor). The easiest path is the Draxul-style helper:
+Use `do.py` as the single project workflow entrypoint. It configures CMake presets, uses Ninja, exposes `compile_commands.json` at the repo root for clangd/Vim LSP, and launches the app from the configured build folder.
 
-```
-python do.py sync
-python do.py run debug
-```
-
-If your shell aliases `dr` to `python do.py`, the same commands are:
-
-```
-dr latest
-dr run debug
+```sh
+python3 do.py setup
+python3 do.py config debug
+python3 do.py build debug
+python3 do.py run debug
 ```
 
-Useful dependency helpers:
+Short forms default to `Debug`:
 
-```
-dr submodules        # inspect recursive submodule status
-dr latest --clean    # reset and clean submodule worktrees before pulling
-dr publish           # push Rezonality submodules first, then VkLive
-dr gitconfig --global
+```sh
+python3 do.py config
+python3 do.py build
+python3 do.py run
 ```
 
-See `docs/dependencies.md` for the full submodule workflow.
+Useful maintenance commands:
 
-On Mac I build it with CLion.  On Windows, I usually load the solution into Visual Studio after the config step.
-You will likely need to install the latest Vulkan SDK on your platform (and at time of writing, you definately need the latest)
+```sh
+python3 do.py doctor
+python3 do.py test debug
+python3 do.py clean debug
+python3 do.py sync
+python3 do.py push
+```
 
-```
-git submodule update --init
-prebuild.bat OR ./prebuild.sh
-config.bat OR ./config.sh
-build.bat OR 'cmake --build .' in the build folder
-```
+If your shell aliases `dr` to `python3 do.py`, the same commands work as `dr run debug`, `dr sync`, and so on. On Windows, use `python do.py ...` if that is your Python launcher.
+
+See `docs/dependencies.md` for the dependency and build workflow. On Mac, Metal is the default renderer feature; Windows and Linux default to Vulkan. Windows development can still use Visual Studio after `python do.py config debug` if you prefer the IDE.
 
 ## Design
 So how does it work? Firstly, all text editing is handled by Zep.  It does the heavy lifting of showing tabs, editing text, flashing when you evaluate, syntax coloring, error popups, etc.

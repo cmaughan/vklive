@@ -11,65 +11,47 @@ Primary code areas:
 - `app/`: SDL/ImGui application shell, windows, menus, project handling, and editor integration.
 - `src/` and `include/vklive/`: core engine, scene parsing, Vulkan rendering, shaders, models, process helpers, and validation.
 - `examples/` and `tests/content/`: sample scenegraph/shader/model projects.
-- `libs/`, `vcpkg/`, and `zep/`: vendored or submodule dependencies. Avoid broad edits here unless the task explicitly targets those dependencies.
+- `libs/`: vendored/static source snapshots and project-owned library code. Avoid broad edits here unless the task explicitly targets those dependencies.
+- `vcpkg/` and `.cache/vcpkg/`: ignored local dependency manager checkouts, when present.
 - `build/`, `build_llvm/`, `out/`, and `run_tree/`: generated/local output. Do not treat these as source.
 
 ## Build And Setup
 
-Initialize dependencies before building:
+Use `do.py` as the single project workflow entrypoint. It configures CMake presets, uses Ninja, and exposes `compile_commands.json` at the repo root for clangd/Vim LSP.
 
 ```sh
-git submodule update --init --recursive
+python3 do.py doctor
+python3 do.py setup
+python3 do.py config debug
+python3 do.py build debug
+python3 do.py test debug
+python3 do.py run debug
 ```
 
-Windows workflow:
-
-```bat
-prebuild.bat
-config.bat
-build.bat
-```
-
-`prebuild.bat` installs vcpkg dependencies and is only needed after a fresh checkout or dependency changes. The normal local setup/build loop is:
-
-```bat
-config.bat
-build.bat
-```
-
-`build.bat` defaults to `Debug`; pass another configuration explicitly when needed, for example `build.bat Release`.
-
-The repo also has a Draxul-style Python wrapper:
-
-```bat
-python do.py run
-python do.py run debug
-python do.py run release
-```
-
-If your shell aliases `dr` to `python do.py`, the equivalent commands are `dr run`, `dr run debug`, and `dr run release`. The wrapper runs `config.bat`, then `build.bat <Config>`, then launches `build\<Config>\Rezonality.exe`.
-
-Linux/macOS workflow:
+Short forms default to `Debug`:
 
 ```sh
-./prebuild.sh
-./config.sh Debug
-./build.sh Debug
+python3 do.py config
+python3 do.py build
+python3 do.py run
 ```
 
-Useful direct build command after configuration:
+On Windows, use `python do.py ...` if that is the available Python launcher. If your shell aliases `dr` to `python3 do.py`, the equivalent commands are `dr run`, `dr run debug`, and `dr run release`.
+
+Useful direct commands after configuration:
 
 ```sh
-cmake --build build --config Debug
+cmake --build build/debug --config Debug --parallel
+ctest --test-dir build/debug --output-on-failure
 ```
 
-The project expects a Vulkan SDK installation. GitHub Actions currently uses Vulkan SDK `1.3.283.0`; local machines may use newer SDKs, but Vulkan API/extension changes should be checked carefully.
+Mac defaults to the Metal renderer feature. Windows and Linux default to Vulkan. GitHub Actions currently uses Vulkan SDK `1.3.283.0` for Vulkan jobs; local machines may use newer SDKs, but Vulkan API/extension changes should be checked carefully.
 
 ## Testing And Verification
 
 There is no root CTest suite wired up in `CMakeLists.txt` at the moment. For code changes, use the smallest practical verification:
 
-- Compile the touched target with `cmake --build build --config Debug` when dependencies and SDK are available.
+- Compile the touched target with `python3 do.py build debug` when dependencies and SDK are available.
 - For shader/scenegraph work, use the relevant sample under `examples/` or `tests/content/`.
 - For documentation-only changes, inspect the rendered Markdown/text and confirm `git status --short`.
 
@@ -84,11 +66,11 @@ If a build cannot be run because local dependencies are missing or expensive to 
 
 ## Dependency Notes
 
-The build uses the checked-in `vcpkg` submodule as the CMake toolchain and installs packages through `prebuild.*`. Major dependencies include Vulkan, SDL2, ImGui/Zest/Zep, assimp, fmt, range-v3, reproc, native file dialog libraries, SPIR-V reflection, gli, lodepng, and Zing.
+Dependency versions are described by `vcpkg.json`. `do.py setup` bootstraps an ignored local vcpkg checkout under `.cache/vcpkg` if `VCPKG_ROOT`, `vcpkg/`, or `.cache/vcpkg/` do not already provide a usable toolchain. Major dependencies include Vulkan or Metal, SDL2, ImGui/Zest/Zep, assimp, fmt, range-v3, reproc, native file dialog libraries, SPIR-V reflection, gli, lodepng, and Zing.
 
 When modifying dependency usage:
 
-- Update both Windows and Unix prebuild scripts if package requirements change.
+- Update `vcpkg.json`, `CMakeLists.txt`, and `do.py` defaults if package requirements or renderer feature defaults change.
 - Check `.github/workflows/builds.yml` for CI matrix implications.
 - Prefer changes in project-owned wrappers over editing vendored source directly.
 

@@ -28,23 +28,26 @@ def repo_root() -> pathlib.Path:
 
 def help_text() -> str:
     return """Usage:
-  dr doctor
-  dr setup
-  dr config [debug|release|relwithdebinfo] [-- cmake-args...]
-  dr build [debug|release|relwithdebinfo]
-  dr test [debug|release|relwithdebinfo] [-- ctest-args...]
-  dr run [debug|release|relwithdebinfo] [-- app-args...]
-  dr sync
-  dr push
-  dr clean [debug|release|relwithdebinfo]
+  python3 do.py doctor
+  python3 do.py setup
+  python3 do.py config [debug|release|relwithdebinfo] [-- cmake-args...]
+  python3 do.py build [debug|release|relwithdebinfo]
+  python3 do.py test [debug|release|relwithdebinfo] [-- ctest-args...]
+  python3 do.py run [debug|release|relwithdebinfo] [-- app-args...]
+  python3 do.py sync
+  python3 do.py push
+  python3 do.py clean [debug|release|relwithdebinfo]
 
 Examples:
-  dr doctor       Check CMake, Ninja, compiler cache, and vcpkg discovery
-  dr setup        Bootstrap an ignored local vcpkg checkout if needed
-  dr config       Configure Debug with Ninja and expose compile_commands.json
-  dr build        Build Debug without reconfiguring
-  dr run release -- --project run_tree/projects/pbr_robot --scenegraph uv_debug.scenegraph
-  dr test debug -- -R zep
+  python3 do.py doctor       Check CMake, Ninja, compiler cache, and vcpkg discovery
+  python3 do.py setup        Bootstrap an ignored local vcpkg checkout if needed
+  python3 do.py config       Configure Debug with Ninja and expose compile_commands.json
+  python3 do.py build        Build Debug without reconfiguring
+  python3 do.py run release -- --project run_tree/projects/pbr_robot --scenegraph uv_debug.scenegraph
+  python3 do.py test debug -- -R zep
+
+If your shell aliases `dr` to `python3 do.py`, `dr build`, `dr run`, and the
+other short forms are equivalent.
 """
 
 
