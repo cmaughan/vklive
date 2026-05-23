@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 from __future__ import annotations
 
+import json
 import os
 import pathlib
 import platform
@@ -20,6 +21,8 @@ CONFIGS = {
 
 VCPKG_REPOSITORY = "https://github.com/microsoft/vcpkg.git"
 VCPKG_BASELINE = "38d91be5efb2f21fbef4a3c53295002823747431"
+CONFIGURE_STAMP_NAME = ".do-configure.json"
+CONFIGURE_STAMP_VERSION = 1
 _BUILD_ENVIRONMENT: dict[str, str] | None = None
 
 
@@ -148,6 +151,10 @@ def build_dir(root: pathlib.Path, config: str) -> pathlib.Path:
     return root / "build" / preset_name(config)
 
 
+def configure_stamp(root: pathlib.Path, config: str) -> pathlib.Path:
+    return build_dir(root, config) / CONFIGURE_STAMP_NAME
+
+
 def exe_path(root: pathlib.Path, config: str) -> pathlib.Path:
     directory = build_dir(root, config)
     if sys.platform.startswith("win"):
@@ -228,10 +235,85 @@ def configured_toolchain(root: pathlib.Path, config: str) -> str | None:
     return cmake_cache_value(root, config, "CMAKE_TOOLCHAIN_FILE")
 
 
+def normalized_path_text(path: str | pathlib.Path | None) -> str | None:
+    if path is None:
+        return None
+    return os.path.normcase(os.path.abspath(str(path)))
+
+
 def same_path(left: str | None, right: pathlib.Path) -> bool:
     if left is None:
         return False
-    return os.path.normcase(os.path.abspath(left)) == os.path.normcase(os.path.abspath(right))
+    return normalized_path_text(left) == normalized_path_text(right)
+
+
+def configure_stamp_state(root: pathlib.Path, config: str) -> dict[str, str | int | None]:
+    return {
+        "version": CONFIGURE_STAMP_VERSION,
+        "config": config,
+        "generator": cmake_cache_value(root, config, "CMAKE_GENERATOR"),
+        "triplet": cmake_cache_value(root, config, "VCPKG_TARGET_TRIPLET"),
+        "manifest_features": cmake_cache_value(root, config, "VCPKG_MANIFEST_FEATURES"),
+        "toolchain": normalized_path_text(configured_toolchain(root, config)),
+    }
+
+
+def read_configure_stamp(root: pathlib.Path, config: str) -> dict[str, object] | None:
+    stamp = configure_stamp(root, config)
+    if not stamp.exists():
+        return None
+
+    try:
+        state = json.loads(stamp.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return None
+
+    if isinstance(state, dict):
+        return state
+    return None
+
+
+def configure_stamp_matches(root: pathlib.Path, config: str) -> bool:
+    state = read_configure_stamp(root, config)
+    if state is None:
+        return False
+    if state.get("version") != CONFIGURE_STAMP_VERSION:
+        return False
+    if state.get("config") != config:
+        return False
+    if state.get("generator") != "Ninja":
+        return False
+    if state.get("triplet") != triplet():
+        return False
+    if state.get("manifest_features") != default_vcpkg_manifest_features():
+        return False
+
+    toolchain = vcpkg_toolchain(root)
+    stamped_toolchain = state.get("toolchain")
+    if toolchain is not None:
+        return isinstance(stamped_toolchain, str) and same_path(stamped_toolchain, toolchain)
+
+    return stamped_toolchain in {None, ""}
+
+
+def configure_marker_time(root: pathlib.Path, config: str) -> float:
+    directory = build_dir(root, config)
+    marker_time = 0.0
+
+    build_file = directory / "build.ninja"
+    if build_file.exists():
+        marker_time = max(marker_time, build_file.stat().st_mtime)
+
+    stamp = configure_stamp(root, config)
+    if stamp.exists() and configure_stamp_matches(root, config):
+        marker_time = max(marker_time, stamp.stat().st_mtime)
+
+    return marker_time
+
+
+def write_configure_stamp(root: pathlib.Path, config: str) -> None:
+    stamp = configure_stamp(root, config)
+    stamp.write_text(json.dumps(configure_stamp_state(root, config), indent=2, sort_keys=True) + "\n", encoding="utf-8")
 
 
 def configure_inputs(root: pathlib.Path) -> list[pathlib.Path]:
@@ -265,9 +347,12 @@ def needs_configure(root: pathlib.Path, config: str, cmake_args: list[str] | Non
     if toolchain is not None and not same_path(configured_toolchain(root, config), toolchain):
         return True
 
-    cache_time = cache.stat().st_mtime
+    marker_time = configure_marker_time(root, config)
+    if marker_time <= 0:
+        return True
+
     for input_file in configure_inputs(root):
-        if input_file.exists() and input_file.stat().st_mtime > cache_time:
+        if input_file.exists() and input_file.stat().st_mtime > marker_time:
             return True
 
     return False
@@ -414,6 +499,7 @@ def expose_compile_commands(root: pathlib.Path, directory: pathlib.Path) -> None
 def configure(root: pathlib.Path, config: str, cmake_args: list[str] | None = None) -> int:
     rc = run(configure_command(root, config, cmake_args), root, env=build_environment())
     if rc == 0:
+        write_configure_stamp(root, config)
         expose_compile_commands(root, build_dir(root, config))
     return rc
 

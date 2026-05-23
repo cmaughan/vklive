@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import importlib.util
+import json
 import os
 import pathlib
 import subprocess
@@ -308,9 +309,124 @@ class DoScriptTests(unittest.TestCase):
             manifest = root / "vcpkg.json"
             manifest.write_text("{}\n", encoding="utf-8")
             os.utime(cache, (1, 1))
+            os.utime(build / "build.ninja", (1, 1))
             os.utime(manifest, (2, 2))
 
             self.assertTrue(do.needs_configure(root, "Release"))
+
+    def test_run_skips_configure_when_configure_stamp_is_current(self):
+        do = load_do_module()
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = pathlib.Path(temp_dir)
+            toolchain = root / ".cache" / "vcpkg" / "scripts" / "buildsystems" / "vcpkg.cmake"
+            toolchain.parent.mkdir(parents=True)
+            toolchain.write_text("# test toolchain\n", encoding="utf-8")
+            build = root / "build" / "release"
+            build.mkdir(parents=True)
+            cache = build / "CMakeCache.txt"
+            cache.write_text(
+                "\n".join(
+                    [
+                        "CMAKE_GENERATOR:INTERNAL=Ninja",
+                        f"CMAKE_TOOLCHAIN_FILE:FILEPATH={toolchain}",
+                        f"VCPKG_TARGET_TRIPLET:STRING={do.triplet()}",
+                        f"VCPKG_MANIFEST_FEATURES:UNINITIALIZED={do.default_vcpkg_manifest_features()}",
+                        "",
+                    ]
+                ),
+                encoding="utf-8",
+            )
+            (build / "build.ninja").write_text("# ninja\n", encoding="utf-8")
+            (build / ".do-configure.json").write_text(
+                json.dumps(
+                    {
+                        "version": 1,
+                        "config": "Release",
+                        "generator": "Ninja",
+                        "triplet": do.triplet(),
+                        "manifest_features": do.default_vcpkg_manifest_features(),
+                        "toolchain": str(toolchain),
+                    }
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+            manifest = root / "vcpkg.json"
+            manifest.write_text("{}\n", encoding="utf-8")
+            os.utime(cache, (1, 1))
+            os.utime(build / "build.ninja", (1, 1))
+            os.utime(manifest, (2, 2))
+            os.utime(build / ".do-configure.json", (3, 3))
+
+            self.assertFalse(do.needs_configure(root, "Release"))
+
+    def test_run_skips_configure_when_build_file_is_newer_than_cache(self):
+        do = load_do_module()
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = pathlib.Path(temp_dir)
+            toolchain = root / ".cache" / "vcpkg" / "scripts" / "buildsystems" / "vcpkg.cmake"
+            toolchain.parent.mkdir(parents=True)
+            toolchain.write_text("# test toolchain\n", encoding="utf-8")
+            build = root / "build" / "release"
+            build.mkdir(parents=True)
+            cache = build / "CMakeCache.txt"
+            cache.write_text(
+                "\n".join(
+                    [
+                        "CMAKE_GENERATOR:INTERNAL=Ninja",
+                        f"CMAKE_TOOLCHAIN_FILE:FILEPATH={toolchain}",
+                        f"VCPKG_TARGET_TRIPLET:STRING={do.triplet()}",
+                        f"VCPKG_MANIFEST_FEATURES:UNINITIALIZED={do.default_vcpkg_manifest_features()}",
+                        "",
+                    ]
+                ),
+                encoding="utf-8",
+            )
+            build_file = build / "build.ninja"
+            build_file.write_text("# ninja\n", encoding="utf-8")
+            manifest = root / "vcpkg.json"
+            manifest.write_text("{}\n", encoding="utf-8")
+            os.utime(cache, (1, 1))
+            os.utime(manifest, (2, 2))
+            os.utime(build_file, (3, 3))
+
+            self.assertFalse(do.needs_configure(root, "Release"))
+
+    def test_config_writes_configure_stamp_on_success(self):
+        do = load_do_module()
+
+        def fake_run(command, **kwargs):
+            return mock.Mock(returncode=0)
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = pathlib.Path(temp_dir)
+            build = root / "build" / "debug"
+            build.mkdir(parents=True)
+            (build / "CMakeCache.txt").write_text(
+                "\n".join(
+                    [
+                        "CMAKE_GENERATOR:INTERNAL=Ninja",
+                        f"VCPKG_TARGET_TRIPLET:STRING={do.triplet()}",
+                        f"VCPKG_MANIFEST_FEATURES:UNINITIALIZED={do.default_vcpkg_manifest_features()}",
+                        "",
+                    ]
+                ),
+                encoding="utf-8",
+            )
+            (build / "build.ninja").write_text("# ninja\n", encoding="utf-8")
+
+            with mock.patch.object(do, "build_environment", return_value=None):
+                with mock.patch.object(do.subprocess, "run", side_effect=fake_run):
+                    rc = do.configure(root, "Debug")
+
+            self.assertEqual(rc, 0)
+            stamp = build / ".do-configure.json"
+            self.assertTrue(stamp.exists())
+            state = json.loads(stamp.read_text(encoding="utf-8"))
+            self.assertEqual(state["generator"], "Ninja")
+            self.assertEqual(state["triplet"], do.triplet())
 
     def test_sync_is_root_repo_only(self):
         do = load_do_module()
