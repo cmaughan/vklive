@@ -43,6 +43,8 @@ include(cmake/all.cmake)
 if(NOT TARGET Zest)
     add_subdirectory(${CMAKE_CURRENT_LIST_DIR}/../zest ${CMAKE_BINARY_DIR}/libs/zest)
 endif()
+set(LIBREMIDI_EXAMPLES OFF CACHE BOOL "Build libremidi examples" FORCE)
+set(LIBREMIDI_TESTS OFF CACHE BOOL "Build libremidi tests" FORCE)
 add_subdirectory(libs/remidi)
 
 add_subdirectory(src)
