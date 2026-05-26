@@ -1,8 +1,10 @@
 add_library(vklive_nvim STATIC
     src/mpack_codec.cpp
+    src/nvim_ui.cpp
     src/nvim_host.cpp
     src/nvim_process.cpp
     src/nvim_rpc.cpp
+    src/render_model.cpp
     third_party/mpack/mpack-common.c
     third_party/mpack/mpack-expect.c
     third_party/mpack/mpack-node.c
@@ -14,6 +16,8 @@ add_library(vklive_nvim STATIC
     include/vklive_nvim/nvim_host.h
     include/vklive_nvim/nvim_process.h
     include/vklive_nvim/nvim_rpc.h
+    include/vklive_nvim/nvim_ui.h
+    include/vklive_nvim/render_model.h
 )
 
 add_library(vklive_nvim::vklive_nvim ALIAS vklive_nvim)

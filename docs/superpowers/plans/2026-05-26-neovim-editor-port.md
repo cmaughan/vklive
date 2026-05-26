@@ -1031,13 +1031,16 @@ Expected: executable exits with code `0`.
 **Files:**
 - Create: `libs/vklive_nvim/include/vklive_nvim/render_model.h`
 - Create: `libs/vklive_nvim/src/render_model.cpp`
+- Create: `libs/vklive_nvim/include/vklive_nvim/nvim_ui.h`
+- Create: `libs/vklive_nvim/src/nvim_ui.cpp`
 - Create: `app/include/app/editor_nvim_renderer.h`
 - Create: `app/src/editor_nvim_renderer.cpp`
 - Modify: `app/src/editor_nvim_host.cpp`
 - Test: `tests/nvim_render_model_tests.cpp`
+- Test: `tests/nvim_ui_events_tests.cpp`
 - Modify: `CMakeLists.txt`
 
-- [ ] **Step 1: Write render-model tests before touching GPU code**
+- [x] **Step 1: Write render-model tests before touching GPU code**
 
 ```cpp
 // tests/nvim_render_model_tests.cpp
@@ -1059,7 +1062,7 @@ int main()
 }
 ```
 
-- [ ] **Step 2: Run the render-model test to verify it fails**
+- [x] **Step 2: Run the render-model test to verify it fails**
 
 ```powershell
 python do.py build debug --target vklive_nvim_render_model_tests
@@ -1067,7 +1070,7 @@ python do.py build debug --target vklive_nvim_render_model_tests
 
 Expected: compilation fails because `vklive_nvim/render_model.h` does not exist.
 
-- [ ] **Step 3: Add a renderer-independent model**
+- [x] **Step 3: Add a renderer-independent model**
 
 ```cpp
 // libs/vklive_nvim/include/vklive_nvim/render_model.h
@@ -1140,6 +1143,8 @@ const RenderCell& RenderModel::cell(int column, int row) const
 
 } // namespace vklive_nvim
 ```
+
+Progress note: the first `RenderModel` stores UTF-8 cell text and highlight IDs rather than final resolved foreground/background colors, matching Neovim `grid_line` payloads and Draxul's grid shape. `UiEventHandler` now processes `grid_resize`, `grid_line`, `grid_cursor_goto`, `grid_scroll`, `grid_clear`, and `flush` into that model. Highlight color tables and the ImGui/native GPU renderer remain open.
 
 - [ ] **Step 4: Add the first ImGui draw-list renderer**
 
