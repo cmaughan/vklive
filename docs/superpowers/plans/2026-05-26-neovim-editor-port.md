@@ -613,7 +613,7 @@ Expected: test executable exits with code `0`, and `Rezonality` compiles.
 - Modify: root `CMakeLists.txt`
 - Test: `tests/nvim_rpc_codec_tests.cpp`, copied from Draxul and adjusted to the new include paths
 
-Progress note: `NvimProcess`, `MpackValue`, and the MPack codec have been copied/adapted into `libs/vklive_nvim` with focused tests. The full Draxul RPC reader thread, UI events, grid, font, and renderer copy remains open.
+Progress note: `NvimProcess`, `MpackValue`, the MPack codec, the RPC reader/request/notification path, and the first UI grid-event handler have been copied/adapted into `libs/vklive_nvim` with focused tests. Font atlas work, highlight color resolution, and renderer copy remain open.
 
 - [ ] **Step 1: Copy sources into a VkLive-owned static library directory**
 

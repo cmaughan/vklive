@@ -7,6 +7,8 @@
 #include <utility>
 #include <vector>
 
+#include <vklive_nvim/nvim_rpc.h>
+
 namespace vklive_nvim
 {
 
@@ -31,11 +33,11 @@ struct ProcessResult
     }
 };
 
-class NvimProcess
+class NvimProcess final : public IRpcTransport
 {
 public:
     NvimProcess();
-    ~NvimProcess();
+    ~NvimProcess() override;
 
     NvimProcess(const NvimProcess&) = delete;
     NvimProcess& operator=(const NvimProcess&) = delete;
@@ -45,9 +47,9 @@ public:
         const std::string& working_dir = {});
     void shutdown();
 
-    bool write(const std::uint8_t* data, std::size_t len) const;
-    int read(std::uint8_t* buffer, std::size_t max_len) const;
-    bool is_running() const;
+    bool write(const std::uint8_t* data, std::size_t len) override;
+    int read(std::uint8_t* buffer, std::size_t max_len) override;
+    bool is_running() const override;
 
 private:
     struct Impl;

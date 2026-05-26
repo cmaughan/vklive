@@ -257,7 +257,7 @@ void NvimProcess::shutdown()
     m_impl->started.store(false, std::memory_order_release);
 }
 
-bool NvimProcess::write(const std::uint8_t* data, std::size_t len) const
+bool NvimProcess::write(const std::uint8_t* data, std::size_t len)
 {
     HANDLE h = m_impl->child_stdin_write.load(std::memory_order_acquire);
     if (h == INVALID_HANDLE_VALUE)
@@ -283,7 +283,7 @@ bool NvimProcess::write(const std::uint8_t* data, std::size_t len) const
     return true;
 }
 
-int NvimProcess::read(std::uint8_t* buffer, std::size_t max_len) const
+int NvimProcess::read(std::uint8_t* buffer, std::size_t max_len)
 {
     HANDLE h = m_impl->child_stdout_read.load(std::memory_order_acquire);
     if (h == INVALID_HANDLE_VALUE)
@@ -497,7 +497,7 @@ void NvimProcess::shutdown()
     m_impl->started.store(false, std::memory_order_release);
 }
 
-bool NvimProcess::write(const std::uint8_t* data, std::size_t len) const
+bool NvimProcess::write(const std::uint8_t* data, std::size_t len)
 {
     int fd = m_impl->child_stdin_write.load(std::memory_order_acquire);
     if (fd < 0)
@@ -526,7 +526,7 @@ bool NvimProcess::write(const std::uint8_t* data, std::size_t len) const
     return true;
 }
 
-int NvimProcess::read(std::uint8_t* buffer, std::size_t max_len) const
+int NvimProcess::read(std::uint8_t* buffer, std::size_t max_len)
 {
     int fd = m_impl->child_stdout_read.load(std::memory_order_acquire);
     if (fd < 0)

@@ -563,6 +563,11 @@ target_link_libraries(vklive_nvim_rpc_codec_tests PRIVATE vklive_nvim)
 target_include_directories(vklive_nvim_rpc_codec_tests PRIVATE
     ${CMAKE_BINARY_DIR})
 
+add_executable(vklive_nvim_rpc_transport_tests tests/nvim_rpc_transport_tests.cpp)
+target_link_libraries(vklive_nvim_rpc_transport_tests PRIVATE vklive_nvim)
+target_include_directories(vklive_nvim_rpc_transport_tests PRIVATE
+    ${CMAKE_BINARY_DIR})
+
 add_executable(vklive_nvim_render_model_tests tests/nvim_render_model_tests.cpp)
 target_link_libraries(vklive_nvim_render_model_tests PRIVATE vklive_nvim)
 target_include_directories(vklive_nvim_render_model_tests PRIVATE
@@ -689,6 +694,11 @@ add_test(
 add_test(
     NAME vklive_nvim_rpc_codec_tests
     COMMAND vklive_nvim_rpc_codec_tests
+)
+
+add_test(
+    NAME vklive_nvim_rpc_transport_tests
+    COMMAND vklive_nvim_rpc_transport_tests
 )
 
 add_test(
