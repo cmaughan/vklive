@@ -876,7 +876,7 @@ std::vector<std::string> build_open_project_tab_commands(const NvimProjectFiles&
 } // namespace vklive_nvim
 ```
 
-- [ ] **Step 5: Implement the host by delegating to copied Draxul code**
+- [x] **Step 5: Implement the host by delegating to copied Draxul code**
 
 Use `NvimProcess::spawn("nvim", { "--embed" }, options.project_root)`, create `NvimRpc`, attach UI with:
 
@@ -901,6 +901,8 @@ set mouse=a
 ```
 
 Open files with the `tabedit` commands from `build_open_project_tab_commands()`. Do not create external tabs or split panes in VkLive.
+
+Progress note: `NvimHost` now starts over either a real `NvimProcess` or injected `IRpcTransport`, attaches `ext_linegrid`, sends startup `nvim_command` requests, opens project files with native `tabedit` commands, drains `redraw` notifications into `RenderModel`, and sends input through `nvim_input`. This is covered by `vklive_nvim_host_runtime_tests` using an auto-reply embedded-Neovim transport.
 
 - [ ] **Step 6: Verify command test and a guarded process test**
 

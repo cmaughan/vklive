@@ -50,6 +50,7 @@ public:
     bool write(const std::uint8_t* data, std::size_t len) override;
     int read(std::uint8_t* buffer, std::size_t max_len) override;
     bool is_running() const override;
+    void interrupt_read() override;
 
 private:
     struct Impl;

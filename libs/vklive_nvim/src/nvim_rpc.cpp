@@ -217,6 +217,10 @@ void NvimRpc::close()
 void NvimRpc::shutdown()
 {
     close();
+    if (m_impl->transport)
+    {
+        m_impl->transport->interrupt_read();
+    }
     if (m_impl->reader_thread.joinable())
     {
         m_impl->reader_thread.join();

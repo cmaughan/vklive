@@ -311,6 +311,11 @@ bool NvimProcess::is_running() const
     return exit_code == STILL_ACTIVE;
 }
 
+void NvimProcess::interrupt_read()
+{
+    shutdown();
+}
+
 #else
 
 ProcessResult NvimProcess::spawn(const std::string& nvim_path, const std::vector<std::string>& extra_args, const std::string& working_dir)
@@ -562,6 +567,11 @@ bool NvimProcess::is_running() const
     int status = 0;
     const pid_t result = waitpid(pid, &status, WNOHANG);
     return result == 0;
+}
+
+void NvimProcess::interrupt_read()
+{
+    shutdown();
 }
 
 #endif

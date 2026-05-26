@@ -106,6 +106,7 @@ public:
     virtual bool write(const std::uint8_t* data, std::size_t len) = 0;
     virtual int read(std::uint8_t* buffer, std::size_t max_len) = 0;
     virtual bool is_running() const = 0;
+    virtual void interrupt_read() {}
 };
 
 class IRpcChannel
