@@ -26,6 +26,13 @@ void config_load(const fs::path& path)
         }
         appConfig.vim_mode = tbl["settings"]["vim_mode"].value_or(false);
 
+        EditorBackendKind editorBackend = appConfig.editor_backend;
+        const auto editorBackendText = tbl["settings"]["editor_backend"].value_or(std::string(editor_backend_to_string(appConfig.editor_backend)));
+        if (editor_backend_from_string(editorBackendText, editorBackend))
+        {
+            appConfig.editor_backend = editorBackend;
+        }
+
         RenderBackend renderer = RenderBackend::Auto;
         const auto rendererText = tbl["settings"]["renderer"].value_or("auto");
         if (render_backend_from_string(rendererText, renderer))
@@ -64,6 +71,7 @@ void config_save(const fs::path& path)
 {
     toml::table settings;
     settings.insert_or_assign("project_root", appConfig.project_root.string());
+    settings.insert_or_assign("editor_backend", editor_backend_to_string(appConfig.editor_backend));
     settings.insert_or_assign("renderer", render_backend_to_string(appConfig.renderer));
 
     // Window

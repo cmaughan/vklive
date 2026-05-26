@@ -19,6 +19,14 @@ CONFIGS = {
     "reldbg": "RelWithDebInfo",
 }
 
+REVIEW_MODES = {
+    "all": "All",
+    "codex": "Codex",
+    "agy": "Agy",
+    "gemini": "Agy",
+    "claude": "Claude",
+}
+
 VCPKG_REPOSITORY = "https://github.com/microsoft/vcpkg.git"
 VCPKG_BASELINE = "38d91be5efb2f21fbef4a3c53295002823747431"
 CONFIGURE_STAMP_NAME = ".do-configure.json"
@@ -38,6 +46,8 @@ def help_text() -> str:
   python3 do.py build [debug|release|relwithdebinfo]
   python3 do.py test [debug|release|relwithdebinfo] [-- ctest-args...]
   python3 do.py run [debug|release|relwithdebinfo] [-- app-args...]
+  python3 do.py review [all|codex|agy|gemini|claude] [--agy-timeout seconds] [--dry-run]
+  python3 do.py consensus [--dry-run]
   python3 do.py sync
   python3 do.py push
   python3 do.py clean [debug|release|relwithdebinfo]
@@ -49,6 +59,8 @@ Examples:
   python3 do.py build        Build Debug without reconfiguring
   python3 do.py run release -- --project run_tree/projects/pbr_robot --scenegraph uv_debug.scenegraph
   python3 do.py test debug -- -R zep
+  python3 do.py review codex
+  python3 do.py consensus
 
 If your shell aliases `dr` to `python3 do.py`, `dr build`, `dr run`, and the
 other short forms are equivalent.
@@ -74,6 +86,18 @@ def parse_args(args: list[str]) -> SimpleNamespace:
         if rest:
             _unexpected(rest[0])
         return SimpleNamespace(command=command)
+
+    if command == "review":
+        return parse_review_args(rest)
+
+    if command == "consensus":
+        dry_run = False
+        for arg in rest:
+            if arg == "--dry-run":
+                dry_run = True
+            else:
+                _unexpected(arg)
+        return SimpleNamespace(command=command, dry_run=dry_run)
 
     if command == "config":
         config, remaining = parse_config(rest)
@@ -116,6 +140,59 @@ def parse_args(args: list[str]) -> SimpleNamespace:
     print(f"Unknown command: {args[0]}\n")
     print(help_text())
     raise SystemExit(2)
+
+
+def parse_review_args(args: list[str]) -> SimpleNamespace:
+    review_target = "all"
+    agy_timeout_seconds = 900
+    dry_run = False
+    index = 0
+
+    while index < len(args):
+        arg = args[index]
+        lowered = arg.lower()
+        if lowered in REVIEW_MODES:
+            if review_target != "all":
+                _unexpected(arg)
+            review_target = lowered
+            index += 1
+            continue
+        if arg == "--dry-run":
+            dry_run = True
+            index += 1
+            continue
+        if arg in {"--agy-timeout", "--agy-timeout-seconds"}:
+            if index + 1 >= len(args):
+                _unexpected(arg)
+            try:
+                agy_timeout_seconds = int(args[index + 1])
+            except ValueError:
+                _unexpected(args[index + 1])
+            index += 2
+            continue
+        for prefix in ("--agy-timeout=", "--agy-timeout-seconds="):
+            if arg.startswith(prefix):
+                try:
+                    agy_timeout_seconds = int(arg[len(prefix) :])
+                except ValueError:
+                    _unexpected(arg)
+                index += 1
+                break
+        else:
+            _unexpected(arg)
+            index += 1
+
+    if agy_timeout_seconds <= 0:
+        print("agy timeout must be positive\n")
+        print(help_text())
+        raise SystemExit(2)
+
+    return SimpleNamespace(
+        command="review",
+        review_target=review_target,
+        agy_timeout_seconds=agy_timeout_seconds,
+        dry_run=dry_run,
+    )
 
 
 def parse_config(args: list[str], allow_leading_option: bool = False) -> tuple[str, list[str]]:
@@ -466,6 +543,93 @@ def command_text(command: list[str]) -> str:
     return " ".join(shlex.quote(str(part)) for part in command)
 
 
+def powershell_quote(value: pathlib.Path | str) -> str:
+    text = str(value)
+    return "'" + text.replace("'", "''") + "'"
+
+
+def create_review_plan(root: pathlib.Path, agy_timeout_seconds: int = 900, review_target: str = "all") -> SimpleNamespace:
+    if agy_timeout_seconds <= 0:
+        raise ValueError("agy_timeout_seconds must be positive")
+
+    normalized_target = review_target.lower()
+    if normalized_target not in REVIEW_MODES:
+        raise ValueError(f"Unsupported review target: {review_target}")
+    mode = REVIEW_MODES[normalized_target]
+
+    reviews_dir = root / "plans" / "reviews"
+    review_prompt_path = root / "plans" / "prompts" / "review.md"
+    consensus_prompt_path = root / "plans" / "prompts" / "consensus_review.md"
+    codex_review_path = reviews_dir / "review-codex.md"
+    gemini_review_path = reviews_dir / "review-gemini.md"
+    claude_review_path = reviews_dir / "review-claude.md"
+    consensus_review_path = reviews_dir / "review-consensus.md"
+    review_script_path = root / "scripts" / "Run-Review.ps1"
+
+    repo_root_ps = powershell_quote(root)
+    review_script_path_ps = powershell_quote(review_script_path)
+    powershell_script = f"""
+$ErrorActionPreference = "Stop"
+$repoRoot = {repo_root_ps}
+$reviewScriptPath = {review_script_path_ps}
+
+if (-not (Test-Path -LiteralPath $reviewScriptPath)) {{
+    throw "Review script not found: $reviewScriptPath"
+}}
+
+& $reviewScriptPath -RepoRoot $repoRoot -AgyTimeoutSeconds {agy_timeout_seconds} -Mode {mode}
+exit $LASTEXITCODE
+""".strip()
+
+    return SimpleNamespace(
+        repo_root=root,
+        reviews_dir=reviews_dir,
+        review_prompt_path=review_prompt_path,
+        consensus_prompt_path=consensus_prompt_path,
+        codex_review_path=codex_review_path,
+        gemini_review_path=gemini_review_path,
+        claude_review_path=claude_review_path,
+        consensus_review_path=consensus_review_path,
+        review_script_path=review_script_path,
+        mode=mode,
+        agy_timeout_seconds=agy_timeout_seconds,
+        powershell_script=powershell_script,
+    )
+
+
+def create_consensus_plan(root: pathlib.Path) -> SimpleNamespace:
+    plan = create_review_plan(root)
+    repo_root_ps = powershell_quote(root)
+    review_script_path_ps = powershell_quote(plan.review_script_path)
+    powershell_script = f"""
+$ErrorActionPreference = "Stop"
+$repoRoot = {repo_root_ps}
+$reviewScriptPath = {review_script_path_ps}
+
+if (-not (Test-Path -LiteralPath $reviewScriptPath)) {{
+    throw "Review script not found: $reviewScriptPath"
+}}
+
+& $reviewScriptPath -RepoRoot $repoRoot -Mode Consensus
+exit $LASTEXITCODE
+""".strip()
+
+    return SimpleNamespace(
+        repo_root=plan.repo_root,
+        reviews_dir=plan.reviews_dir,
+        review_prompt_path=plan.review_prompt_path,
+        consensus_prompt_path=plan.consensus_prompt_path,
+        codex_review_path=plan.codex_review_path,
+        gemini_review_path=plan.gemini_review_path,
+        claude_review_path=plan.claude_review_path,
+        consensus_review_path=plan.consensus_review_path,
+        review_script_path=plan.review_script_path,
+        mode="Consensus",
+        agy_timeout_seconds=plan.agy_timeout_seconds,
+        powershell_script=powershell_script,
+    )
+
+
 def run(command: list[str], cwd: pathlib.Path, dry_run: bool = False, env: dict[str, str] | None = None) -> int:
     print("> " + command_text(command))
     if dry_run:
@@ -479,6 +643,26 @@ def run_commands(commands: list[list[str]], cwd: pathlib.Path, dry_run: bool = F
         if rc != 0:
             return rc
     return 0
+
+
+def run_powershell_script(root: pathlib.Path, powershell_script: str, dry_run: bool = False) -> int:
+    powershell = shutil.which("pwsh") or shutil.which("powershell")
+    if powershell is None:
+        print("Could not find pwsh or powershell on PATH.", file=sys.stderr)
+        return 1
+
+    command = [
+        powershell,
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-Command",
+        powershell_script,
+    ]
+    print("> " + command_text(command))
+    if dry_run:
+        return 0
+    return subprocess.run(command, cwd=root, check=False).returncode
 
 
 def expose_compile_commands(root: pathlib.Path, directory: pathlib.Path) -> None:
@@ -510,6 +694,10 @@ def build(root: pathlib.Path, config: str) -> int:
 
 def test(root: pathlib.Path, config: str, ctest_args: list[str]) -> int:
     return run(test_command(root, config, ctest_args), root, env=build_environment())
+
+
+def run_review(plan: SimpleNamespace, dry_run: bool) -> int:
+    return run_powershell_script(plan.repo_root, plan.powershell_script, dry_run)
 
 
 def run_project(root: pathlib.Path, config: str, app_args: list[str]) -> int:
@@ -608,8 +796,8 @@ def clean(root: pathlib.Path, config: str) -> int:
     return 0
 
 
-def main() -> int:
-    parsed = parse_args(sys.argv[1:])
+def main(argv: list[str] | None = None) -> int:
+    parsed = parse_args(sys.argv[1:] if argv is None else argv)
     root = repo_root()
     if parsed.command == "doctor":
         return doctor(root)
@@ -623,6 +811,10 @@ def main() -> int:
         return test(root, parsed.config, parsed.ctest_args)
     if parsed.command == "run":
         return run_project(root, parsed.config, parsed.app_args)
+    if parsed.command == "review":
+        return run_review(create_review_plan(root, parsed.agy_timeout_seconds, parsed.review_target), parsed.dry_run)
+    if parsed.command == "consensus":
+        return run_review(create_consensus_plan(root), parsed.dry_run)
     if parsed.command == "sync":
         return sync_repo(root)
     if parsed.command == "push":

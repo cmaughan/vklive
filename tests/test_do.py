@@ -72,6 +72,88 @@ class DoScriptTests(unittest.TestCase):
         self.assertEqual(parsed.config, "Release")
         self.assertEqual(parsed.app_args, ["--project", "run_tree/projects/pbr_robot", "--scenegraph", "uv_debug.scenegraph"])
 
+    def test_review_command_parses_defaults(self):
+        do = load_do_module()
+
+        parsed = do.parse_args(["review"])
+
+        self.assertEqual(parsed.command, "review")
+        self.assertEqual(parsed.review_target, "all")
+        self.assertEqual(parsed.agy_timeout_seconds, 900)
+        self.assertFalse(parsed.dry_run)
+
+    def test_review_agy_command_uses_review_runner(self):
+        do = load_do_module()
+
+        parsed = do.parse_args(["review", "agy", "--agy-timeout", "1200", "--dry-run"])
+        plan = do.create_review_plan(ROOT, parsed.agy_timeout_seconds, parsed.review_target)
+
+        self.assertEqual(parsed.review_target, "agy")
+        self.assertTrue(parsed.dry_run)
+        self.assertEqual(plan.mode, "Agy")
+        self.assertEqual(plan.review_script_path, ROOT / "scripts" / "Run-Review.ps1")
+        self.assertEqual(plan.review_prompt_path, ROOT / "plans" / "prompts" / "review.md")
+        self.assertEqual(plan.consensus_prompt_path, ROOT / "plans" / "prompts" / "consensus_review.md")
+        self.assertEqual(plan.codex_review_path, ROOT / "plans" / "reviews" / "review-codex.md")
+        self.assertEqual(plan.gemini_review_path, ROOT / "plans" / "reviews" / "review-gemini.md")
+        self.assertEqual(plan.claude_review_path, ROOT / "plans" / "reviews" / "review-claude.md")
+        self.assertEqual(plan.consensus_review_path, ROOT / "plans" / "reviews" / "review-consensus.md")
+        self.assertIn("scripts\\Run-Review.ps1", plan.powershell_script)
+        self.assertIn("-Mode Agy", plan.powershell_script)
+        self.assertIn("-AgyTimeoutSeconds 1200", plan.powershell_script)
+
+    def test_consensus_command_runs_consensus_mode(self):
+        do = load_do_module()
+
+        parsed = do.parse_args(["consensus", "--dry-run"])
+        plan = do.create_consensus_plan(ROOT)
+
+        self.assertEqual(parsed.command, "consensus")
+        self.assertTrue(parsed.dry_run)
+        self.assertEqual(plan.mode, "Consensus")
+        self.assertIn("-Mode Consensus", plan.powershell_script)
+        self.assertNotIn("-AgyTimeoutSeconds", plan.powershell_script)
+
+    def test_review_main_delegates_to_powershell_runner(self):
+        do = load_do_module()
+
+        with mock.patch.object(do, "run_powershell_script", return_value=0) as run:
+            rc = do.main(["review", "codex", "--dry-run"])
+
+        self.assertEqual(rc, 0)
+        self.assertEqual(run.call_args.args[0], ROOT)
+        self.assertIn("Run-Review.ps1", run.call_args.args[1])
+        self.assertTrue(run.call_args.args[2])
+
+    def test_review_runner_contains_multi_model_orchestration(self):
+        script = (ROOT / "scripts" / "Run-Review.ps1").read_text(encoding="utf-8")
+
+        self.assertIn('[ValidateSet("All", "Codex", "Agy", "Claude", "Consensus")]', script)
+        self.assertIn("function Resolve-CodexCommand", script)
+        self.assertIn("Get-Command codex.cmd", script)
+        self.assertIn("Run-CodexReview", script)
+        self.assertIn("Run-GeminiReview", script)
+        self.assertIn("Run-ClaudeReview", script)
+        self.assertIn("Run-ConsensusReview", script)
+        self.assertIn("--sandbox danger-full-access", script)
+        self.assertIn("--print $agyPrompt", script)
+        self.assertIn("claude -p --output-format json", script)
+        self.assertIn("Assert-MeaningfulReview", script)
+        self.assertIn("review-consensus.md", script)
+
+    def test_review_prompts_and_kanban_folders_exist(self):
+        review_prompt = (ROOT / "plans" / "prompts" / "review.md").read_text(encoding="utf-8")
+        consensus_prompt = (ROOT / "plans" / "prompts" / "consensus_review.md").read_text(encoding="utf-8")
+
+        self.assertIn("VkLive", review_prompt)
+        self.assertIn("Vulkan live-coding editor", review_prompt)
+        self.assertIn("plans/reviews/review-consensus.md", consensus_prompt)
+        self.assertIn("kanban/pending", consensus_prompt)
+        self.assertTrue((ROOT / "plans" / "reviews").is_dir())
+        self.assertTrue((ROOT / "kanban" / "ice-box").is_dir())
+        self.assertTrue((ROOT / "kanban" / "pending").is_dir())
+        self.assertTrue((ROOT / "kanban" / "done").is_dir())
+
     def test_config_uses_cmake_preset_and_toolchain(self):
         do = load_do_module()
         calls: list[list[str]] = []

@@ -2,6 +2,8 @@
 
 #include <glm/glm.hpp>
 
+#include <app/editor_backend.h>
+
 #include <vklive/render_backend.h>
 
 #include <zest/file/file.h>
@@ -19,6 +21,7 @@ enum class WindowState
 struct AppConfig
 {
     bool vim_mode = false;
+    EditorBackendKind editor_backend = EditorBackendKind::Zep;
     fs::path project_root; 
     RenderBackend renderer = RenderBackend::Auto;
     bool viewports = false;

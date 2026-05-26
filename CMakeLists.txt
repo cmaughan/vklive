@@ -346,14 +346,20 @@ endif()
 
 set(APP_CORE_SOURCES
     app/src/command_line.cpp
+    app/src/config.cpp
+    app/src/editor_backend.cpp
     app/src/editor_font.cpp
+    app/src/editor_host.cpp
     app/src/nodegraph_theme.cpp
     app/src/project.cpp
     app/src/window_nodegraph.cpp
     app/src/window_render_sizing.cpp
 
     app/include/app/command_line.h
+    app/include/app/config.h
+    app/include/app/editor_backend.h
     app/include/app/editor_font.h
+    app/include/app/editor_host.h
     app/include/app/nodegraph_theme.h
     app/include/app/project.h
     app/include/app/window_nodegraph.h
@@ -363,7 +369,6 @@ set(APP_CORE_SOURCES
 set(APP_SOURCES
     TODO.md
     README.md
-    app/src/config.cpp
     app/src/controller.cpp
     app/src/editor.cpp
     app/src/main.cpp
@@ -372,7 +377,6 @@ set(APP_SOURCES
     app/src/window_sequencer.cpp
     app/src/menu.cpp
 
-    app/include/app/config.h
     app/include/app/controller.h
     app/include/app/editor.h
     app/include/app/menu.h
@@ -527,6 +531,21 @@ target_link_libraries(vklive_editor_font_tests PRIVATE RezonalityAppCore)
 target_include_directories(vklive_editor_font_tests PRIVATE
     ${CMAKE_BINARY_DIR})
 
+add_executable(vklive_editor_backend_tests tests/editor_backend_tests.cpp)
+target_link_libraries(vklive_editor_backend_tests PRIVATE RezonalityAppCore)
+target_include_directories(vklive_editor_backend_tests PRIVATE
+    ${CMAKE_BINARY_DIR})
+
+add_executable(vklive_editor_config_backend_tests tests/editor_config_backend_tests.cpp)
+target_link_libraries(vklive_editor_config_backend_tests PRIVATE RezonalityAppCore)
+target_include_directories(vklive_editor_config_backend_tests PRIVATE
+    ${CMAKE_BINARY_DIR})
+
+add_executable(vklive_editor_host_switch_tests tests/editor_host_switch_tests.cpp)
+target_link_libraries(vklive_editor_host_switch_tests PRIVATE RezonalityAppCore)
+target_include_directories(vklive_editor_host_switch_tests PRIVATE
+    ${CMAKE_BINARY_DIR})
+
 add_executable(vklive_project_copy_tests tests/project_copy_tests.cpp)
 target_link_libraries(vklive_project_copy_tests PRIVATE RezonalityAppCore)
 target_include_directories(vklive_project_copy_tests PRIVATE
@@ -613,6 +632,21 @@ add_test(
 add_test(
     NAME vklive_editor_font_tests
     COMMAND vklive_editor_font_tests
+)
+
+add_test(
+    NAME vklive_editor_backend_tests
+    COMMAND vklive_editor_backend_tests
+)
+
+add_test(
+    NAME vklive_editor_config_backend_tests
+    COMMAND vklive_editor_config_backend_tests
+)
+
+add_test(
+    NAME vklive_editor_host_switch_tests
+    COMMAND vklive_editor_host_switch_tests
 )
 
 add_test(
