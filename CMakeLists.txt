@@ -553,6 +553,11 @@ target_link_libraries(vklive_nvim_host_command_tests PRIVATE vklive_nvim)
 target_include_directories(vklive_nvim_host_command_tests PRIVATE
     ${CMAKE_BINARY_DIR})
 
+add_executable(vklive_nvim_process_tests tests/nvim_process_tests.cpp)
+target_link_libraries(vklive_nvim_process_tests PRIVATE vklive_nvim)
+target_include_directories(vklive_nvim_process_tests PRIVATE
+    ${CMAKE_BINARY_DIR})
+
 add_executable(vklive_project_copy_tests tests/project_copy_tests.cpp)
 target_link_libraries(vklive_project_copy_tests PRIVATE RezonalityAppCore)
 target_include_directories(vklive_project_copy_tests PRIVATE
@@ -659,6 +664,11 @@ add_test(
 add_test(
     NAME vklive_nvim_host_command_tests
     COMMAND vklive_nvim_host_command_tests
+)
+
+add_test(
+    NAME vklive_nvim_process_tests
+    COMMAND vklive_nvim_process_tests
 )
 
 add_test(
