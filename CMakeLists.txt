@@ -199,6 +199,8 @@ else()
     add_definitions(-DZEP_SINGLE_HEADER=1)
 endif()
 
+add_subdirectory(libs/vklive_nvim)
+
 set(VKLIVE_ROOT ${CMAKE_CURRENT_LIST_DIR})
 configure_file(${CMAKE_CURRENT_LIST_DIR}/cmake/config_app.h.cmake ${CMAKE_BINARY_DIR}/config_app.h)
 
@@ -546,6 +548,11 @@ target_link_libraries(vklive_editor_host_switch_tests PRIVATE RezonalityAppCore)
 target_include_directories(vklive_editor_host_switch_tests PRIVATE
     ${CMAKE_BINARY_DIR})
 
+add_executable(vklive_nvim_host_command_tests tests/nvim_host_command_tests.cpp)
+target_link_libraries(vklive_nvim_host_command_tests PRIVATE vklive_nvim)
+target_include_directories(vklive_nvim_host_command_tests PRIVATE
+    ${CMAKE_BINARY_DIR})
+
 add_executable(vklive_project_copy_tests tests/project_copy_tests.cpp)
 target_link_libraries(vklive_project_copy_tests PRIVATE RezonalityAppCore)
 target_include_directories(vklive_project_copy_tests PRIVATE
@@ -647,6 +654,11 @@ add_test(
 add_test(
     NAME vklive_editor_host_switch_tests
     COMMAND vklive_editor_host_switch_tests
+)
+
+add_test(
+    NAME vklive_nvim_host_command_tests
+    COMMAND vklive_nvim_host_command_tests
 )
 
 add_test(

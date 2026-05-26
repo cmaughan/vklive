@@ -740,7 +740,7 @@ Expected: codec test executable exits with code `0`.
 - Test: `tests/nvim_host_command_tests.cpp`
 - Modify: `libs/vklive_nvim/CMakeLists.txt`
 
-- [ ] **Step 1: Write the host command test without launching Neovim**
+- [x] **Step 1: Write the host command test without launching Neovim**
 
 ```cpp
 // tests/nvim_host_command_tests.cpp
@@ -766,7 +766,7 @@ int main()
 }
 ```
 
-- [ ] **Step 2: Run the test to verify it fails**
+- [x] **Step 2: Run the test to verify it fails**
 
 ```powershell
 python do.py build debug --target vklive_nvim_host_command_tests
@@ -774,7 +774,7 @@ python do.py build debug --target vklive_nvim_host_command_tests
 
 Expected: compilation fails because `vklive_nvim/nvim_host.h` does not exist.
 
-- [ ] **Step 3: Add the public host API**
+- [x] **Step 3: Add the public host API**
 
 ```cpp
 // libs/vklive_nvim/include/vklive_nvim/nvim_host.h
@@ -828,7 +828,7 @@ private:
 } // namespace vklive_nvim
 ```
 
-- [ ] **Step 4: Implement project file tab commands**
+- [x] **Step 4: Implement project file tab commands**
 
 ```cpp
 // libs/vklive_nvim/src/nvim_host.cpp
