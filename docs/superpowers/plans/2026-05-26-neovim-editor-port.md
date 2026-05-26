@@ -904,7 +904,7 @@ Open files with the `tabedit` commands from `build_open_project_tab_commands()`.
 
 Progress note: `NvimHost` now starts over either a real `NvimProcess` or injected `IRpcTransport`, attaches `ext_linegrid`, sends startup `nvim_command` requests, opens project files with native `tabedit` commands, drains `redraw` notifications into `RenderModel`, and sends input through `nvim_input`. This is covered by `vklive_nvim_host_runtime_tests` using an auto-reply embedded-Neovim transport.
 
-- [ ] **Step 6: Verify command test and a guarded process test**
+- [x] **Step 6: Verify command test and a guarded process test**
 
 ```powershell
 python do.py build debug --target vklive_nvim_host_command_tests
@@ -913,6 +913,8 @@ nvim --version
 ```
 
 Expected: command test exits with code `0`. If `nvim --version` succeeds, add and run a guarded process smoke test that starts `nvim --embed`, attaches the UI, sends `:qall!`, and exits cleanly.
+
+Progress note: `vklive_nvim_host_process_smoke_tests` guards on `nvim --version`, starts `NvimHost` against the real `nvim --embed` process, attaches the UI, pumps briefly, and stops the process cleanly.
 
 ---
 
