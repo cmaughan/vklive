@@ -925,7 +925,7 @@ Expected: command test exits with code `0`. If `nvim --version` succeeds, add an
 - Modify: `libs/vklive_nvim/CMakeLists.txt`
 - Modify: `app/src/editor_nvim_host.cpp`
 
-- [ ] **Step 1: Copy Draxul input tests and convert SDL3 symbols to SDL2 symbols**
+- [x] **Step 1: Copy Draxul input tests and convert SDL3 symbols to SDL2 symbols**
 
 ```cpp
 // tests/nvim_input_tests.cpp
@@ -943,7 +943,7 @@ int main()
 }
 ```
 
-- [ ] **Step 2: Run the test to verify it fails**
+- [x] **Step 2: Run the test to verify it fails**
 
 ```powershell
 python do.py build debug --target vklive_nvim_input_tests
@@ -951,7 +951,7 @@ python do.py build debug --target vklive_nvim_input_tests
 
 Expected: compilation fails because `vklive_nvim/input.h` does not exist.
 
-- [ ] **Step 3: Add the SDL2 input adapter**
+- [x] **Step 3: Add the SDL2 input adapter**
 
 ```cpp
 // libs/vklive_nvim/include/vklive_nvim/input.h
@@ -1017,7 +1017,7 @@ std::string sdl_key_to_nvim(SDL_Keycode key, SDL_Keymod mods)
 
 In `app/src/editor_nvim_host.cpp`, call `host.send_input(...)` from SDL2 keyboard text and key events only when the Neovim window is focused. Leave global live-coding shortcuts owned by VkLive.
 
-- [ ] **Step 5: Verify input test passes**
+- [x] **Step 5: Verify input test passes**
 
 ```powershell
 python do.py build debug --target vklive_nvim_input_tests

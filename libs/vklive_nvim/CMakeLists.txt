@@ -1,4 +1,5 @@
 add_library(vklive_nvim STATIC
+    src/input.cpp
     src/mpack_codec.cpp
     src/nvim_ui.cpp
     src/nvim_host.cpp
@@ -12,6 +13,7 @@ add_library(vklive_nvim STATIC
     third_party/mpack/mpack-reader.c
     third_party/mpack/mpack-writer.c
 
+    include/vklive_nvim/input.h
     include/vklive_nvim/mpack_codec.h
     include/vklive_nvim/nvim_host.h
     include/vklive_nvim/nvim_process.h
@@ -24,6 +26,7 @@ add_library(vklive_nvim::vklive_nvim ALIAS vklive_nvim)
 
 target_compile_features(vklive_nvim PUBLIC cxx_std_20)
 target_compile_definitions(vklive_nvim PUBLIC MPACK_EXTENSIONS=1)
+target_link_libraries(vklive_nvim PUBLIC $<IF:$<TARGET_EXISTS:SDL2::SDL2>,SDL2::SDL2,SDL2::SDL2-static>)
 
 target_include_directories(vklive_nvim
     PUBLIC

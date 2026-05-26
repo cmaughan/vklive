@@ -558,6 +558,11 @@ target_link_libraries(vklive_nvim_host_runtime_tests PRIVATE vklive_nvim)
 target_include_directories(vklive_nvim_host_runtime_tests PRIVATE
     ${CMAKE_BINARY_DIR})
 
+add_executable(vklive_nvim_input_tests tests/nvim_input_tests.cpp)
+target_link_libraries(vklive_nvim_input_tests PRIVATE vklive_nvim)
+target_include_directories(vklive_nvim_input_tests PRIVATE
+    ${CMAKE_BINARY_DIR})
+
 add_executable(vklive_nvim_process_tests tests/nvim_process_tests.cpp)
 target_link_libraries(vklive_nvim_process_tests PRIVATE vklive_nvim)
 target_include_directories(vklive_nvim_process_tests PRIVATE
@@ -694,6 +699,11 @@ add_test(
 add_test(
     NAME vklive_nvim_host_runtime_tests
     COMMAND vklive_nvim_host_runtime_tests
+)
+
+add_test(
+    NAME vklive_nvim_input_tests
+    COMMAND vklive_nvim_input_tests
 )
 
 add_test(
