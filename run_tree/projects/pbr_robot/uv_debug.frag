@@ -17,7 +17,7 @@ vec3 materialDebugColor(uint materialIndex)
 {
     if (materialIndex == 0)
     {
-        return vec3(1.0, 0.12, 0.08);
+        return vec3(2.0, 0.12, 0.08);
     }
     if (materialIndex == 1)
     {
