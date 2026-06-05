@@ -20,6 +20,8 @@ public:
 
     virtual int UpdateTexture(int image, int x, int y, int w, int h, const unsigned char* data) override;
     virtual int CreateTexture(int w, int h, const unsigned char* data) override;
+    virtual int UpdateTextureRGBA(int image, int x, int y, int w, int h, const unsigned char* data) override;
+    virtual int CreateTextureRGBA(int w, int h, const unsigned char* data) override;
     virtual void DeleteTexture(int image) override;
     virtual void GetTextureSize(int image, int* w, int* h) override;
     virtual void* GetTexture(int image) override;

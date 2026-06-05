@@ -113,8 +113,18 @@ void VulkanImGuiTexture::DestroyAllTextures()
 
 int VulkanImGuiTexture::UpdateTexture(int image, int x, int y, int updateWidth, int updateHeight, const unsigned char* data)
 {
+    return UploadTexture(image, x, y, updateWidth, updateHeight, data, false);
+}
+
+int VulkanImGuiTexture::UpdateTextureRGBA(int image, int x, int y, int updateWidth, int updateHeight, const unsigned char* data)
+{
+    return UploadTexture(image, x, y, updateWidth, updateHeight, data, true);
+}
+
+int VulkanImGuiTexture::UploadTexture(int image, int x, int y, int updateWidth, int updateHeight, const unsigned char* data, bool rgba)
+{
     auto itr = m_mapFonts.find(image);
-    if (itr == m_mapFonts.end())
+    if (itr == m_mapFonts.end() || !data)
     {
         assert(!"Texture not found?");
         return 0;
@@ -123,7 +133,7 @@ int VulkanImGuiTexture::UpdateTexture(int image, int x, int y, int updateWidth, 
     auto& textureInfo = *itr->second;
     size_t upload_size = textureInfo.width * textureInfo.height * sizeof(uint32_t);
 
-    if (true) //! textureInfo.init)
+    if (!textureInfo.init)
     {
         textureInfo.init = true;
         x = 0;
@@ -141,8 +151,21 @@ int VulkanImGuiTexture::UpdateTexture(int image, int x, int y, int updateWidth, 
     {
         for (uint32_t xx = x; xx < uint32_t(x + updateWidth); xx++)
         {
-            auto val = uint32_t(data[(yy - y) * textureInfo.width + (xx - x)]);
-            map[(yy * (textureInfo.width)) + xx] = (val | val << 24 | val << 16 | val << 8);
+            const size_t destinationIndex = (size_t)yy * (size_t)textureInfo.width + (size_t)xx;
+            if (rgba)
+            {
+                const size_t sourceIndex = destinationIndex * 4u;
+                map[destinationIndex] =
+                    uint32_t(data[sourceIndex + 0])
+                    | (uint32_t(data[sourceIndex + 1]) << 8)
+                    | (uint32_t(data[sourceIndex + 2]) << 16)
+                    | (uint32_t(data[sourceIndex + 3]) << 24);
+            }
+            else
+            {
+                auto val = uint32_t(data[destinationIndex]);
+                map[destinationIndex] = (val | val << 24 | val << 16 | val << 8);
+            }
         }
     }
 
@@ -217,6 +240,16 @@ int VulkanImGuiTexture::UpdateTexture(int image, int x, int y, int updateWidth, 
     err = vkQueueSubmit(m_queue, 1, &end_info, textureInfo.uploadFence);
     assert(err == VK_SUCCESS);
 
+    return image;
+}
+
+int VulkanImGuiTexture::CreateTextureRGBA(int width, int height, const unsigned char* data)
+{
+    const int image = CreateTexture(width, height, nullptr);
+    if (image != 0 && data)
+    {
+        UpdateTextureRGBA(image, 0, 0, width, height, data);
+    }
     return image;
 }
 

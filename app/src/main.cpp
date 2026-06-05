@@ -688,7 +688,7 @@ int main(int argc, char** argv)
         // Show the editor
         if (appConfig.editor_backend == EditorBackendKind::Neovim)
         {
-            nvim_editor_show((zepFocusFlags & ZepFocusFlags::Focus) != 0);
+            nvim_editor_show((zepFocusFlags & ZepFocusFlags::Focus) != 0, GetDevice());
         }
         else
         {

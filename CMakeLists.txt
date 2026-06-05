@@ -589,6 +589,16 @@ target_link_libraries(vklive_nvim_input_tests PRIVATE vklive_nvim)
 target_include_directories(vklive_nvim_input_tests PRIVATE
     ${CMAKE_BINARY_DIR})
 
+add_executable(vklive_nvim_atlas_grid_tests tests/nvim_atlas_grid_tests.cpp)
+target_link_libraries(vklive_nvim_atlas_grid_tests PRIVATE vklive_nvim)
+target_include_directories(vklive_nvim_atlas_grid_tests PRIVATE
+    ${CMAKE_BINARY_DIR})
+
+add_executable(vklive_nvim_text_service_tests tests/nvim_text_service_tests.cpp)
+target_link_libraries(vklive_nvim_text_service_tests PRIVATE vklive_nvim)
+target_include_directories(vklive_nvim_text_service_tests PRIVATE
+    ${CMAKE_BINARY_DIR})
+
 add_executable(vklive_nvim_process_tests tests/nvim_process_tests.cpp)
 target_link_libraries(vklive_nvim_process_tests PRIVATE vklive_nvim)
 target_include_directories(vklive_nvim_process_tests PRIVATE
@@ -750,6 +760,16 @@ add_test(
 add_test(
     NAME vklive_nvim_input_tests
     COMMAND vklive_nvim_input_tests
+)
+
+add_test(
+    NAME vklive_nvim_atlas_grid_tests
+    COMMAND vklive_nvim_atlas_grid_tests
+)
+
+add_test(
+    NAME vklive_nvim_text_service_tests
+    COMMAND vklive_nvim_text_service_tests ${CMAKE_CURRENT_LIST_DIR}/run_tree/fonts/JetBrainsMonoNerdFont-Regular.ttf
 )
 
 add_test(

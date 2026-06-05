@@ -2,7 +2,14 @@
 
 #include <zest/imgui/imgui.h>
 
+#include <vklive_nvim/highlight.h>
 #include <vklive_nvim/render_model.h>
+#include <vklive_nvim/text_service.h>
+
+namespace Zest
+{
+struct IFontTexture;
+}
 
 struct NvimGridMetrics
 {
@@ -17,5 +24,16 @@ NvimGridMetrics nvim_grid_metrics(ImVec2 available, float cell_width, float cell
 class NvimImGuiRenderer
 {
 public:
-    void draw(const vklive_nvim::RenderModel& model, ImVec2 top_left, const NvimGridMetrics& metrics) const;
+    bool ensure_initialized(float display_ppi);
+    ImVec2 cell_size() const;
+    void draw(const vklive_nvim::RenderModel& model, ImVec2 top_left, const NvimGridMetrics& metrics, Zest::IFontTexture* texture);
+
+private:
+    void upload_atlas(Zest::IFontTexture& texture);
+
+    vklive_nvim::TextService m_textService;
+    vklive_nvim::HighlightTable m_highlights;
+    Zest::IFontTexture* m_textureOwner = nullptr;
+    int m_atlasTexture = 0;
+    bool m_initialized = false;
 };

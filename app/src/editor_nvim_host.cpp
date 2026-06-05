@@ -4,6 +4,7 @@
 #include <app/editor_nvim_renderer.h>
 #include <app/editor_nvim_session.h>
 
+#include <vklive/IDevice.h>
 #include <vklive/scene.h>
 
 #include <vklive_nvim/input.h>
@@ -118,7 +119,7 @@ void nvim_editor_update_files(const std::filesystem::path& root, bool reset)
     session.set_files(nvim_editor_collect_edit_files(root), true);
 }
 
-void nvim_editor_show(bool focus)
+void nvim_editor_show(bool focus, IDevice* device)
 {
     ImGui::SetNextWindowSize(ImVec2(800, 600), ImGuiCond_FirstUseEver);
     ImGui::SetNextWindowPos(ImVec2(10, 50), ImGuiCond_FirstUseEver);
@@ -150,15 +151,17 @@ void nvim_editor_show(bool focus)
     g_windowFocused = ImGui::IsWindowFocused(ImGuiFocusedFlags_RootAndChildWindows) || ImGui::IsItemActive();
     update_text_input_state(g_windowFocused);
 
-    const float cellWidth = std::max(1.0f, ImGui::CalcTextSize("M").x);
-    const float cellHeight = std::max(1.0f, ImGui::GetTextLineHeightWithSpacing());
-    const auto metrics = nvim_grid_metrics(available, cellWidth, cellHeight);
+    auto& renderer = nvim_renderer();
+    const float displayPpi = 96.0f * (device ? std::max(1.0f, device->Context().vdpi) : 1.0f);
+    renderer.ensure_initialized(displayPpi);
+    const ImVec2 cellSize = renderer.cell_size();
+    const auto metrics = nvim_grid_metrics(available, cellSize.x, cellSize.y);
 
     auto& session = nvim_session();
     if (session.ensure_started(metrics.columns, metrics.rows))
     {
         session.pump();
-        nvim_renderer().draw(session.render_model(), topLeft, metrics);
+        renderer.draw(session.render_model(), topLeft, metrics, device ? device->FontTexture() : nullptr);
     }
     else
     {

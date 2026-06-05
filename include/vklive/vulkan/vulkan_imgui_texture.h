@@ -15,6 +15,8 @@ public:
     // Texture handling bits using the imgui API
     virtual int UpdateTexture(int image, int x, int y, int w, int h, const unsigned char* data) override;
     virtual int CreateTexture(int w, int h, const unsigned char* data) override;
+    virtual int UpdateTextureRGBA(int image, int x, int y, int w, int h, const unsigned char* data) override;
+    virtual int CreateTextureRGBA(int w, int h, const unsigned char* data) override;
     virtual void DeleteTexture(int image) override;
     virtual void GetTextureSize(int image, int* w, int* h) override;
     virtual void* GetTexture(int image) override;
@@ -46,6 +48,7 @@ private:
 
     void DestroyFontInfo(FontInfo& fontInfo);
     void DestroyAllTextures();
+    int UploadTexture(int image, int x, int y, int w, int h, const unsigned char* data, bool rgba);
 
     int m_currentTextureId = 1;
     std::map<int, std::shared_ptr<FontInfo>> m_mapFonts;

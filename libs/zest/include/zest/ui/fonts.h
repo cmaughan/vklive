@@ -29,6 +29,14 @@ struct IFontTexture
 {
     virtual int UpdateTexture(int image, int x, int y, int w, int h, const unsigned char* data) = 0;
     virtual int CreateTexture(int w, int h, const unsigned char* data) = 0;
+    virtual int UpdateTextureRGBA(int image, int x, int y, int w, int h, const unsigned char* data)
+    {
+        return UpdateTexture(image, x, y, w, h, data);
+    }
+    virtual int CreateTextureRGBA(int w, int h, const unsigned char* data)
+    {
+        return CreateTexture(w, h, data);
+    }
     virtual void DeleteTexture(int image) = 0;
     virtual void GetTextureSize(int image, int* w, int* h) = 0;
     virtual void* GetTexture(int image) = 0;

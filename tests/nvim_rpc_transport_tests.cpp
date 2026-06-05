@@ -57,7 +57,12 @@ public:
     void push_message(const vklive_nvim::MpackValue& value)
     {
         std::vector<char> encoded;
-        assert(vklive_nvim::encode_mpack_value(value, encoded));
+        const bool encodedOk = vklive_nvim::encode_mpack_value(value, encoded);
+        assert(encodedOk);
+        if (!encodedOk)
+        {
+            return;
+        }
 
         std::lock_guard lock(m_mutex);
         m_reads.emplace_back(encoded.begin(), encoded.end());
@@ -116,7 +121,11 @@ int main()
         std::atomic<int> wakeups = 0;
 
         vklive_nvim::NvimRpc rpc;
-        assert(rpc.initialize(transport, { [&wakeups]() { ++wakeups; }, {} }));
+        const bool initialized = rpc.initialize(transport, { [&wakeups]() { ++wakeups; }, {} });
+        if (!initialized)
+        {
+            return 1;
+        }
 
         transport.push_message(array({ integer(2), str("redraw"), array({ str("payload") }) }));
 
@@ -126,10 +135,11 @@ int main()
         }
 
         const auto notifications = rpc.drain_notifications();
-        assert(notifications.size() == 1);
-        assert(notifications[0].method == "redraw");
-        assert(notifications[0].params.size() == 1);
-        assert(notifications[0].params[0].as_str() == std::string("payload"));
+        if (notifications.size() != 1 || notifications[0].method != "redraw"
+            || notifications[0].params.size() != 1 || notifications[0].params[0].as_str() != std::string("payload"))
+        {
+            return 1;
+        }
 
         transport.close();
         rpc.shutdown();
@@ -138,27 +148,38 @@ int main()
     {
         FakeTransport transport;
         vklive_nvim::NvimRpc rpc;
-        assert(rpc.initialize(transport));
+        const bool initialized = rpc.initialize(transport);
+        if (!initialized)
+        {
+            return 1;
+        }
 
         vklive_nvim::RpcResult result;
         std::thread requester([&]() {
             result = rpc.request("nvim_command", { str("set number") });
         });
 
-        assert(transport.wait_for_write_count(1));
+        if (!transport.wait_for_write_count(1))
+        {
+            return 1;
+        }
 
         vklive_nvim::MpackValue request;
         std::size_t consumed = 0;
         const auto written = transport.written_message(0);
-        assert(vklive_nvim::decode_mpack_value(std::span<const std::uint8_t>(written.data(), written.size()), request, &consumed));
-        assert(consumed == written.size());
-        assert(request.as_array()[2].as_str() == std::string("nvim_command"));
+        const bool decoded = vklive_nvim::decode_mpack_value(std::span<const std::uint8_t>(written.data(), written.size()), request, &consumed);
+        if (!decoded || consumed != written.size() || request.as_array()[2].as_str() != std::string("nvim_command"))
+        {
+            return 1;
+        }
 
         transport.push_message(array({ integer(1), integer(1), vklive_nvim::NvimRpc::make_nil(), str("ok") }));
         requester.join();
 
-        assert(result);
-        assert(result.value().as_str() == std::string("ok"));
+        if (!result || result.value().as_str() != std::string("ok"))
+        {
+            return 1;
+        }
 
         transport.close();
         rpc.shutdown();

@@ -99,6 +99,16 @@ int MetalImGuiTexture::CreateTexture(int width, int height, const unsigned char*
     return spFontInfo->textureId;
 }
 
+int MetalImGuiTexture::CreateTextureRGBA(int width, int height, const unsigned char* data)
+{
+    const int image = CreateTexture(width, height, nullptr);
+    if (image != 0 && data)
+    {
+        UpdateTextureRGBA(image, 0, 0, width, height, data);
+    }
+    return image;
+}
+
 int MetalImGuiTexture::UpdateTexture(int image, int x, int y, int updateWidth, int updateHeight, const unsigned char* data)
 {
     auto itr = m_mapFonts.find(image);
@@ -130,6 +140,52 @@ int MetalImGuiTexture::UpdateTexture(int image, int x, int y, int updateWidth, i
         {
             auto value = uint32_t(data[size_t(y + yy) * size_t(fontInfo.width) + size_t(x + xx)]);
             rgba[size_t(yy) * size_t(updateWidth) + size_t(xx)] = value | (value << 8) | (value << 16) | (value << 24);
+        }
+    }
+
+    [texture replaceRegion:MTLRegionMake2D((NSUInteger)x, (NSUInteger)y, (NSUInteger)updateWidth, (NSUInteger)updateHeight)
+               mipmapLevel:0
+                 withBytes:rgba.data()
+               bytesPerRow:(NSUInteger)updateWidth * sizeof(uint32_t)];
+
+    return image;
+}
+
+int MetalImGuiTexture::UpdateTextureRGBA(int image, int x, int y, int updateWidth, int updateHeight, const unsigned char* data)
+{
+    auto itr = m_mapFonts.find(image);
+    if (itr == m_mapFonts.end() || !data)
+    {
+        return 0;
+    }
+
+    auto& fontInfo = *itr->second;
+    auto texture = bridge<id<MTLTexture>>(fontInfo.texture);
+    if (!texture)
+    {
+        return 0;
+    }
+
+    x = std::max(x, 0);
+    y = std::max(y, 0);
+    updateWidth = std::min(updateWidth, fontInfo.width - x);
+    updateHeight = std::min(updateHeight, fontInfo.height - y);
+    if (updateWidth <= 0 || updateHeight <= 0)
+    {
+        return image;
+    }
+
+    std::vector<uint32_t> rgba(size_t(updateWidth) * size_t(updateHeight));
+    for (int yy = 0; yy < updateHeight; yy++)
+    {
+        for (int xx = 0; xx < updateWidth; xx++)
+        {
+            const size_t sourceIndex = (size_t(y + yy) * size_t(fontInfo.width) + size_t(x + xx)) * 4u;
+            rgba[size_t(yy) * size_t(updateWidth) + size_t(xx)] =
+                uint32_t(data[sourceIndex + 0])
+                | (uint32_t(data[sourceIndex + 1]) << 8)
+                | (uint32_t(data[sourceIndex + 2]) << 16)
+                | (uint32_t(data[sourceIndex + 3]) << 24);
         }
     }
 
