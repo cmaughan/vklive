@@ -63,9 +63,10 @@ std::vector<std::string> build_open_project_tab_commands(const NvimProjectFiles&
     commands.reserve(project.files.size() + 2);
     commands.emplace_back("silent! tabonly");
 
-    for (const auto& file : project.files)
+    for (std::size_t i = 0; i < project.files.size(); ++i)
     {
-        commands.push_back("tabedit " + escape_vim_path(file));
+        const char* command = i == 0 ? "edit " : "tabedit ";
+        commands.push_back(command + escape_vim_path(project.files[i]));
     }
 
     if (!project.files.empty())

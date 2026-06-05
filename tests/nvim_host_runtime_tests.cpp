@@ -173,7 +173,7 @@ int main()
     assert(contains(commands, "set noshowmode"));
     assert(contains(commands, "set mouse=a"));
     assert(contains(commands, "silent! tabonly"));
-    assert(contains(commands, "tabedit D:/projects/demo/a.frag"));
+    assert(contains(commands, "edit D:/projects/demo/a.frag"));
     assert(contains(commands, "tabedit D:/projects/demo/b.vert"));
     assert(contains(commands, "tabfirst"));
 
