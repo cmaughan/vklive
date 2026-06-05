@@ -213,6 +213,18 @@ class DoScriptTests(unittest.TestCase):
 
         self.assertIn("-DVCPKG_MANIFEST_FEATURES=vulkan", command)
 
+    def test_config_uses_stable_windows_powershell_for_vcpkg(self):
+        do = load_do_module()
+
+        with mock.patch.object(do.sys, "platform", "win32"):
+            with mock.patch.dict(do.os.environ, {"SystemRoot": r"C:\Windows"}, clear=False):
+                command = do.configure_command(ROOT, "Release")
+
+        self.assertIn(
+            r"-DZ_VCPKG_POWERSHELL_PATH=C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe",
+            command,
+        )
+
     def test_config_respects_explicit_manifest_features(self):
         do = load_do_module()
 

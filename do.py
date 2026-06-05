@@ -446,11 +446,18 @@ def configure_command(root: pathlib.Path, config: str, cmake_args: list[str] | N
     ]
     if not has_cmake_define(cmake_args, "VCPKG_MANIFEST_FEATURES"):
         command.append(f"-DVCPKG_MANIFEST_FEATURES={default_vcpkg_manifest_features()}")
+    if sys.platform.startswith("win") and not has_cmake_define(cmake_args, "Z_VCPKG_POWERSHELL_PATH"):
+        command.append(f"-DZ_VCPKG_POWERSHELL_PATH={stable_windows_powershell_path()}")
     toolchain = vcpkg_toolchain(root)
     if toolchain is not None and not same_path(configured_toolchain(root, config), toolchain):
         command.append(f"-DCMAKE_TOOLCHAIN_FILE={toolchain}")
     command.extend(cmake_args)
     return command
+
+
+def stable_windows_powershell_path() -> str:
+    system_root = os.environ.get("SystemRoot") or os.environ.get("WINDIR") or r"C:\Windows"
+    return str(pathlib.PureWindowsPath(system_root) / "System32" / "WindowsPowerShell" / "v1.0" / "powershell.exe")
 
 
 def default_vcpkg_manifest_features() -> str:
