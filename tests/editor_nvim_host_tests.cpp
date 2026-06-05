@@ -5,6 +5,8 @@
 #include <fstream>
 #include <string>
 
+#include <SDL.h>
+
 #include <zest/logger/logger.h>
 
 namespace Zest
@@ -40,6 +42,11 @@ int main()
     assert(joined.find("a.frag") != std::string::npos);
     assert(joined.find("b.vert") != std::string::npos);
     assert(joined.find("notes.txt") == std::string::npos);
+
+    assert(!nvim_editor_should_forward_keydown(SDLK_a, KMOD_NONE, "a", true));
+    assert(nvim_editor_should_forward_keydown(SDLK_a, KMOD_NONE, "a", false));
+    assert(nvim_editor_should_forward_keydown(SDLK_s, KMOD_CTRL, "<C-s>", true));
+    assert(nvim_editor_should_forward_keydown(SDLK_LEFT, KMOD_NONE, "<Left>", true));
 
     std::filesystem::remove_all(root);
 }

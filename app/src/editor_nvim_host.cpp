@@ -33,25 +33,24 @@ NvimImGuiRenderer& nvim_renderer()
 
 bool g_windowFocused = false;
 
-bool should_forward_keydown(SDL_Keycode key, SDL_Keymod mods, const std::string& input)
+void update_text_input_state(bool focused)
 {
-    if (input.empty())
+    static bool textInputActive = false;
+    if (focused == textInputActive)
     {
-        return false;
+        return;
     }
 
-    const bool hasCommandModifier = (mods & (KMOD_CTRL | KMOD_ALT | KMOD_GUI)) != 0;
-    if (hasCommandModifier)
+    if (focused)
     {
-        return true;
+        SDL_StartTextInput();
+    }
+    else
+    {
+        SDL_StopTextInput();
     }
 
-    if (input.size() == 1 && key >= 32 && key <= 126)
-    {
-        return false;
-    }
-
-    return true;
+    textInputActive = focused;
 }
 
 ImGuiWindowFlags nvim_window_flags()
@@ -86,6 +85,27 @@ std::vector<std::filesystem::path> nvim_editor_collect_edit_files(const std::fil
     return editFiles;
 }
 
+bool nvim_editor_should_forward_keydown(SDL_Keycode key, SDL_Keymod mods, std::string_view input, bool text_input_active)
+{
+    if (input.empty())
+    {
+        return false;
+    }
+
+    const bool hasCommandModifier = (mods & (KMOD_CTRL | KMOD_ALT | KMOD_GUI)) != 0;
+    if (hasCommandModifier)
+    {
+        return true;
+    }
+
+    if (input.size() == 1 && key >= 32 && key <= 126)
+    {
+        return !text_input_active;
+    }
+
+    return true;
+}
+
 void nvim_editor_update_files(const std::filesystem::path& root, bool reset)
 {
     auto& session = nvim_session();
@@ -116,6 +136,7 @@ void nvim_editor_show(bool focus)
     if (!ImGui::Begin("Neovim", nullptr, nvim_window_flags()))
     {
         g_windowFocused = false;
+        update_text_input_state(false);
         ImGui::End();
         return;
     }
@@ -127,6 +148,7 @@ void nvim_editor_show(bool focus)
     const ImVec2 topLeft = ImGui::GetCursorScreenPos();
     ImGui::InvisibleButton("NeovimContainer", available);
     g_windowFocused = ImGui::IsWindowFocused(ImGuiFocusedFlags_RootAndChildWindows) || ImGui::IsItemActive();
+    update_text_input_state(g_windowFocused);
 
     const float cellWidth = std::max(1.0f, ImGui::CalcTextSize("M").x);
     const float cellHeight = std::max(1.0f, ImGui::GetTextLineHeightWithSpacing());
@@ -163,7 +185,7 @@ void nvim_editor_handle_event(const SDL_Event& event)
     {
         const auto mods = static_cast<SDL_Keymod>(event.key.keysym.mod);
         const std::string input = vklive_nvim::sdl_key_to_nvim(event.key.keysym.sym, mods);
-        if (should_forward_keydown(event.key.keysym.sym, mods, input))
+        if (nvim_editor_should_forward_keydown(event.key.keysym.sym, mods, input, SDL_IsTextInputActive() == SDL_TRUE))
         {
             session.send_input(input);
         }
@@ -172,6 +194,7 @@ void nvim_editor_handle_event(const SDL_Event& event)
 
 void nvim_editor_destroy()
 {
+    update_text_input_state(false);
     nvim_session().stop();
 }
 

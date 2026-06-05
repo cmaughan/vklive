@@ -1021,6 +1021,8 @@ In `app/src/editor_nvim_host.cpp`, call `host.send_input(...)` from SDL2 keyboar
 
 Progress note: `nvim_editor_handle_event()` now forwards SDL text and translated key input only when the Neovim ImGui window was focused in the previous frame. Printable text is sent from SDL text input to avoid duplicate keydown characters; command/special keys use the SDL-to-Neovim adapter.
 
+Follow-up note: the focused Neovim window now starts/stops SDL text input explicitly and has a tested printable-key fallback when SDL text input is inactive.
+
 - [x] **Step 5: Verify input test passes**
 
 ```powershell
