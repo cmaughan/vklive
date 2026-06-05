@@ -97,7 +97,11 @@ std::string sdl_key_to_nvim(SDL_Keycode key, SDL_Keymod mods)
     if (key >= SDLK_a && key <= SDLK_z && (ctrl || alt))
     {
         char keyName = static_cast<char>(key);
-        return angle_key(std::string_view(&keyName, 1), static_cast<SDL_Keymod>(static_cast<int>(mods) & ~static_cast<int>(KMOD_SHIFT)));
+        if (shift)
+        {
+            keyName = static_cast<char>('A' + (key - SDLK_a));
+        }
+        return angle_key(std::string_view(&keyName, 1), mods);
     }
 
     if (!ctrl && !alt && !shift && key >= 32 && key <= 126)
