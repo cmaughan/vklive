@@ -12,7 +12,8 @@
 namespace
 {
 
-constexpr float kNvimPointSize = 13.0f;
+constexpr float kNvimLogicalDisplayPpi = 96.0f;
+constexpr float kNvimPointSize = vklive_nvim::TextService::DEFAULT_POINT_SIZE;
 
 ImU32 color_to_imgui(vklive_nvim::Color color)
 {
@@ -52,12 +53,14 @@ NvimGridMetrics nvim_grid_metrics(ImVec2 available, float cell_width, float cell
 
 bool NvimImGuiRenderer::ensure_initialized(float display_ppi)
 {
+    // ImGui draw-list coordinates are logical UI units; backend scaling handles device DPI.
+    (void)display_ppi;
     if (m_initialized)
     {
         return true;
     }
 
-    m_initialized = m_textService.initialize(nvim_text_service_config(), kNvimPointSize, std::max(1.0f, display_ppi));
+    m_initialized = m_textService.initialize(nvim_text_service_config(), kNvimPointSize, kNvimLogicalDisplayPpi);
     m_highlights.set_default_fg(vklive_nvim::Color(0.88f, 0.90f, 0.92f, 1.0f));
     m_highlights.set_default_bg(vklive_nvim::Color(0.07f, 0.09f, 0.11f, 1.0f));
     return m_initialized;
