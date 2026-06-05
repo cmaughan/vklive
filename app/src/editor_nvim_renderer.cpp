@@ -13,7 +13,7 @@ namespace
 {
 
 constexpr float kNvimLogicalDisplayPpi = 96.0f;
-constexpr float kNvimPointSize = 13.0f;
+constexpr float kNvimPointSize = 15.0f;
 
 ImU32 color_to_imgui(vklive_nvim::Color color)
 {
