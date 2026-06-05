@@ -20,6 +20,7 @@ struct NvimGridMetrics
 };
 
 NvimGridMetrics nvim_grid_metrics(ImVec2 available, float cell_width, float cell_height);
+ImVec2 nvim_glyph_origin(ImVec2 cell_min, const vklive_nvim::FontMetrics& metrics, const vklive_nvim::AtlasRegion& glyph);
 
 class NvimImGuiRenderer
 {

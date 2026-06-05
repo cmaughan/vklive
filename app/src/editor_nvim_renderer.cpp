@@ -51,6 +51,13 @@ NvimGridMetrics nvim_grid_metrics(ImVec2 available, float cell_width, float cell
     return metrics;
 }
 
+ImVec2 nvim_glyph_origin(ImVec2 cell_min, const vklive_nvim::FontMetrics& metrics, const vklive_nvim::AtlasRegion& glyph)
+{
+    return ImVec2(
+        cell_min.x + static_cast<float>(glyph.bitmap_bearing.x),
+        cell_min.y + static_cast<float>(metrics.ascender - glyph.bitmap_bearing.y));
+}
+
 bool NvimImGuiRenderer::ensure_initialized(float display_ppi)
 {
     // ImGui draw-list coordinates are logical UI units; backend scaling handles device DPI.
@@ -165,9 +172,7 @@ void NvimImGuiRenderer::draw(const vklive_nvim::RenderModel& model, ImVec2 top_l
         }
 
         const auto& fontMetrics = m_textService.metrics();
-        const ImVec2 glyphMin(
-            cellMin.x + static_cast<float>(cell.glyph.bitmap_bearing.x),
-            cellMin.y + static_cast<float>(fontMetrics.cell_height - fontMetrics.ascender + cell.glyph.bitmap_bearing.y));
+        const ImVec2 glyphMin = nvim_glyph_origin(cellMin, fontMetrics, cell.glyph);
         const ImVec2 glyphMax(
             glyphMin.x + static_cast<float>(cell.glyph.bitmap_size.x),
             glyphMin.y + static_cast<float>(cell.glyph.bitmap_size.y));

@@ -25,5 +25,21 @@ int main()
         return 1;
     }
 
+    vklive_nvim::FontMetrics fontMetrics;
+    fontMetrics.cell_width = 8;
+    fontMetrics.cell_height = 16;
+    fontMetrics.ascender = 12;
+    fontMetrics.descender = 4;
+
+    vklive_nvim::AtlasRegion glyph;
+    glyph.bitmap_bearing = { 1, 9 };
+    glyph.bitmap_size = { 7, 10 };
+
+    const ImVec2 origin = nvim_glyph_origin(ImVec2(20.0f, 30.0f), fontMetrics, glyph);
+    if (origin.x != 21.0f || origin.y != 33.0f)
+    {
+        return 1;
+    }
+
     return 0;
 }
