@@ -352,6 +352,9 @@ set(APP_CORE_SOURCES
     app/src/editor_backend.cpp
     app/src/editor_font.cpp
     app/src/editor_host.cpp
+    app/src/editor_nvim_host.cpp
+    app/src/editor_nvim_renderer.cpp
+    app/src/editor_nvim_session.cpp
     app/src/nodegraph_theme.cpp
     app/src/project.cpp
     app/src/window_nodegraph.cpp
@@ -362,6 +365,9 @@ set(APP_CORE_SOURCES
     app/include/app/editor_backend.h
     app/include/app/editor_font.h
     app/include/app/editor_host.h
+    app/include/app/editor_nvim_host.h
+    app/include/app/editor_nvim_renderer.h
+    app/include/app/editor_nvim_session.h
     app/include/app/nodegraph_theme.h
     app/include/app/project.h
     app/include/app/window_nodegraph.h
@@ -499,7 +505,7 @@ target_include_directories(NodeGraph
 target_compile_definitions(NodeGraph PRIVATE IMGUI_DISABLE_INCLUDE_IMCONFIG_H GLM_ENABLE_EXPERIMENTAL)
 
 add_library(RezonalityAppCore STATIC ${APP_CORE_SOURCES})
-target_link_libraries(RezonalityAppCore PUBLIC vklive NodeGraph)
+target_link_libraries(RezonalityAppCore PUBLIC vklive NodeGraph vklive_nvim)
 target_include_directories(RezonalityAppCore
     PUBLIC
         ${CMAKE_CURRENT_LIST_DIR}/app/include
@@ -546,6 +552,21 @@ target_include_directories(vklive_editor_config_backend_tests PRIVATE
 add_executable(vklive_editor_host_switch_tests tests/editor_host_switch_tests.cpp)
 target_link_libraries(vklive_editor_host_switch_tests PRIVATE RezonalityAppCore)
 target_include_directories(vklive_editor_host_switch_tests PRIVATE
+    ${CMAKE_BINARY_DIR})
+
+add_executable(vklive_editor_nvim_session_tests tests/editor_nvim_session_tests.cpp)
+target_link_libraries(vklive_editor_nvim_session_tests PRIVATE RezonalityAppCore vklive_nvim)
+target_include_directories(vklive_editor_nvim_session_tests PRIVATE
+    ${CMAKE_BINARY_DIR})
+
+add_executable(vklive_editor_nvim_renderer_tests tests/editor_nvim_renderer_tests.cpp)
+target_link_libraries(vklive_editor_nvim_renderer_tests PRIVATE RezonalityAppCore vklive_nvim)
+target_include_directories(vklive_editor_nvim_renderer_tests PRIVATE
+    ${CMAKE_BINARY_DIR})
+
+add_executable(vklive_editor_nvim_host_tests tests/editor_nvim_host_tests.cpp)
+target_link_libraries(vklive_editor_nvim_host_tests PRIVATE RezonalityAppCore vklive_nvim)
+target_include_directories(vklive_editor_nvim_host_tests PRIVATE
     ${CMAKE_BINARY_DIR})
 
 add_executable(vklive_nvim_host_command_tests tests/nvim_host_command_tests.cpp)
@@ -694,6 +715,21 @@ add_test(
 add_test(
     NAME vklive_editor_host_switch_tests
     COMMAND vklive_editor_host_switch_tests
+)
+
+add_test(
+    NAME vklive_editor_nvim_session_tests
+    COMMAND vklive_editor_nvim_session_tests
+)
+
+add_test(
+    NAME vklive_editor_nvim_renderer_tests
+    COMMAND vklive_editor_nvim_renderer_tests
+)
+
+add_test(
+    NAME vklive_editor_nvim_host_tests
+    COMMAND vklive_editor_nvim_host_tests
 )
 
 add_test(

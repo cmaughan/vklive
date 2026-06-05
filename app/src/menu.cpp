@@ -282,6 +282,21 @@ bool menu_show()
                 ImGui::MenuItem("Transparent editor", nullptr, &appConfig.transparent_editor, true);
                 ImGui::EndMenu();
             }
+
+            if (ImGui::BeginMenu("Editor Backend"))
+            {
+                if (ImGui::MenuItem("Zep", nullptr, appConfig.editor_backend == EditorBackendKind::Zep))
+                {
+                    appConfig.editor_backend = EditorBackendKind::Zep;
+                }
+
+                if (ImGui::MenuItem("Neovim", nullptr, appConfig.editor_backend == EditorBackendKind::Neovim))
+                {
+                    appConfig.editor_backend = EditorBackendKind::Neovim;
+                }
+
+                ImGui::EndMenu();
+            }
             /*
             if (ImGui::MenuItem("Audio..."))
             {

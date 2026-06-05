@@ -37,6 +37,7 @@
 #include <app/config.h>
 #include <app/controller.h>
 #include <app/editor.h>
+#include <app/editor_nvim_host.h>
 #include <app/menu.h>
 #include <app/nodegraph_theme.h>
 #include <app/project.h>
@@ -76,6 +77,12 @@ namespace
 
 AppCommandLineOptions commandLineOptions;
 fs::path themeSettingsPath;
+
+void update_editor_files(const fs::path& root, bool reset)
+{
+    zep_update_files(root, reset);
+    nvim_editor_update_files(root, reset);
+}
 
 bool read_command_line(int argc, char** argv, int& exitCode)
 {
@@ -399,6 +406,11 @@ int main(int argc, char** argv)
             {
                 zepFocusFlags |= ZepFocusFlags::CheckFocus;
             }
+
+            if (appConfig.editor_backend == EditorBackendKind::Neovim)
+            {
+                nvim_editor_handle_event(event);
+            }
         }
 
         // Attempt to recover a lost device: this does not work!
@@ -551,7 +563,7 @@ int main(int argc, char** argv)
                 if (switchProject)
                 {
                     g_Controller.spCurrentProject = spNewProject;
-                    zep_update_files(g_Controller.spCurrentProject->rootPath, switchProject);
+                    update_editor_files(g_Controller.spCurrentProject->rootPath, switchProject);
                 }
 
                 // Otherwise, what we have is the same project, with the old render until it is fixed
@@ -559,7 +571,7 @@ int main(int argc, char** argv)
             }
 
             // Update the sources in the editor
-            zep_update_files(g_Controller.spCurrentProject->rootPath, switchProject);
+            update_editor_files(g_Controller.spCurrentProject->rootPath, switchProject);
 
             // Reset the project messages (more global errors)
             g_Controller.spCurrentProject->projectMessages.clear();
@@ -674,7 +686,14 @@ int main(int argc, char** argv)
         }
 
         // Show the editor
-        zep_show(zepFocusFlags);
+        if (appConfig.editor_backend == EditorBackendKind::Neovim)
+        {
+            nvim_editor_show((zepFocusFlags & ZepFocusFlags::Focus) != 0);
+        }
+        else
+        {
+            zep_show(zepFocusFlags);
+        }
         zepFocusFlags = 0;
 
         // Rendering
@@ -747,6 +766,7 @@ int main(int argc, char** argv)
     update_thread.join();
 
     // Cleanup
+    nvim_editor_destroy();
     zep_destroy();
 
     if (!commandLineOptions.startupFrameTest)

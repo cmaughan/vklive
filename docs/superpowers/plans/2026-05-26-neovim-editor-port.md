@@ -1015,9 +1015,11 @@ std::string sdl_key_to_nvim(SDL_Keycode key, SDL_Keymod mods)
 } // namespace vklive_nvim
 ```
 
-- [ ] **Step 4: Route input only when the Neovim ImGui child has focus**
+- [x] **Step 4: Route input only when the Neovim ImGui child has focus**
 
 In `app/src/editor_nvim_host.cpp`, call `host.send_input(...)` from SDL2 keyboard text and key events only when the Neovim window is focused. Leave global live-coding shortcuts owned by VkLive.
+
+Progress note: `nvim_editor_handle_event()` now forwards SDL text and translated key input only when the Neovim ImGui window was focused in the previous frame. Printable text is sent from SDL text input to avoid duplicate keydown characters; command/special keys use the SDL-to-Neovim adapter.
 
 - [x] **Step 5: Verify input test passes**
 
@@ -1150,7 +1152,7 @@ const RenderCell& RenderModel::cell(int column, int row) const
 
 Progress note: the first `RenderModel` stores UTF-8 cell text and highlight IDs rather than final resolved foreground/background colors, matching Neovim `grid_line` payloads and Draxul's grid shape. `UiEventHandler` now processes `grid_resize`, `grid_line`, `grid_cursor_goto`, `grid_scroll`, `grid_clear`, and `flush` into that model. Highlight color tables and the ImGui/native GPU renderer remain open.
 
-- [ ] **Step 4: Add the first ImGui draw-list renderer**
+- [x] **Step 4: Add the first ImGui draw-list renderer**
 
 Use the copied Draxul font atlas for glyph bitmaps and upload the atlas through `IDevice::FontTexture()` so both Vulkan and Metal follow the existing VkLive texture path. The first renderer draws background rectangles and foreground glyph quads into the current ImGui window's draw list. This gets the Neovim GUI inside VkLive's existing Metal/Vulkan wrapper without adding new device render-pass plumbing.
 
@@ -1168,6 +1170,8 @@ public:
     void draw(IDevice& device, const vklive_nvim::RenderModel& model, float cell_width, float cell_height);
 };
 ```
+
+Progress note: the first visible renderer is `NvimImGuiRenderer`, currently using the active ImGui font as a fallback rather than the Draxul atlas. It draws a fixed cell grid from `RenderModel` into the existing ImGui draw list and resizes Neovim from the computed grid metrics. The Draxul atlas/native path remains the next rendering refinement.
 
 - [ ] **Step 5: Replace the draw-list renderer with Draxul's native grid pipeline after the host is visible**
 
@@ -1236,11 +1240,13 @@ build\debug\tests\vklive_nvim_project_tabs_tests.exe
 
 Expected: executable exits with code `0`.
 
-- [ ] **Step 3: Use existing VkLive file discovery**
+- [x] **Step 3: Use existing VkLive file discovery**
 
 In the backend-neutral host, call the same `scene_is_edit_file()` and `Zest::file_gather_files(root)` path currently used by `zep_update_files`. Pass the resulting ordered file list to `NvimHost::open_project_files()`.
 
-- [ ] **Step 4: Load files as Neovim tabs**
+Progress note: `nvim_editor_collect_edit_files()` uses `Zest::file_gather_files(root)` and `scene_is_edit_file()` and is covered by `vklive_editor_nvim_host_tests`.
+
+- [x] **Step 4: Load files as Neovim tabs**
 
 In `NvimHost::open_project_files()`, execute:
 
@@ -1252,6 +1258,8 @@ tabfirst
 ```
 
 Do not render a VkLive-side tab bar. Users can use Neovim `gt`, `gT`, `:tabnext`, `:split`, and `:vsplit`.
+
+Progress note: app project updates now feed both Zep and the Neovim session. The Neovim session opens the discovered edit-file set through the existing `NvimHost::open_project_files()` tab command path when the Neovim window starts or project files change.
 
 - [ ] **Step 5: Manual smoke**
 
@@ -1281,7 +1289,7 @@ assert(host.set_active_backend(EditorBackendKind::Zep));
 assert(host.active_backend() == EditorBackendKind::Zep);
 ```
 
-- [ ] **Step 2: Add menu actions**
+- [x] **Step 2: Add menu actions**
 
 Use radio menu items:
 
@@ -1298,6 +1306,8 @@ if (ImGui::MenuItem("Neovim", nullptr, config.editor_backend == EditorBackendKin
     editorHost.set_active_backend(EditorBackendKind::Neovim);
 }
 ```
+
+Progress note: Settings now has an `Editor Backend` submenu with `Zep` and `Neovim` radio items. The first wiring switches the active draw path directly from `appConfig.editor_backend`; migrating this through `EditorHost` remains open.
 
 - [ ] **Step 3: Apply config at startup**
 
