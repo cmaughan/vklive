@@ -13,7 +13,7 @@ namespace
 {
 
 constexpr float kNvimLogicalDisplayPpi = 96.0f;
-constexpr float kNvimPointSize = vklive_nvim::TextService::DEFAULT_POINT_SIZE;
+constexpr float kNvimPointSize = 13.0f;
 
 ImU32 color_to_imgui(vklive_nvim::Color color)
 {
@@ -68,8 +68,6 @@ bool NvimImGuiRenderer::ensure_initialized(float display_ppi)
     }
 
     m_initialized = m_textService.initialize(nvim_text_service_config(), kNvimPointSize, kNvimLogicalDisplayPpi);
-    m_highlights.set_default_fg(vklive_nvim::Color(0.88f, 0.90f, 0.92f, 1.0f));
-    m_highlights.set_default_bg(vklive_nvim::Color(0.07f, 0.09f, 0.11f, 1.0f));
     return m_initialized;
 }
 
@@ -129,7 +127,7 @@ void NvimImGuiRenderer::upload_atlas(Zest::IFontTexture& texture)
     m_textService.clear_atlas_dirty();
 }
 
-void NvimImGuiRenderer::draw(const vklive_nvim::RenderModel& model, ImVec2 top_left, const NvimGridMetrics& metrics, Zest::IFontTexture* texture)
+void NvimImGuiRenderer::draw(const vklive_nvim::RenderModel& model, const vklive_nvim::HighlightTable& highlights, ImVec2 top_left, const NvimGridMetrics& metrics, Zest::IFontTexture* texture)
 {
     ImDrawList* drawList = ImGui::GetWindowDrawList();
     if (!drawList)
@@ -140,14 +138,14 @@ void NvimImGuiRenderer::draw(const vklive_nvim::RenderModel& model, ImVec2 top_l
     const ImVec2 bottomRight(
         top_left.x + metrics.columns * metrics.cell_width,
         top_left.y + metrics.rows * metrics.cell_height);
-    drawList->AddRectFilled(top_left, bottomRight, color_to_imgui(m_highlights.default_bg()));
+    drawList->AddRectFilled(top_left, bottomRight, color_to_imgui(highlights.default_bg()));
 
     if (!texture || !m_initialized)
     {
         return;
     }
 
-    const auto cells = vklive_nvim::build_atlas_grid_cells(model, m_textService, m_highlights);
+    const auto cells = vklive_nvim::build_atlas_grid_cells(model, m_textService, highlights);
     upload_atlas(*texture);
 
     void* atlasTexture = m_atlasTexture != 0 ? texture->GetTexture(m_atlasTexture) : nullptr;
@@ -165,12 +163,22 @@ void NvimImGuiRenderer::draw(const vklive_nvim::RenderModel& model, ImVec2 top_l
             cellMin.x + metrics.cell_width,
             cellMin.y + metrics.cell_height);
         drawList->AddRectFilled(cellMin, cellMax, color_to_imgui(cell.background));
+    }
 
+    for (const auto& cell : cells)
+    {
+        if (cell.column < 0 || cell.column >= metrics.columns || cell.row < 0 || cell.row >= metrics.rows)
+        {
+            continue;
+        }
         if (!atlasTexture || cell.glyph.bitmap_size.x <= 0 || cell.glyph.bitmap_size.y <= 0)
         {
             continue;
         }
 
+        const ImVec2 cellMin(
+            top_left.x + cell.column * metrics.cell_width,
+            top_left.y + cell.row * metrics.cell_height);
         const auto& fontMetrics = m_textService.metrics();
         const ImVec2 glyphMin = nvim_glyph_origin(cellMin, fontMetrics, cell.glyph);
         const ImVec2 glyphMax(

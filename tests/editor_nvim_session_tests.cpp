@@ -58,6 +58,11 @@ public:
         return model;
     }
 
+    const vklive_nvim::HighlightTable& highlights() const override
+    {
+        return highlightTable;
+    }
+
     bool started = false;
     int startCount = 0;
     int resizeCount = 0;
@@ -69,6 +74,7 @@ public:
     vklive_nvim::NvimProjectFiles lastProject;
     std::vector<std::string> sentInputs;
     vklive_nvim::RenderModel model;
+    vklive_nvim::HighlightTable highlightTable;
 };
 
 } // namespace

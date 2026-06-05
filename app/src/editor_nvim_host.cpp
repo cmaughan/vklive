@@ -161,7 +161,7 @@ void nvim_editor_show(bool focus, IDevice* device)
     if (session.ensure_started(metrics.columns, metrics.rows))
     {
         session.pump();
-        renderer.draw(session.render_model(), topLeft, metrics, device ? device->FontTexture() : nullptr);
+        renderer.draw(session.render_model(), session.highlights(), topLeft, metrics, device ? device->FontTexture() : nullptr);
     }
     else
     {

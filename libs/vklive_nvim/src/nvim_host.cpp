@@ -11,6 +11,12 @@ namespace vklive_nvim
 namespace
 {
 
+void set_default_highlight_colors(HighlightTable& highlights)
+{
+    highlights.set_default_fg(Color(0.88f, 0.90f, 0.92f, 1.0f));
+    highlights.set_default_bg(Color(0.07f, 0.09f, 0.11f, 1.0f));
+}
+
 std::string escape_vim_path(const std::filesystem::path& path)
 {
     const std::string value = path.generic_string();
@@ -46,6 +52,7 @@ struct NvimHost::Impl
     NvimRpc rpc;
     UiEventHandler ui;
     RenderModel render_model;
+    HighlightTable highlights;
     bool running = false;
     bool owns_process = false;
 };
@@ -73,6 +80,8 @@ NvimHost::NvimHost()
     : m_impl(std::make_unique<Impl>())
 {
     m_impl->ui.set_render_model(&m_impl->render_model);
+    m_impl->ui.set_highlights(&m_impl->highlights);
+    set_default_highlight_colors(m_impl->highlights);
 }
 
 NvimHost::~NvimHost()
@@ -100,6 +109,8 @@ bool NvimHost::start(const NvimHostOptions& options)
     }
 
     m_impl->render_model.resize(options.columns, options.rows);
+    m_impl->highlights.clear();
+    set_default_highlight_colors(m_impl->highlights);
 
     if (!m_impl->rpc.initialize(*transport))
     {
@@ -222,6 +233,11 @@ void NvimHost::send_input(std::string_view input)
 const RenderModel& NvimHost::render_model() const
 {
     return m_impl->render_model;
+}
+
+const HighlightTable& NvimHost::highlights() const
+{
+    return m_impl->highlights;
 }
 
 } // namespace vklive_nvim

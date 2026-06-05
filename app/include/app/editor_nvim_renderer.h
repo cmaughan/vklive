@@ -27,13 +27,12 @@ class NvimImGuiRenderer
 public:
     bool ensure_initialized(float display_ppi);
     ImVec2 cell_size() const;
-    void draw(const vklive_nvim::RenderModel& model, ImVec2 top_left, const NvimGridMetrics& metrics, Zest::IFontTexture* texture);
+    void draw(const vklive_nvim::RenderModel& model, const vklive_nvim::HighlightTable& highlights, ImVec2 top_left, const NvimGridMetrics& metrics, Zest::IFontTexture* texture);
 
 private:
     void upload_atlas(Zest::IFontTexture& texture);
 
     vklive_nvim::TextService m_textService;
-    vklive_nvim::HighlightTable m_highlights;
     Zest::IFontTexture* m_textureOwner = nullptr;
     int m_atlasTexture = 0;
     bool m_initialized = false;

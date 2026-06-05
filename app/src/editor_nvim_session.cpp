@@ -49,6 +49,11 @@ public:
         return m_host.render_model();
     }
 
+    const vklive_nvim::HighlightTable& highlights() const override
+    {
+        return m_host.highlights();
+    }
+
 private:
     vklive_nvim::NvimHost m_host;
 };
@@ -178,6 +183,11 @@ void NvimEditorSession::send_input(std::string_view input)
 const vklive_nvim::RenderModel& NvimEditorSession::render_model() const
 {
     return m_host->render_model();
+}
+
+const vklive_nvim::HighlightTable& NvimEditorSession::highlights() const
+{
+    return m_host->highlights();
 }
 
 void NvimEditorSession::sync_project_files()

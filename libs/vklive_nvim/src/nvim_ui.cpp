@@ -1,5 +1,6 @@
 #include <vklive_nvim/nvim_ui.h>
 
+#include <vklive_nvim/highlight.h>
 #include <vklive_nvim/render_model.h>
 
 #include <algorithm>
@@ -47,12 +48,14 @@ bool try_get_int(const MpackValue& value, int& out)
 
 enum class RedrawEventType
 {
+    DefaultColorsSet,
     Flush,
     GridClear,
     GridCursorGoto,
     GridLine,
     GridResize,
     GridScroll,
+    HlAttrDefine,
 };
 
 struct RedrawDispatchEntry
@@ -61,13 +64,15 @@ struct RedrawDispatchEntry
     RedrawEventType type;
 };
 
-constexpr std::array<RedrawDispatchEntry, 6> kRedrawDispatch = { {
+constexpr std::array<RedrawDispatchEntry, 8> kRedrawDispatch = { {
+    { "default_colors_set", RedrawEventType::DefaultColorsSet },
     { "flush", RedrawEventType::Flush },
     { "grid_clear", RedrawEventType::GridClear },
     { "grid_cursor_goto", RedrawEventType::GridCursorGoto },
     { "grid_line", RedrawEventType::GridLine },
     { "grid_resize", RedrawEventType::GridResize },
     { "grid_scroll", RedrawEventType::GridScroll },
+    { "hl_attr_define", RedrawEventType::HlAttrDefine },
 } };
 
 const RedrawDispatchEntry* find_redraw_dispatch(std::string_view name)
@@ -90,6 +95,11 @@ const RedrawDispatchEntry* find_redraw_dispatch(std::string_view name)
 void UiEventHandler::set_render_model(RenderModel* model)
 {
     m_model = model;
+}
+
+void UiEventHandler::set_highlights(HighlightTable* highlights)
+{
+    m_highlights = highlights;
 }
 
 void UiEventHandler::process_redraw(const std::vector<MpackValue>& params)
@@ -134,6 +144,9 @@ void UiEventHandler::process_redraw(const std::vector<MpackValue>& params)
             const auto& args = (*eventArray)[i];
             switch (dispatch->type)
             {
+            case RedrawEventType::DefaultColorsSet:
+                handle_default_colors_set(args);
+                break;
             case RedrawEventType::GridResize:
                 handle_grid_resize(args);
                 break;
@@ -145,6 +158,9 @@ void UiEventHandler::process_redraw(const std::vector<MpackValue>& params)
                 break;
             case RedrawEventType::GridScroll:
                 handle_grid_scroll(args);
+                break;
+            case RedrawEventType::HlAttrDefine:
+                handle_hl_attr_define(args);
                 break;
             case RedrawEventType::Flush:
             case RedrawEventType::GridClear:
@@ -311,6 +327,121 @@ void UiEventHandler::handle_grid_clear()
     {
         m_model->clear();
     }
+}
+
+void UiEventHandler::handle_default_colors_set(const MpackValue& args)
+{
+    if (!m_highlights)
+    {
+        return;
+    }
+
+    const auto* argsArray = try_get_array(args);
+    if (!argsArray || argsArray->size() < 3)
+    {
+        return;
+    }
+
+    int foreground = 0;
+    int background = 0;
+    int special = 0;
+    if (!try_get_int((*argsArray)[0], foreground) || !try_get_int((*argsArray)[1], background) || !try_get_int((*argsArray)[2], special))
+    {
+        return;
+    }
+
+    m_highlights->set_default_fg(color_from_rgb(static_cast<std::uint32_t>(foreground)));
+    m_highlights->set_default_bg(color_from_rgb(static_cast<std::uint32_t>(background)));
+    m_highlights->set_default_sp(color_from_rgb(static_cast<std::uint32_t>(special)));
+}
+
+void UiEventHandler::handle_hl_attr_define(const MpackValue& args)
+{
+    if (!m_highlights)
+    {
+        return;
+    }
+
+    const auto* argsArray = try_get_array(args);
+    if (!argsArray || argsArray->size() < 2)
+    {
+        return;
+    }
+
+    int rawHighlightId = 0;
+    if (!try_get_int((*argsArray)[0], rawHighlightId))
+    {
+        return;
+    }
+
+    rawHighlightId = std::clamp(rawHighlightId, 0, static_cast<int>(kMaxHighlightId));
+    HlAttr attr;
+    const auto& attrs = (*argsArray)[1];
+    if (attrs.type() == MpackValue::Map)
+    {
+        for (const auto& [key, value] : attrs.as_map())
+        {
+            const auto* name = try_get_string(key);
+            if (!name)
+            {
+                continue;
+            }
+
+            if (*name == "foreground")
+            {
+                int color = 0;
+                if (try_get_int(value, color))
+                {
+                    attr.fg = color_from_rgb(static_cast<std::uint32_t>(color));
+                    attr.has_fg = true;
+                }
+            }
+            else if (*name == "background")
+            {
+                int color = 0;
+                if (try_get_int(value, color))
+                {
+                    attr.bg = color_from_rgb(static_cast<std::uint32_t>(color));
+                    attr.has_bg = true;
+                }
+            }
+            else if (*name == "special")
+            {
+                int color = 0;
+                if (try_get_int(value, color))
+                {
+                    attr.sp = color_from_rgb(static_cast<std::uint32_t>(color));
+                    attr.has_sp = true;
+                }
+            }
+            else if (*name == "bold" && value.type() == MpackValue::Bool)
+            {
+                attr.bold = value.as_bool();
+            }
+            else if (*name == "italic" && value.type() == MpackValue::Bool)
+            {
+                attr.italic = value.as_bool();
+            }
+            else if (*name == "underline" && value.type() == MpackValue::Bool)
+            {
+                attr.underline = value.as_bool();
+            }
+            else if (*name == "undercurl" && value.type() == MpackValue::Bool)
+            {
+                attr.undercurl = value.as_bool();
+            }
+            else if (*name == "strikethrough" && value.type() == MpackValue::Bool)
+            {
+                attr.strikethrough = value.as_bool();
+            }
+            else if (*name == "reverse" && value.type() == MpackValue::Bool)
+            {
+                attr.reverse = value.as_bool();
+            }
+        }
+    }
+
+    m_highlights->set(static_cast<std::uint16_t>(rawHighlightId), attr);
 }
 
 } // namespace vklive_nvim

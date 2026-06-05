@@ -6,6 +6,7 @@
 #include <string>
 #include <vector>
 
+#include <vklive_nvim/highlight.h>
 #include <vklive_nvim/nvim_rpc.h>
 
 namespace vklive_nvim
@@ -49,6 +50,7 @@ public:
     void send_input(std::string_view input);
 
     const RenderModel& render_model() const;
+    const HighlightTable& highlights() const;
 
 private:
     struct Impl;

@@ -21,6 +21,7 @@ public:
     virtual void pump() = 0;
     virtual void send_input(std::string_view input) = 0;
     virtual const vklive_nvim::RenderModel& render_model() const = 0;
+    virtual const vklive_nvim::HighlightTable& highlights() const = 0;
 };
 
 class NvimEditorSession
@@ -43,6 +44,7 @@ public:
     void send_input(std::string_view input);
 
     const vklive_nvim::RenderModel& render_model() const;
+    const vklive_nvim::HighlightTable& highlights() const;
 
 private:
     void sync_project_files();

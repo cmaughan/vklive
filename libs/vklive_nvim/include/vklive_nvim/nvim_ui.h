@@ -10,11 +10,13 @@ namespace vklive_nvim
 {
 
 class RenderModel;
+class HighlightTable;
 
 class UiEventHandler
 {
 public:
     void set_render_model(RenderModel* model);
+    void set_highlights(HighlightTable* highlights);
     void process_redraw(const std::vector<MpackValue>& params);
 
     int cursor_column() const
@@ -37,8 +39,11 @@ private:
     void handle_grid_cursor_goto(const MpackValue& args);
     void handle_grid_scroll(const MpackValue& args);
     void handle_grid_clear();
+    void handle_default_colors_set(const MpackValue& args);
+    void handle_hl_attr_define(const MpackValue& args);
 
     RenderModel* m_model = nullptr;
+    HighlightTable* m_highlights = nullptr;
     int m_cursorColumn = 0;
     int m_cursorRow = 0;
 };
