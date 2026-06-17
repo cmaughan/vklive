@@ -1,0 +1,6 @@
+version = 1
+columns = ["ice-box", "pending", "done"]
+[cards]
+ice-box = ["003-vulkan-scene-lifetime-thread-ownership-bug.md", "004-vulkan-shader-diagnostics-and-cache-paths-bug.md", "006-multi-model-pass-buffer-binding-bug.md", "005-vulkan-descriptor-diagnostic-crashes-bug.md", "013-post-2d-disabled-feature-surface-bug.md", "014-no-surprise-scenegraph-creation-bug.md", "016-wire-python-tests-into-workflow-test.md", "017-live-edit-pipeline-refactor.md", "026-new-project-template-flow-feature.md", "025-node-graph-domain-integration-feature.md", "024-scenegraph-schema-autocomplete-feature.md", "023-recording-and-device-reset-ui-feature.md", "022-runtime-inspectors-and-profiler-feature.md", "021-diagnostics-and-project-health-panel-feature.md", "020-filesystem-watcher-and-include-dependencies-feature.md", "019-preserve-camera-state-feature.md", "018-split-vulkan-pass-and-scene-parser-refactor.md", "015-failure-mode-stability-suite-test.md"]
+pending = ["001-scene-vector-parser-crash-bug.md", "002-scene-parser-lifetime-and-pass-order-bug.md", "007-model-hot-reload-immutable-gpu-assets-bug.md", "008-model-loader-validation-bug.md", "009-project-copy-nested-dependencies-bug.md", "010-editor-menu-null-buffer-guards-bug.md", "011-validation-context-thread-safety-bug.md", "012-vulkan-frame-capture-reporting-bug.md"]
+done = []
