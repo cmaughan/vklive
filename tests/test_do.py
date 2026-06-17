@@ -94,12 +94,15 @@ class DoScriptTests(unittest.TestCase):
         self.assertEqual(plan.review_script_path, ROOT / "scripts" / "Run-Review.ps1")
         self.assertEqual(plan.review_prompt_path, ROOT / "plans" / "prompts" / "review.md")
         self.assertEqual(plan.consensus_prompt_path, ROOT / "plans" / "prompts" / "consensus_review.md")
-        self.assertEqual(plan.codex_review_path, ROOT / "plans" / "reviews" / "review-codex.md")
-        self.assertEqual(plan.gemini_review_path, ROOT / "plans" / "reviews" / "review-gemini.md")
-        self.assertEqual(plan.claude_review_path, ROOT / "plans" / "reviews" / "review-claude.md")
-        self.assertEqual(plan.consensus_review_path, ROOT / "plans" / "reviews" / "review-consensus.md")
-        self.assertEqual(plan.gemini_run_log_path, ROOT / "plans" / "reviews" / "review-gemini-agy.log")
-        self.assertEqual(plan.gemini_stdio_log_path, ROOT / "plans" / "reviews" / "review-gemini-stdio.log")
+        self.assertEqual(plan.kanban_dir, ROOT / "kanban")
+        self.assertEqual(plan.codex_review_path, ROOT / "kanban" / "review-codex.md")
+        self.assertEqual(plan.gemini_review_path, ROOT / "kanban" / "review-gemini.md")
+        self.assertEqual(plan.claude_review_path, ROOT / "kanban" / "review-claude.md")
+        self.assertEqual(plan.consensus_review_path, ROOT / "kanban" / "review-consensus.md")
+        self.assertEqual(plan.gemini_run_log_path, ROOT / "kanban" / "review-gemini-agy.log")
+        self.assertEqual(plan.gemini_stdio_log_path, ROOT / "kanban" / "review-gemini-stdio.log")
+        self.assertEqual(plan.codex_model, "gpt-5.5")
+        self.assertEqual(plan.claude_model, "claude-opus-4-8")
 
     def test_consensus_command_runs_consensus_mode(self):
         do = load_do_module()
@@ -110,8 +113,8 @@ class DoScriptTests(unittest.TestCase):
         self.assertEqual(parsed.command, "consensus")
         self.assertTrue(parsed.dry_run)
         self.assertEqual(plan.mode, "Consensus")
-        self.assertEqual(plan.consensus_codex_message_path, ROOT / "plans" / "reviews" / "review-consensus-codex-message.md")
-        self.assertEqual(plan.consensus_run_log_path, ROOT / "plans" / "reviews" / "review-consensus-codex-run.log")
+        self.assertEqual(plan.consensus_codex_message_path, ROOT / "kanban" / "review-consensus-codex-message.md")
+        self.assertEqual(plan.consensus_run_log_path, ROOT / "kanban" / "review-consensus-codex-run.log")
 
     def test_review_main_delegates_to_native_runner(self):
         do = load_do_module()
@@ -173,10 +176,41 @@ class DoScriptTests(unittest.TestCase):
 
             self.assertEqual(rc, 0)
             self.assertEqual(calls[0][0], "/usr/bin/codex")
+            self.assertIn("--model", calls[0])
+            self.assertIn("gpt-5.5", calls[0])
             self.assertNotIn("pwsh", calls[0])
             self.assertEqual(plan.codex_review_path.read_text(encoding="utf-8"), review_text)
             self.assertEqual(plan.codex_run_log_path.read_text(encoding="utf-8"), "codex completed\n")
             self.assertTrue((root / "kanban" / "pending").is_dir())
+
+    def test_claude_review_uses_opus_48_by_default(self):
+        do = load_do_module()
+        calls: list[list[str]] = []
+
+        def fake_run_native_command(command, *args, **kwargs):
+            calls.append([str(part) for part in command])
+            return mock.Mock(returncode=0, stdout="", stderr="", output="", output_lines=[])
+
+        def fake_which(command):
+            if command == "claude":
+                return "/usr/bin/claude"
+            return None
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = pathlib.Path(temp_dir)
+            prompts = root / "plans" / "prompts"
+            prompts.mkdir(parents=True)
+            (prompts / "review.md").write_text("VkLive review prompt\n", encoding="utf-8")
+            (prompts / "consensus_review.md").write_text("Consensus prompt\n", encoding="utf-8")
+
+            plan = do.create_review_plan(root, review_target="claude")
+            with mock.patch.object(do.shutil, "which", side_effect=fake_which):
+                with mock.patch.object(do, "run_native_command", side_effect=fake_run_native_command):
+                    do.run_claude_review(plan, dry_run=True)
+
+        self.assertEqual(calls[0][0], "/usr/bin/claude")
+        self.assertIn("--model", calls[0])
+        self.assertIn("claude-opus-4-8", calls[0])
 
     def test_review_runner_contains_multi_model_orchestration(self):
         script = (ROOT / "do.py").read_text(encoding="utf-8")
@@ -193,15 +227,24 @@ class DoScriptTests(unittest.TestCase):
         self.assertIn("assert_meaningful_review", script)
         self.assertIn("review-consensus.md", script)
 
+    def test_legacy_powershell_review_runner_uses_default_models(self):
+        script = (ROOT / "scripts" / "Run-Review.ps1").read_text(encoding="utf-8")
+
+        self.assertIn('$CodexModel = "gpt-5.5"', script)
+        self.assertIn('$ClaudeModel = "claude-opus-4-8"', script)
+        self.assertIn("--model $CodexModel", script)
+        self.assertIn("--model $ClaudeModel", script)
+
     def test_review_prompts_and_kanban_folders_exist(self):
         review_prompt = (ROOT / "plans" / "prompts" / "review.md").read_text(encoding="utf-8")
         consensus_prompt = (ROOT / "plans" / "prompts" / "consensus_review.md").read_text(encoding="utf-8")
 
         self.assertIn("VkLive", review_prompt)
         self.assertIn("Vulkan live-coding editor", review_prompt)
-        self.assertIn("plans/reviews/review-consensus.md", consensus_prompt)
+        self.assertIn("kanban/review-consensus.md", consensus_prompt)
+        self.assertNotIn("plans/reviews", consensus_prompt)
         self.assertIn("kanban/pending", consensus_prompt)
-        self.assertTrue((ROOT / "plans" / "reviews").is_dir())
+        self.assertTrue((ROOT / "kanban").is_dir())
         self.assertTrue((ROOT / "kanban" / "ice-box").is_dir())
         self.assertTrue((ROOT / "kanban" / "pending").is_dir())
         self.assertTrue((ROOT / "kanban" / "done").is_dir())

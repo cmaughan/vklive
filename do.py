@@ -28,6 +28,9 @@ REVIEW_MODES = {
     "claude": "Claude",
 }
 
+DEFAULT_CODEX_REVIEW_MODEL = "gpt-5.5"
+DEFAULT_CLAUDE_REVIEW_MODEL = "claude-opus-4-8"
+
 VCPKG_REPOSITORY = "https://github.com/microsoft/vcpkg.git"
 VCPKG_BASELINE = "38d91be5efb2f21fbef4a3c53295002823747431"
 CONFIGURE_STAMP_NAME = ".do-configure.json"
@@ -576,23 +579,27 @@ def create_review_plan(root: pathlib.Path, agy_timeout_seconds: int = 900, revie
         raise ValueError(f"Unsupported review target: {review_target}")
     mode = REVIEW_MODES[normalized_target]
 
-    reviews_dir = root / "plans" / "reviews"
+    kanban_dir = root / "kanban"
     review_prompt_path = root / "plans" / "prompts" / "review.md"
     consensus_prompt_path = root / "plans" / "prompts" / "consensus_review.md"
-    codex_review_path = reviews_dir / "review-codex.md"
-    gemini_review_path = reviews_dir / "review-gemini.md"
-    claude_review_path = reviews_dir / "review-claude.md"
-    consensus_review_path = reviews_dir / "review-consensus.md"
-    codex_run_log_path = reviews_dir / "review-codex-run.log"
-    gemini_run_log_path = reviews_dir / "review-gemini-agy.log"
-    gemini_stdio_log_path = reviews_dir / "review-gemini-stdio.log"
-    claude_run_json_path = reviews_dir / "review-claude-run.json"
-    consensus_codex_message_path = reviews_dir / "review-consensus-codex-message.md"
-    consensus_run_log_path = reviews_dir / "review-consensus-codex-run.log"
+    codex_review_path = kanban_dir / "review-codex.md"
+    gemini_review_path = kanban_dir / "review-gemini.md"
+    claude_review_path = kanban_dir / "review-claude.md"
+    consensus_review_path = kanban_dir / "review-consensus.md"
+    codex_run_log_path = kanban_dir / "review-codex-run.log"
+    gemini_run_log_path = kanban_dir / "review-gemini-agy.log"
+    gemini_stdio_log_path = kanban_dir / "review-gemini-stdio.log"
+    claude_run_json_path = kanban_dir / "review-claude-run.json"
+    consensus_codex_message_path = kanban_dir / "review-consensus-codex-message.md"
+    consensus_run_log_path = kanban_dir / "review-consensus-codex-run.log"
     review_script_path = root / "scripts" / "Run-Review.ps1"
+    codex_model = DEFAULT_CODEX_REVIEW_MODEL
+    claude_model = DEFAULT_CLAUDE_REVIEW_MODEL
 
     repo_root_ps = powershell_quote(root)
     review_script_path_ps = powershell_quote(review_script_path)
+    codex_model_ps = powershell_quote(codex_model)
+    claude_model_ps = powershell_quote(claude_model)
     powershell_script = f"""
 $ErrorActionPreference = "Stop"
 $repoRoot = {repo_root_ps}
@@ -602,13 +609,13 @@ if (-not (Test-Path -LiteralPath $reviewScriptPath)) {{
     throw "Review script not found: $reviewScriptPath"
 }}
 
-& $reviewScriptPath -RepoRoot $repoRoot -AgyTimeoutSeconds {agy_timeout_seconds} -Mode {mode}
+& $reviewScriptPath -RepoRoot $repoRoot -AgyTimeoutSeconds {agy_timeout_seconds} -CodexModel {codex_model_ps} -ClaudeModel {claude_model_ps} -Mode {mode}
 exit $LASTEXITCODE
 """.strip()
 
     return SimpleNamespace(
         repo_root=root,
-        reviews_dir=reviews_dir,
+        kanban_dir=kanban_dir,
         review_prompt_path=review_prompt_path,
         consensus_prompt_path=consensus_prompt_path,
         codex_review_path=codex_review_path,
@@ -624,6 +631,8 @@ exit $LASTEXITCODE
         review_script_path=review_script_path,
         mode=mode,
         agy_timeout_seconds=agy_timeout_seconds,
+        codex_model=codex_model,
+        claude_model=claude_model,
         powershell_script=powershell_script,
     )
 
@@ -632,6 +641,8 @@ def create_consensus_plan(root: pathlib.Path) -> SimpleNamespace:
     plan = create_review_plan(root)
     repo_root_ps = powershell_quote(root)
     review_script_path_ps = powershell_quote(plan.review_script_path)
+    codex_model_ps = powershell_quote(plan.codex_model)
+    claude_model_ps = powershell_quote(plan.claude_model)
     powershell_script = f"""
 $ErrorActionPreference = "Stop"
 $repoRoot = {repo_root_ps}
@@ -641,13 +652,13 @@ if (-not (Test-Path -LiteralPath $reviewScriptPath)) {{
     throw "Review script not found: $reviewScriptPath"
 }}
 
-& $reviewScriptPath -RepoRoot $repoRoot -Mode Consensus
+& $reviewScriptPath -RepoRoot $repoRoot -CodexModel {codex_model_ps} -ClaudeModel {claude_model_ps} -Mode Consensus
 exit $LASTEXITCODE
 """.strip()
 
     return SimpleNamespace(
         repo_root=plan.repo_root,
-        reviews_dir=plan.reviews_dir,
+        kanban_dir=plan.kanban_dir,
         review_prompt_path=plan.review_prompt_path,
         consensus_prompt_path=plan.consensus_prompt_path,
         codex_review_path=plan.codex_review_path,
@@ -663,6 +674,8 @@ exit $LASTEXITCODE
         review_script_path=plan.review_script_path,
         mode="Consensus",
         agy_timeout_seconds=plan.agy_timeout_seconds,
+        codex_model=plan.codex_model,
+        claude_model=plan.claude_model,
         powershell_script=powershell_script,
     )
 
@@ -788,7 +801,7 @@ def ensure_review_workspace(plan: SimpleNamespace, dry_run: bool) -> None:
     if dry_run:
         return
 
-    plan.reviews_dir.mkdir(parents=True, exist_ok=True)
+    plan.kanban_dir.mkdir(parents=True, exist_ok=True)
     for folder in ("ice-box", "pending", "done"):
         (plan.repo_root / "kanban" / folder).mkdir(parents=True, exist_ok=True)
 
@@ -837,6 +850,8 @@ def run_codex_review(plan: SimpleNamespace, dry_run: bool) -> None:
     command = [
         codex_command,
         "exec",
+        "--model",
+        plan.codex_model,
         "--skip-git-repo-check",
         "-C",
         str(plan.repo_root),
@@ -967,6 +982,8 @@ def run_claude_review(plan: SimpleNamespace, dry_run: bool) -> None:
     command = [
         claude_command,
         "-p",
+        "--model",
+        plan.claude_model,
         "--output-format",
         "json",
         "--permission-mode",
@@ -1007,6 +1024,8 @@ def run_consensus_review(plan: SimpleNamespace, dry_run: bool) -> None:
     command = [
         codex_command,
         "exec",
+        "--model",
+        plan.codex_model,
         "--skip-git-repo-check",
         "-C",
         str(plan.repo_root),

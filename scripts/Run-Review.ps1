@@ -4,6 +4,10 @@ param(
 
     [int]$AgyTimeoutSeconds = 900,
 
+    [string]$CodexModel = "gpt-5.5",
+
+    [string]$ClaudeModel = "claude-opus-4-8",
+
     [ValidateSet("All", "Codex", "Agy", "Claude", "Consensus")]
     [string]$Mode = "All"
 )
@@ -14,20 +18,20 @@ $agyTimeoutSeconds = $AgyTimeoutSeconds
 
 $reviewPromptPath = Join-Path $repoRoot "plans\prompts\review.md"
 $consensusPromptPath = Join-Path $repoRoot "plans\prompts\consensus_review.md"
-$reviewsDir = Join-Path $repoRoot "plans\reviews"
-$codexReviewPath = Join-Path $reviewsDir "review-codex.md"
-$geminiReviewPath = Join-Path $reviewsDir "review-gemini.md"
-$claudeReviewPath = Join-Path $reviewsDir "review-claude.md"
-$consensusReviewPath = Join-Path $reviewsDir "review-consensus.md"
-$codexRunLogPath = Join-Path $reviewsDir "review-codex-run.log"
-$geminiRunLogPath = Join-Path $reviewsDir "review-gemini-agy.log"
-$geminiStdIoLogPath = Join-Path $reviewsDir "review-gemini-stdio.log"
-$claudeRunJsonPath = Join-Path $reviewsDir "review-claude-run.json"
-$consensusCodexMessagePath = Join-Path $reviewsDir "review-consensus-codex-message.md"
-$consensusRunLogPath = Join-Path $reviewsDir "review-consensus-codex-run.log"
+$kanbanDir = Join-Path $repoRoot "kanban"
+$codexReviewPath = Join-Path $kanbanDir "review-codex.md"
+$geminiReviewPath = Join-Path $kanbanDir "review-gemini.md"
+$claudeReviewPath = Join-Path $kanbanDir "review-claude.md"
+$consensusReviewPath = Join-Path $kanbanDir "review-consensus.md"
+$codexRunLogPath = Join-Path $kanbanDir "review-codex-run.log"
+$geminiRunLogPath = Join-Path $kanbanDir "review-gemini-agy.log"
+$geminiStdIoLogPath = Join-Path $kanbanDir "review-gemini-stdio.log"
+$claudeRunJsonPath = Join-Path $kanbanDir "review-claude-run.json"
+$consensusCodexMessagePath = Join-Path $kanbanDir "review-consensus-codex-message.md"
+$consensusRunLogPath = Join-Path $kanbanDir "review-consensus-codex-run.log"
 
 Set-Location $repoRoot
-New-Item -ItemType Directory -Force -Path $reviewsDir, "kanban\ice-box", "kanban\pending", "kanban\done" | Out-Null
+New-Item -ItemType Directory -Force -Path $kanbanDir, "kanban\ice-box", "kanban\pending", "kanban\done" | Out-Null
 
 function Assert-PathExists {
     param([string]$Path, [string]$Description)
@@ -169,7 +173,7 @@ Host instruction: perform review only. Do not edit repository files. Return the 
 
     $result = Invoke-NativeCommand -LogPath $codexRunLogPath -ScriptBlock {
         $codexReviewPrompt |
-            & $codexCommand exec --skip-git-repo-check -C $repoRoot --sandbox danger-full-access -o $codexReviewPath -
+            & $codexCommand exec --model $CodexModel --skip-git-repo-check -C $repoRoot --sandbox danger-full-access -o $codexReviewPath -
     }
     $exitCode = $result.ExitCode
     if ($exitCode -ne 0) {
@@ -269,7 +273,7 @@ Host instruction: perform review only. Do not edit repository files. Return the 
 "@
 
     $claudeJson = $claudePrompt |
-        claude -p --output-format json --permission-mode bypassPermissions --allowedTools Read Grep Glob Bash |
+        claude -p --model $ClaudeModel --output-format json --permission-mode bypassPermissions --allowedTools Read Grep Glob Bash |
         Out-String
     $exitCode = $LASTEXITCODE
     $claudeJson | Set-Content -Encoding utf8 $claudeRunJsonPath
@@ -293,7 +297,7 @@ function Run-ConsensusReview {
     $consensusPrompt = Get-Content -Raw -LiteralPath $consensusPromptPath
     $result = Invoke-NativeCommand -LogPath $consensusRunLogPath -ScriptBlock {
         $consensusPrompt |
-            & $codexCommand exec --skip-git-repo-check -C $repoRoot --sandbox danger-full-access -o $consensusCodexMessagePath -
+            & $codexCommand exec --model $CodexModel --skip-git-repo-check -C $repoRoot --sandbox danger-full-access -o $consensusCodexMessagePath -
     }
     $exitCode = $result.ExitCode
     if ($exitCode -ne 0) {
