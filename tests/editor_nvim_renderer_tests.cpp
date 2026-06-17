@@ -1,7 +1,20 @@
 #include <app/editor_nvim_renderer.h>
 
+#include <config_app.h>
+
+#include <zest/file/runtree.h>
+#include <zest/logger/logger.h>
+
+namespace Zest
+{
+Logger logger{ false, LT::DBG };
+bool Log::disabled = false;
+} // namespace Zest
+
 int main()
 {
+    Zest::runtree_init(VKLIVE_ROOT, VKLIVE_ROOT);
+
     const auto metrics = nvim_grid_metrics(ImVec2(805.0f, 402.0f), 8.0f, 16.0f);
     if (metrics.columns != 100 || metrics.rows != 25 || metrics.cell_width != 8.0f || metrics.cell_height != 16.0f)
     {
@@ -41,5 +54,6 @@ int main()
         return 1;
     }
 
+    Zest::runtree_destroy();
     return 0;
 }

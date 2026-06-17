@@ -89,9 +89,12 @@ target_include_directories(Zest
         ${TINYDIR_INCLUDE_DIR}
         ${CPPCODEC_INCLUDE_DIRS}
     PUBLIC
-        ${ZEST_ROOT}/external
         ${ZEST_ROOT}/include
         ${ZEST_ROOT}/include/zest/imgui
+)
+
+target_include_directories(Zest SYSTEM PUBLIC
+    ${ZEST_ROOT}/external
 )
 
 target_link_libraries(Zest
@@ -118,4 +121,3 @@ source_group ("Zest\\UI" .*ui.*)
 source_group ("Zest\\VM" .*vm.*)
 source_group ("Zest\\Device" .*device.*)
 source_group ("Zest\\Algorithm" .*algorithm.*)
-

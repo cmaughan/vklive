@@ -96,6 +96,9 @@ public:
         // Wait or decay over time
         switch (m_state)
         {
+        case TipState::Off:
+        case TipState::On:
+            break;
         case TipState::Wait:
         {
             if (timer_get_elapsed_seconds(m_time) > m_wait)

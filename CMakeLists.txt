@@ -122,6 +122,16 @@ find_package(range-v3 CONFIG REQUIRED)
 find_path(TSL_ORDERED_MAP_INCLUDE_DIRS "tsl/ordered_hash.h")
 find_package(lodepng CONFIG REQUIRED)
 
+set(VKLIVE_VCPKG_INCLUDE_DIR "${CMAKE_BINARY_DIR}/vcpkg_installed/${VCPKG_TARGET_TRIPLET}/include")
+if(EXISTS "${VKLIVE_VCPKG_INCLUDE_DIR}/fmt/format.h")
+    set(VKLIVE_VCPKG_PRIORITY_INCLUDE_DIR "${CMAKE_BINARY_DIR}/generated/vcpkg_include_priority")
+    file(MAKE_DIRECTORY "${VKLIVE_VCPKG_PRIORITY_INCLUDE_DIR}")
+    file(REMOVE_RECURSE "${VKLIVE_VCPKG_PRIORITY_INCLUDE_DIR}/fmt")
+    file(COPY "${VKLIVE_VCPKG_INCLUDE_DIR}/fmt" DESTINATION "${VKLIVE_VCPKG_PRIORITY_INCLUDE_DIR}")
+else()
+    unset(VKLIVE_VCPKG_PRIORITY_INCLUDE_DIR)
+endif()
+
 if(VKLIVE_ENABLE_METAL)
     enable_language(OBJCXX)
     set(CMAKE_OBJCXX_STANDARD 20)
@@ -200,6 +210,28 @@ else()
 endif()
 
 add_subdirectory(libs/vklive_nvim)
+
+function(vklive_suppress_clang_warnings target)
+    if(TARGET ${target})
+        target_compile_options(${target}
+            PRIVATE
+                "$<$<COMPILE_LANG_AND_ID:C,AppleClang,Clang>:${ARGN}>"
+                "$<$<COMPILE_LANG_AND_ID:CXX,AppleClang,Clang>:${ARGN}>"
+                "$<$<COMPILE_LANG_AND_ID:OBJCXX,AppleClang,Clang>:${ARGN}>"
+        )
+    endif()
+endfunction()
+
+function(vklive_prefer_vcpkg_headers target)
+    if(TARGET ${target} AND VKLIVE_VCPKG_PRIORITY_INCLUDE_DIR)
+        target_include_directories(${target} BEFORE PUBLIC ${VKLIVE_VCPKG_PRIORITY_INCLUDE_DIR})
+    endif()
+endfunction()
+
+vklive_prefer_vcpkg_headers(Zing)
+vklive_suppress_clang_warnings(Zest -Wno-deprecated-declarations)
+vklive_suppress_clang_warnings(Zing -Wno-gnu-folding-constant -Wno-implicit-const-int-float-conversion)
+vklive_suppress_clang_warnings(Zep -Wno-deprecated-declarations)
 
 set(VKLIVE_ROOT ${CMAKE_CURRENT_LIST_DIR})
 configure_file(${CMAKE_CURRENT_LIST_DIR}/cmake/config_app.h.cmake ${CMAKE_BINARY_DIR}/config_app.h)
@@ -395,12 +427,16 @@ set(APP_SOURCES
 
 set_source_files_properties (libs/mpc/mpc.c PROPERTIES SKIP_PRECOMPILE_HEADERS 1)
 set_source_files_properties (src/python_scripting.cpp PROPERTIES SKIP_PRECOMPILE_HEADERS 1)
+if(CMAKE_CXX_COMPILER_ID MATCHES "AppleClang|Clang")
+    set_source_files_properties(src/python_scripting.cpp PROPERTIES COMPILE_OPTIONS -Wno-nontrivial-memcall)
+endif()
 if(VKLIVE_ENABLE_METAL)
     set_source_files_properties(${METAL_OBJCXX_SOURCES} PROPERTIES COMPILE_FLAGS "-fobjc-arc")
 endif()
 
 
 add_library(vklive ${LIB_SOURCES})
+vklive_prefer_vcpkg_headers(vklive)
 target_link_libraries(vklive
     PUBLIC
         reproc++
@@ -494,6 +530,7 @@ set(NODEGRAPH_SOURCES
 
 add_library(NodeGraph STATIC ${NODEGRAPH_SOURCES})
 add_library(NodeGraph::NodeGraph ALIAS NodeGraph)
+vklive_prefer_vcpkg_headers(NodeGraph)
 target_link_libraries(NodeGraph PUBLIC Zing::Zing glm::glm fmt::fmt-header-only)
 target_include_directories(NodeGraph
     PUBLIC
