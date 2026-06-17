@@ -5,6 +5,7 @@ import json
 import os
 import pathlib
 import platform
+import re
 import shlex
 import shutil
 import subprocess
@@ -32,6 +33,17 @@ VCPKG_BASELINE = "38d91be5efb2f21fbef4a3c53295002823747431"
 CONFIGURE_STAMP_NAME = ".do-configure.json"
 CONFIGURE_STAMP_VERSION = 1
 _BUILD_ENVIRONMENT: dict[str, str] | None = None
+
+REVIEW_FAILURE_PATTERNS = (
+    "CreateProcessAsUserW failed: 1312",
+    "Agy produced no stdout",
+    "You are not logged into Antigravity",
+    "failed to get model config",
+    "failed to get load code assist response",
+    "Failed to get OAuth token",
+    "permission denied",
+    "not recognized as",
+)
 
 
 def repo_root() -> pathlib.Path:
@@ -571,6 +583,12 @@ def create_review_plan(root: pathlib.Path, agy_timeout_seconds: int = 900, revie
     gemini_review_path = reviews_dir / "review-gemini.md"
     claude_review_path = reviews_dir / "review-claude.md"
     consensus_review_path = reviews_dir / "review-consensus.md"
+    codex_run_log_path = reviews_dir / "review-codex-run.log"
+    gemini_run_log_path = reviews_dir / "review-gemini-agy.log"
+    gemini_stdio_log_path = reviews_dir / "review-gemini-stdio.log"
+    claude_run_json_path = reviews_dir / "review-claude-run.json"
+    consensus_codex_message_path = reviews_dir / "review-consensus-codex-message.md"
+    consensus_run_log_path = reviews_dir / "review-consensus-codex-run.log"
     review_script_path = root / "scripts" / "Run-Review.ps1"
 
     repo_root_ps = powershell_quote(root)
@@ -597,6 +615,12 @@ exit $LASTEXITCODE
         gemini_review_path=gemini_review_path,
         claude_review_path=claude_review_path,
         consensus_review_path=consensus_review_path,
+        codex_run_log_path=codex_run_log_path,
+        gemini_run_log_path=gemini_run_log_path,
+        gemini_stdio_log_path=gemini_stdio_log_path,
+        claude_run_json_path=claude_run_json_path,
+        consensus_codex_message_path=consensus_codex_message_path,
+        consensus_run_log_path=consensus_run_log_path,
         review_script_path=review_script_path,
         mode=mode,
         agy_timeout_seconds=agy_timeout_seconds,
@@ -630,6 +654,12 @@ exit $LASTEXITCODE
         gemini_review_path=plan.gemini_review_path,
         claude_review_path=plan.claude_review_path,
         consensus_review_path=plan.consensus_review_path,
+        codex_run_log_path=plan.codex_run_log_path,
+        gemini_run_log_path=plan.gemini_run_log_path,
+        gemini_stdio_log_path=plan.gemini_stdio_log_path,
+        claude_run_json_path=plan.claude_run_json_path,
+        consensus_codex_message_path=plan.consensus_codex_message_path,
+        consensus_run_log_path=plan.consensus_run_log_path,
         review_script_path=plan.review_script_path,
         mode="Consensus",
         agy_timeout_seconds=plan.agy_timeout_seconds,
@@ -672,6 +702,357 @@ def run_powershell_script(root: pathlib.Path, powershell_script: str, dry_run: b
     return subprocess.run(command, cwd=root, check=False).returncode
 
 
+def resolve_required_command(command: str, install_hint: str, dry_run: bool = False) -> str:
+    resolved = shutil.which(command)
+    if resolved:
+        return resolved
+    if dry_run:
+        return command
+    raise RuntimeError(f"Could not find {command} on PATH. {install_hint}")
+
+
+def resolve_codex_command(dry_run: bool = False) -> str:
+    if sys.platform.startswith("win"):
+        for command in ("codex.cmd", "codex.exe", "codex"):
+            resolved = shutil.which(command)
+            if resolved:
+                return resolved
+        if dry_run:
+            return "codex"
+        raise RuntimeError("Could not find codex.cmd, codex.exe, or codex on PATH. Install or add the Codex CLI to PATH.")
+
+    return resolve_required_command("codex", "Install or add the Codex CLI to PATH.", dry_run)
+
+
+def resolve_agy_command(dry_run: bool = False) -> str:
+    resolved = shutil.which("agy")
+    if resolved:
+        return resolved
+
+    if sys.platform.startswith("win"):
+        local_app_data = os.environ.get("LOCALAPPDATA")
+        if local_app_data:
+            fallback = pathlib.Path(local_app_data) / "agy" / "bin" / "agy.exe"
+            if fallback.exists():
+                return str(fallback)
+            fallback_text = str(fallback)
+        else:
+            fallback_text = r"%LOCALAPPDATA%\agy\bin\agy.exe"
+
+        if dry_run:
+            return "agy"
+        raise RuntimeError(f"Could not find agy on PATH or at {fallback_text}.")
+
+    if dry_run:
+        return "agy"
+    raise RuntimeError("Could not find agy on PATH.")
+
+
+def run_native_command(
+    command: list[str],
+    cwd: pathlib.Path,
+    input_text: str | None = None,
+    log_path: pathlib.Path | None = None,
+    dry_run: bool = False,
+    display_command: list[str] | None = None,
+) -> SimpleNamespace:
+    print("> " + command_text(display_command or command))
+    if dry_run:
+        return SimpleNamespace(returncode=0, stdout="", stderr="", output="", output_lines=[])
+
+    result = subprocess.run(command, cwd=cwd, input=input_text, capture_output=True, text=True, check=False)
+    stdout = result.stdout or ""
+    stderr = result.stderr or ""
+    output = stdout + stderr
+
+    if log_path is not None:
+        log_path.write_text(output, encoding="utf-8")
+    if output:
+        print(output, end="" if output.endswith("\n") else "\n")
+
+    return SimpleNamespace(
+        returncode=result.returncode,
+        stdout=stdout,
+        stderr=stderr,
+        output=output,
+        output_lines=output.splitlines(),
+    )
+
+
+def assert_path_exists(path: pathlib.Path, description: str) -> None:
+    if not path.exists():
+        raise RuntimeError(f"{description} not found: {path}")
+
+
+def ensure_review_workspace(plan: SimpleNamespace, dry_run: bool) -> None:
+    if dry_run:
+        return
+
+    plan.reviews_dir.mkdir(parents=True, exist_ok=True)
+    for folder in ("ice-box", "pending", "done"):
+        (plan.repo_root / "kanban" / folder).mkdir(parents=True, exist_ok=True)
+
+
+def assert_meaningful_review(path: pathlib.Path, name: str) -> None:
+    if not path.exists():
+        raise RuntimeError(f"{name} review did not produce {path}")
+
+    text = path.read_text(encoding="utf-8", errors="ignore")
+    if not text.strip():
+        raise RuntimeError(f"{name} review output is empty: {path}")
+
+    if len(text.strip()) < 500:
+        raise RuntimeError(f"{name} review output is too short to be a useful review: {path}")
+
+    for pattern in REVIEW_FAILURE_PATTERNS:
+        if pattern in text:
+            raise RuntimeError(f"{name} review output looks like a failure ({pattern}): {path}")
+
+
+def clean_agy_output(output_lines: list[str]) -> list[str]:
+    ignored = {
+        "YOLO mode is enabled. All tool calls will be automatically approved.",
+        "Loaded cached credentials.",
+    }
+    return [line for line in output_lines if line and line.strip() not in ignored]
+
+
+def review_prompt_with_instruction(prompt_path: pathlib.Path, instruction: str) -> str:
+    review_prompt = prompt_path.read_text(encoding="utf-8")
+    return f"{review_prompt}\n\n{instruction}\n"
+
+
+def reset_review_output(path: pathlib.Path, dry_run: bool) -> None:
+    if not dry_run and path.exists():
+        path.unlink()
+
+
+def run_codex_review(plan: SimpleNamespace, dry_run: bool) -> None:
+    print("Running Codex review...")
+    codex_command = resolve_codex_command(dry_run)
+    prompt = review_prompt_with_instruction(
+        plan.review_prompt_path,
+        "Host instruction: perform review only. Do not edit repository files. Return the full review as markdown.",
+    )
+    command = [
+        codex_command,
+        "exec",
+        "--skip-git-repo-check",
+        "-C",
+        str(plan.repo_root),
+        "--sandbox",
+        "danger-full-access",
+        "-o",
+        str(plan.codex_review_path),
+        "-",
+    ]
+    result = run_native_command(command, plan.repo_root, input_text=prompt, log_path=plan.codex_run_log_path, dry_run=dry_run)
+    if dry_run:
+        return
+    if result.returncode != 0:
+        raise RuntimeError(f"Codex review failed with exit code {result.returncode}. See {plan.codex_run_log_path}")
+    assert_meaningful_review(plan.codex_review_path, "Codex")
+
+
+def run_gemini_review(plan: SimpleNamespace, dry_run: bool) -> None:
+    print("Running Gemini review through agy...")
+    agy_command = resolve_agy_command(dry_run)
+    reset_review_output(plan.gemini_run_log_path, dry_run)
+    reset_review_output(plan.gemini_stdio_log_path, dry_run)
+    reset_review_output(plan.gemini_review_path, dry_run)
+
+    prompt = review_prompt_with_instruction(
+        plan.review_prompt_path,
+        "\n".join(
+            [
+                "Host instruction: perform review only. Write the complete review to this exact file path:",
+                str(plan.gemini_review_path),
+                "",
+                "Also print the same markdown to stdout. Do not modify any other repository files.",
+            ]
+        ),
+    )
+    command = [
+        agy_command,
+        "--log-file",
+        str(plan.gemini_run_log_path),
+        "--print",
+        prompt,
+        "--print-timeout",
+        f"{plan.agy_timeout_seconds}s",
+        "--dangerously-skip-permissions",
+    ]
+    display_command = [
+        agy_command,
+        "--log-file",
+        str(plan.gemini_run_log_path),
+        "--print",
+        "<review prompt>",
+        "--print-timeout",
+        f"{plan.agy_timeout_seconds}s",
+        "--dangerously-skip-permissions",
+    ]
+    result = run_native_command(command, plan.repo_root, log_path=plan.gemini_stdio_log_path, dry_run=dry_run, display_command=display_command)
+    if dry_run:
+        return
+
+    if result.returncode != 0:
+        output_text = result.output.strip()
+        failure_text = f"""# Gemini review failed
+
+Agy exited with code {result.returncode}.
+
+Stdio log: {plan.gemini_stdio_log_path}
+Agy log: {plan.gemini_run_log_path}
+
+Output:
+
+{output_text}
+"""
+        plan.gemini_review_path.write_text(failure_text, encoding="utf-8")
+        raise RuntimeError(f"Gemini review failed with exit code {result.returncode}. See {plan.gemini_review_path}")
+
+    if plan.gemini_review_path.exists():
+        try:
+            assert_meaningful_review(plan.gemini_review_path, "Gemini")
+            return
+        except RuntimeError as error:
+            print(f"Agy wrote {plan.gemini_review_path}, but it did not validate: {error}")
+
+    clean_output = clean_agy_output(result.output_lines)
+    if not clean_output:
+        log_text = plan.gemini_run_log_path.read_text(encoding="utf-8", errors="ignore") if plan.gemini_run_log_path.exists() else ""
+        log_lines = log_text.splitlines()
+        log_tail = "\n".join(log_lines[-80:]) if log_lines else "<no agy log was written>"
+        failure_text = f"""# Gemini review failed
+
+Agy produced no stdout.
+
+Stdio log: {plan.gemini_stdio_log_path}
+Agy log: {plan.gemini_run_log_path}
+
+Log tail:
+
+{log_tail}
+"""
+        plan.gemini_review_path.write_text(failure_text, encoding="utf-8")
+        raise RuntimeError(f"Gemini review failed because agy produced no stdout. See {plan.gemini_review_path}")
+
+    plan.gemini_review_path.write_text("\n".join(clean_output) + "\n", encoding="utf-8")
+    assert_meaningful_review(plan.gemini_review_path, "Gemini")
+
+
+def find_claude_plan_path(text: str) -> pathlib.Path | None:
+    patterns = (
+        r"[A-Za-z]:\\[^\r\n\"`]*?\\.claude\\plans\\[^\r\n\"`]+?\.md",
+        r"/[^\r\n\"`]*?\.claude/plans/[^\r\n\"`]+?\.md",
+        r"~[^\r\n\"`]*?\.claude/plans/[^\r\n\"`]+?\.md",
+    )
+    for pattern in patterns:
+        match = re.search(pattern, text)
+        if match:
+            path = pathlib.Path(match.group(0)).expanduser()
+            if path.exists():
+                return path
+    return None
+
+
+def run_claude_review(plan: SimpleNamespace, dry_run: bool) -> None:
+    print("Running Claude review...")
+    claude_command = resolve_required_command("claude", "Install or add the Claude CLI to PATH.", dry_run)
+    prompt = review_prompt_with_instruction(
+        plan.review_prompt_path,
+        "Host instruction: perform review only. Do not edit repository files. Return the full review as markdown in your final result.",
+    )
+    command = [
+        claude_command,
+        "-p",
+        "--output-format",
+        "json",
+        "--permission-mode",
+        "bypassPermissions",
+        "--allowedTools",
+        "Read",
+        "Grep",
+        "Glob",
+        "Bash",
+    ]
+    result = run_native_command(command, plan.repo_root, input_text=prompt, dry_run=dry_run)
+    if dry_run:
+        return
+
+    plan.claude_run_json_path.write_text(result.stdout, encoding="utf-8")
+    if result.returncode != 0:
+        raise RuntimeError(f"Claude review failed with exit code {result.returncode}. See {plan.claude_run_json_path}")
+
+    try:
+        claude_json = json.loads(result.stdout)
+    except json.JSONDecodeError as error:
+        raise RuntimeError(f"Claude review returned invalid JSON. See {plan.claude_run_json_path}") from error
+
+    claude_result = str(claude_json.get("result", ""))
+    claude_plan_path = find_claude_plan_path(claude_result)
+    if claude_plan_path is not None:
+        shutil.copy2(claude_plan_path, plan.claude_review_path)
+    else:
+        plan.claude_review_path.write_text(claude_result, encoding="utf-8")
+
+    assert_meaningful_review(plan.claude_review_path, "Claude")
+
+
+def run_consensus_review(plan: SimpleNamespace, dry_run: bool) -> None:
+    print("Running consensus review...")
+    codex_command = resolve_codex_command(dry_run)
+    consensus_prompt = plan.consensus_prompt_path.read_text(encoding="utf-8")
+    command = [
+        codex_command,
+        "exec",
+        "--skip-git-repo-check",
+        "-C",
+        str(plan.repo_root),
+        "--sandbox",
+        "danger-full-access",
+        "-o",
+        str(plan.consensus_codex_message_path),
+        "-",
+    ]
+    result = run_native_command(command, plan.repo_root, input_text=consensus_prompt, log_path=plan.consensus_run_log_path, dry_run=dry_run)
+    if dry_run:
+        return
+    if result.returncode != 0:
+        raise RuntimeError(f"Consensus review failed with exit code {result.returncode}. See {plan.consensus_run_log_path}")
+    assert_meaningful_review(plan.consensus_review_path, "Consensus")
+
+
+def run_native_review(plan: SimpleNamespace, dry_run: bool) -> int:
+    try:
+        assert_path_exists(plan.review_prompt_path, "Review prompt")
+        assert_path_exists(plan.consensus_prompt_path, "Consensus prompt")
+        ensure_review_workspace(plan, dry_run)
+
+        if plan.mode == "All":
+            run_codex_review(plan, dry_run)
+            run_gemini_review(plan, dry_run)
+            run_claude_review(plan, dry_run)
+            print("All reviews succeeded; running consensus...")
+            run_consensus_review(plan, dry_run)
+        elif plan.mode == "Codex":
+            run_codex_review(plan, dry_run)
+        elif plan.mode == "Agy":
+            run_gemini_review(plan, dry_run)
+        elif plan.mode == "Claude":
+            run_claude_review(plan, dry_run)
+        elif plan.mode == "Consensus":
+            run_consensus_review(plan, dry_run)
+        else:
+            raise RuntimeError(f"Unsupported review mode: {plan.mode}")
+    except RuntimeError as error:
+        print(error, file=sys.stderr)
+        return 1
+
+    return 0
+
+
 def expose_compile_commands(root: pathlib.Path, directory: pathlib.Path) -> None:
     source = directory / "compile_commands.json"
     if not source.exists():
@@ -704,7 +1085,7 @@ def test(root: pathlib.Path, config: str, ctest_args: list[str]) -> int:
 
 
 def run_review(plan: SimpleNamespace, dry_run: bool) -> int:
-    return run_powershell_script(plan.repo_root, plan.powershell_script, dry_run)
+    return run_native_review(plan, dry_run)
 
 
 def run_project(root: pathlib.Path, config: str, app_args: list[str]) -> int:

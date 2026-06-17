@@ -98,9 +98,8 @@ class DoScriptTests(unittest.TestCase):
         self.assertEqual(plan.gemini_review_path, ROOT / "plans" / "reviews" / "review-gemini.md")
         self.assertEqual(plan.claude_review_path, ROOT / "plans" / "reviews" / "review-claude.md")
         self.assertEqual(plan.consensus_review_path, ROOT / "plans" / "reviews" / "review-consensus.md")
-        self.assertIn("scripts\\Run-Review.ps1", plan.powershell_script)
-        self.assertIn("-Mode Agy", plan.powershell_script)
-        self.assertIn("-AgyTimeoutSeconds 1200", plan.powershell_script)
+        self.assertEqual(plan.gemini_run_log_path, ROOT / "plans" / "reviews" / "review-gemini-agy.log")
+        self.assertEqual(plan.gemini_stdio_log_path, ROOT / "plans" / "reviews" / "review-gemini-stdio.log")
 
     def test_consensus_command_runs_consensus_mode(self):
         do = load_do_module()
@@ -111,34 +110,87 @@ class DoScriptTests(unittest.TestCase):
         self.assertEqual(parsed.command, "consensus")
         self.assertTrue(parsed.dry_run)
         self.assertEqual(plan.mode, "Consensus")
-        self.assertIn("-Mode Consensus", plan.powershell_script)
-        self.assertNotIn("-AgyTimeoutSeconds", plan.powershell_script)
+        self.assertEqual(plan.consensus_codex_message_path, ROOT / "plans" / "reviews" / "review-consensus-codex-message.md")
+        self.assertEqual(plan.consensus_run_log_path, ROOT / "plans" / "reviews" / "review-consensus-codex-run.log")
 
-    def test_review_main_delegates_to_powershell_runner(self):
+    def test_review_main_delegates_to_native_runner(self):
         do = load_do_module()
 
-        with mock.patch.object(do, "run_powershell_script", return_value=0) as run:
+        with mock.patch.object(do, "run_native_review", return_value=0) as run:
             rc = do.main(["review", "codex", "--dry-run"])
 
         self.assertEqual(rc, 0)
-        self.assertEqual(run.call_args.args[0], ROOT)
-        self.assertIn("Run-Review.ps1", run.call_args.args[1])
-        self.assertTrue(run.call_args.args[2])
+        self.assertEqual(run.call_args.args[0].repo_root, ROOT)
+        self.assertEqual(run.call_args.args[0].mode, "Codex")
+        self.assertTrue(run.call_args.args[1])
+
+    def test_review_dry_run_does_not_require_powershell_on_mac(self):
+        do = load_do_module()
+
+        def fake_which(command):
+            if command in {"pwsh", "powershell"}:
+                return None
+            return f"/usr/bin/{command}"
+
+        with mock.patch.object(do.sys, "platform", "darwin"):
+            with mock.patch.object(do.shutil, "which", side_effect=fake_which):
+                rc = do.main(["review", "codex", "--dry-run"])
+
+        self.assertEqual(rc, 0)
+
+    def test_codex_review_native_runner_writes_review_without_powershell(self):
+        do = load_do_module()
+
+        review_text = "# Codex Review\n\n" + ("This is a concrete review finding with enough detail to be meaningful.\n" * 12)
+        calls: list[list[str]] = []
+
+        def fake_run(command, **kwargs):
+            calls.append([str(part) for part in command])
+            output_path = pathlib.Path(command[command.index("-o") + 1])
+            output_path.parent.mkdir(parents=True, exist_ok=True)
+            output_path.write_text(review_text, encoding="utf-8")
+            return mock.Mock(returncode=0, stdout="codex completed\n", stderr="")
+
+        def fake_which(command):
+            if command in {"pwsh", "powershell"}:
+                return None
+            if command == "codex":
+                return "/usr/bin/codex"
+            return None
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = pathlib.Path(temp_dir)
+            prompts = root / "plans" / "prompts"
+            prompts.mkdir(parents=True)
+            (prompts / "review.md").write_text("VkLive review prompt\n", encoding="utf-8")
+            (prompts / "consensus_review.md").write_text("Consensus prompt\n", encoding="utf-8")
+
+            plan = do.create_review_plan(root, review_target="codex")
+            with mock.patch.object(do.sys, "platform", "darwin"):
+                with mock.patch.object(do.shutil, "which", side_effect=fake_which):
+                    with mock.patch.object(do.subprocess, "run", side_effect=fake_run):
+                        rc = do.run_native_review(plan, dry_run=False)
+
+            self.assertEqual(rc, 0)
+            self.assertEqual(calls[0][0], "/usr/bin/codex")
+            self.assertNotIn("pwsh", calls[0])
+            self.assertEqual(plan.codex_review_path.read_text(encoding="utf-8"), review_text)
+            self.assertEqual(plan.codex_run_log_path.read_text(encoding="utf-8"), "codex completed\n")
+            self.assertTrue((root / "kanban" / "pending").is_dir())
 
     def test_review_runner_contains_multi_model_orchestration(self):
-        script = (ROOT / "scripts" / "Run-Review.ps1").read_text(encoding="utf-8")
+        script = (ROOT / "do.py").read_text(encoding="utf-8")
 
-        self.assertIn('[ValidateSet("All", "Codex", "Agy", "Claude", "Consensus")]', script)
-        self.assertIn("function Resolve-CodexCommand", script)
-        self.assertIn("Get-Command codex.cmd", script)
-        self.assertIn("Run-CodexReview", script)
-        self.assertIn("Run-GeminiReview", script)
-        self.assertIn("Run-ClaudeReview", script)
-        self.assertIn("Run-ConsensusReview", script)
-        self.assertIn("--sandbox danger-full-access", script)
-        self.assertIn("--print $agyPrompt", script)
-        self.assertIn("claude -p --output-format json", script)
-        self.assertIn("Assert-MeaningfulReview", script)
+        self.assertIn("def resolve_codex_command", script)
+        self.assertIn("def run_codex_review", script)
+        self.assertIn("def run_gemini_review", script)
+        self.assertIn("def run_claude_review", script)
+        self.assertIn("def run_consensus_review", script)
+        self.assertIn('"--sandbox"', script)
+        self.assertIn('"danger-full-access"', script)
+        self.assertIn('"--print"', script)
+        self.assertIn('"--output-format"', script)
+        self.assertIn("assert_meaningful_review", script)
         self.assertIn("review-consensus.md", script)
 
     def test_review_prompts_and_kanban_folders_exist(self):
@@ -351,7 +403,8 @@ class DoScriptTests(unittest.TestCase):
             toolchain.write_text("# test toolchain\n", encoding="utf-8")
             build = root / "build" / "release"
             build.mkdir(parents=True)
-            exe = build / "Rezonality.exe"
+            exe = do.exe_path(root, "Release")
+            exe.parent.mkdir(parents=True, exist_ok=True)
             exe.write_text("", encoding="utf-8")
             (build / "build.ninja").write_text("# ninja\n", encoding="utf-8")
             (build / "CMakeCache.txt").write_text(
