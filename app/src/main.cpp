@@ -117,7 +117,8 @@ SDL_Window* init_sdl_window(RenderBackend backend)
         windowFlags |= SDL_WINDOW_MAXIMIZED;
     }
 
-    return SDL_CreateWindow("Rezonality", xPos, yPos, xSize, ySize, windowFlags);
+    auto title = fmt::format("Rezonality ({})", render_backend_display_name(backend));
+    return SDL_CreateWindow(title.c_str(), xPos, yPos, xSize, ySize, windowFlags);
 }
 
 void save_state()
@@ -286,6 +287,10 @@ int main(int argc, char** argv)
     }
     const bool activeViewports = appConfig.viewports || commandLineOptions.viewports;
     const auto activeBackend = device_resolve_backend(appConfig.renderer);
+    // Always report the resolved backend; LOG is compiled out in release builds
+    std::cout << fmt::format("Renderer: {} (requested: {})\n",
+        render_backend_display_name(activeBackend),
+        render_backend_to_string(appConfig.renderer));
     if (commandLineOptions.smokeTest)
     {
         return 0;
